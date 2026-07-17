@@ -6,7 +6,7 @@ MAX_FUNCTION_LINES = 8
 
 
 def analyze_file(file_path: Path) -> None:
-    """Bir Python dosyasındaki uzun fonksiyonları tespit eder."""
+    
 
     try:
         source_code = file_path.read_text(encoding="utf-8")
@@ -43,7 +43,7 @@ def analyze_file(file_path: Path) -> None:
 
                 print(
                     f"Öneri: Fonksiyonu {MAX_FUNCTION_LINES} "
-                    "satırdan daha küçük parçalara ayırın."
+                    
                 )
 
     if finding_count == 0:
