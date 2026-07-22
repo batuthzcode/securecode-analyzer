@@ -95,3 +95,9 @@ Bir dosyada hata oluşması durumunda hata mesajı gösterilecek ve mümkünse d
 * JSON raporu
 * Unit testler
 * Yapılandırılabilir kural sınırları
+
+## Navigation
+
+- [Static Code Analyzer sayfasına dön](README.md)
+- [Tüm bileşenlere dön](../README.md)
+- [Projenin ana sayfasına dön](../../../README.md)

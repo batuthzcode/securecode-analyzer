@@ -152,6 +152,7 @@ Canlı API bağlantısı ayrıca entegrasyon testiyle kontrol edilecektir.
 
 ## Navigation
 
-- [Dependency Scanner sayfasına dön](../README.md)
-- [Tüm bileşenlere dön](../../README.md)
+- [Dependency Scanner sayfasına dön](README.md)
+- [Tüm bileşenlere dön](../README.md)
+- [Proje dokümantasyonuna dön](../../README.md)
 - [Projenin ana sayfasına dön](../../../README.md)

@@ -67,6 +67,6 @@ Prototip şu anda tek bir örnek Python dosyası üzerinde çalışmaktadır.
 
 ## Navigation
 
-- [Static Code Analyzer sayfasına dön](../README.md)
-- [Tüm bileşenlere dön](../../README.md)
+- [Static Code Analyzer sayfasına dön](README.md)
+- [Tüm bileşenlere dön](../README.md)
 - [Projenin ana sayfasına dön](../../../README.md)

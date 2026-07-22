@@ -38,13 +38,16 @@ Sonuçlar terminal ve JSON formatında sunulacaktır.
 
 ## Documentation
 
-- [Analiz ve Gereksinimler](docs/analysis.md)
-- [Teknik Tasarım](docs/technical-design.md)
+- [Analiz ve Gereksinimler](analysis.md)
+- [Teknik Tasarım](technical-design.md)
 
 ## Mevcut Durum
 
 Bu bileşen şu anda analiz ve teknik tasarım aşamasındadır. Geliştirme işlemi proje planındaki ilgili haftada yapılacaktır.
 ## Navigation
 
+## Navigation
+
 - [Tüm bileşenlere dön](../README.md)
-- [Projenin ana sayfasına dön](../../README.md)
+- [Proje dokümantasyonuna dön](../../README.md)
+- [Projenin ana sayfasına dön](../../../README.md)

@@ -96,6 +96,7 @@ Kod geliştirme aşamasında önce `requirements.txt` dosyasının ayrıştırı
 
 ## Navigation
 
-- [Dependency Scanner sayfasına dön](../README.md)
-- [Tüm bileşenlere dön](../../README.md)
+- [Dependency Scanner sayfasına dön](README.md)
+- [Tüm bileşenlere dön](../README.md)
+- [Proje dokümantasyonuna dön](../../README.md)
 - [Projenin ana sayfasına dön](../../../README.md)

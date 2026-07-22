@@ -1,6 +1,6 @@
 # Components
 
-Proje üç ana bileşenden oluşmaktadır. Her bileşenin amacı, girdileri, çıktıları ve mevcut geliştirme durumu kendi README dosyasında açıklanmıştır.
+Proje üç ana bileşenden oluşmaktadır. Her bileşenin amacı, girdileri, çıktıları ve mevcut geliştirme durumu kendi dokümanlarında açıklanmıştır.
 
 ## 1. Static Code Analyzer
 
@@ -20,6 +20,7 @@ Analiz araçlarının geliştirileceği ve test edileceği örnek Flask web uygu
 
 [Sample Web Application dokümanını aç](sample-web-app/README.md)
 
-## Ana Sayfaya Dön
+## Navigation
 
-[Projenin ana README dosyasına dön](../README.md)
+- [Proje dokümantasyonuna dön](../README.md)
+- [Projenin ana sayfasına dön](../../README.md)

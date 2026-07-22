@@ -37,8 +37,8 @@ Sonuçlar terminal ve JSON formatında sunulacaktır.
 
 ## Documentation
 
-- [Analiz ve Gereksinimler](docs/analysis.md)
-- [Teknik Tasarım](docs/technical-design.md)
+- [Analiz ve Gereksinimler](analysis.md)
+- [Teknik Tasarım](technical-design.md)
 
 
 ## Mevcut Durum
@@ -47,4 +47,4 @@ AST kullanarak fonksiyonları bulan ve belirlenen satır sınırından uzun fonk
 ## Navigation
 
 - [Tüm bileşenlere dön](../README.md)
-- [Projenin ana sayfasına dön](../../README.md)
+- [Projenin ana sayfasına dön](../../../README.md)

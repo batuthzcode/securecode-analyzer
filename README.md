@@ -1,34 +1,26 @@
-# Python Security Project
+## [Components](docs/components/README.md)
 
-Python projelerinde kod kalitesi sorunlarını ve bağımlılık güvenlik açıklarını tespit etmeyi amaçlayan bir güvenlik projesidir.
-
-Proje üç ana bileşenden oluşmaktadır:
-
-## [Components](components/README.md)
-
-[Üç bileşenin genel listesini görüntüle](components/README.md)
+[Üç bileşenin genel listesini görüntüle](docs/components/README.md)
 
 ### 1. Static Code Analyzer
 
 Python kaynak kodlarını çalıştırmadan inceleyerek temel kod kalitesi ve güvenlik problemlerini tespit eder.
 
-[Static Code Analyzer bileşenini incele](components/static-analyzer/README.md)
+[Static Code Analyzer bileşenini incele](docs/components/static-analyzer/README.md)
 
 ### 2. Dependency and CVE Scanner
 
 Python projelerindeki bağımlılıkları inceleyerek bilinen güvenlik açıklarını tespit eder.
 
-[Dependency and CVE Scanner bileşenini incele](components/dependency-scanner/README.md)
+[Dependency and CVE Scanner bileşenini incele](docs/components/dependency-scanner/README.md)
 
 ### 3. Sample Web Application
 
 Statik kod analiz aracının ve bağımlılık tarayıcısının test edileceği örnek Flask uygulamasıdır.
 
-[Sample Web Application bileşenini incele](components/sample-web-app/README.md)
+[Sample Web Application bileşenini incele](docs/components/sample-web-app/README.md)
 
 ## Documentation
-
-Tüm proje ve bileşen dokümanlarına aşağıdaki sayfadan ulaşabilirsiniz:
 
 [Proje dokümantasyonunu görüntüle](docs/README.md)
 
@@ -39,9 +31,9 @@ Tüm proje ve bileşen dokümanlarına aşağıdaki sayfadan ulaşabilirsiniz:
 
 ### Bileşen Dokümanları
 
-- [Static Code Analyzer](components/static-analyzer/README.md)
-- [Dependency Scanner](components/dependency-scanner/README.md)
-- [Sample Web Application](components/sample-web-app/README.md)
+- [Static Code Analyzer](docs/components/static-analyzer/README.md)
+- [Dependency Scanner](docs/components/dependency-scanner/README.md)
+- [Sample Web Application](docs/components/sample-web-app/README.md)
 
 ## Current Status
 

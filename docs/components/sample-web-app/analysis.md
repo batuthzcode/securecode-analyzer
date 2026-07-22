@@ -110,6 +110,7 @@ Geliştirme sırasında önce temel Flask uygulaması, ardından CRUD işlemleri
 
 ## Navigation
 
-- [Sample Web Application sayfasına dön](../README.md)
-- [Tüm bileşenlere dön](../../README.md)
+- [Sample Web Application sayfasına dön](README.md)
+- [Tüm bileşenlere dön](../README.md)
+- [Proje dokümantasyonuna dön](../../README.md)
 - [Projenin ana sayfasına dön](../../../README.md)

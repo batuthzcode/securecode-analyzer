@@ -93,5 +93,5 @@ Proje aşağıdaki koşullar sağlandığında başarılı kabul edilecektir:
 ## Navigation
 
 - [Proje dokümantasyonuna dön](README.md)
-- [Tüm bileşenlere git](../components/README.md)
+- [Tüm bileşenlere git](components/README.md)
 - [Projenin ana sayfasına dön](../README.md)
