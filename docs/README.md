@@ -31,5 +31,3 @@ Bu klasörde projenin genel dokümanları ve üç ana bileşene ait dokümanlar 
 
 - [Tüm bileşenleri görüntüle](components/README.md)
 - [Projenin ana sayfasına dön](../README.md)
-
-
