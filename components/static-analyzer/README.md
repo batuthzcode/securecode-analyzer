@@ -35,6 +35,16 @@ Her bulgu için aşağıdaki bilgiler üretilecektir:
 
 Sonuçlar terminal ve JSON formatında sunulacaktır.
 
+## Documentation
+
+- [Analiz ve Gereksinimler](docs/analysis.md)
+- [Teknik Tasarım](docs/technical-design.md)
+
+
 ## Mevcut Durum
 
 AST kullanarak fonksiyonları bulan ve belirlenen satır sınırından uzun fonksiyonları raporlayan ilk prototip hazırlanmıştır.
+## Navigation
+
+- [Tüm bileşenlere dön](../README.md)
+- [Projenin ana sayfasına dön](../../README.md)

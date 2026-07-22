@@ -28,10 +28,20 @@ Statik kod analiz aracının ve bağımlılık tarayıcısının test edileceği
 
 ## Documentation
 
-* [Proje Kapsamı](docs/scope.md)
-* [Analiz ve Gereksinimler](docs/analysis.md)
-* [Teknik Tasarım](docs/technical-design.md)
-* [Proje Planı](docs/project-plan.md)
+Tüm proje ve bileşen dokümanlarına aşağıdaki sayfadan ulaşabilirsiniz:
+
+[Proje dokümantasyonunu görüntüle](docs/README.md)
+
+### Genel Proje Dokümanları
+
+- [Proje Kapsamı](docs/scope.md)
+- [Beş Haftalık Proje Planı](docs/project-plan.md)
+
+### Bileşen Dokümanları
+
+- [Static Code Analyzer](components/static-analyzer/README.md)
+- [Dependency Scanner](components/dependency-scanner/README.md)
+- [Sample Web Application](components/sample-web-app/README.md)
 
 ## Current Status
 

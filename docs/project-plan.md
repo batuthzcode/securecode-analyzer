@@ -1612,3 +1612,9 @@ Proje sonunda aşağıdaki sorulara olumlu cevap verilebilmelidir:
 * GitHub Actions Pull Request sırasında çalışıyor mu?
 * Projenin kurulumu ve kullanımı dokümante edilmiş mi?
 * Geliştirici teslim ettiği kodu açıklayabiliyor mu?
+
+## Navigation
+
+- [Proje dokümantasyonuna dön](README.md)
+- [Tüm bileşenlere git](../components/README.md)
+- [Projenin ana sayfasına dön](../README.md)

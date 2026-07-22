@@ -31,6 +31,15 @@ Kullanıcı tarafından web arayüzünden girilen görev bilgileri.
 * Ekleme, güncelleme ve silme işlemlerinin sonuçları
 * Analiz araçları tarafından incelenebilecek örnek proje yapısı
 
+## Documentation
+
+- [Analiz ve Gereksinimler](docs/analysis.md)
+- [Teknik Tasarım](docs/technical-design.md)
+
 ## Mevcut Durum
 
 Bu bileşen şu anda analiz ve planlama aşamasındadır. Geliştirme işlemi proje planındaki ilgili haftada yapılacaktır.
+## Navigation
+
+- [Tüm bileşenlere dön](../README.md)
+- [Projenin ana sayfasına dön](../../README.md)

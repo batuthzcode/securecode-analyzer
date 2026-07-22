@@ -89,3 +89,9 @@ Proje aşağıdaki koşullar sağlandığında başarılı kabul edilecektir:
 - Temel bileşenler unit testlerle doğrulanmalıdır.
 - Araçlar GitHub Actions içerisinde çalıştırılabilmelidir.
 - Kurulum ve kullanım adımları README dosyasında açıklanmalıdır.
+
+## Navigation
+
+- [Proje dokümantasyonuna dön](README.md)
+- [Tüm bileşenlere git](../components/README.md)
+- [Projenin ana sayfasına dön](../README.md)

@@ -36,6 +36,15 @@ Her güvenlik açığı için aşağıdaki bilgiler üretilecektir:
 
 Sonuçlar terminal ve JSON formatında sunulacaktır.
 
+## Documentation
+
+- [Analiz ve Gereksinimler](docs/analysis.md)
+- [Teknik Tasarım](docs/technical-design.md)
+
 ## Mevcut Durum
 
 Bu bileşen şu anda analiz ve teknik tasarım aşamasındadır. Geliştirme işlemi proje planındaki ilgili haftada yapılacaktır.
+## Navigation
+
+- [Tüm bileşenlere dön](../README.md)
+- [Projenin ana sayfasına dön](../../README.md)
