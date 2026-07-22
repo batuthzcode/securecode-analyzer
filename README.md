@@ -4,7 +4,9 @@ Python projelerinde kod kalitesi sorunlarını ve bağımlılık güvenlik açı
 
 Proje üç ana bileşenden oluşmaktadır:
 
-## Components
+## [Components](components/README.md)
+
+[Üç bileşenin genel listesini görüntüle](components/README.md)
 
 ### 1. Static Code Analyzer
 
