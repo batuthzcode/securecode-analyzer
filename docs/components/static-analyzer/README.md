@@ -65,13 +65,17 @@ Kural aşağıdaki durumları destekler:
 - Fonksiyon ve sınıf isimlendirme kontrolü
 - Hardcoded parola, token veya anahtar tespiti
 
-## Girdi
+## Planlanan Girdiler
 
-- Tek bir Python dosyası
-- Python proje klasörü
+Araç tamamlandığında aşağıdaki girdileri kabul edecektir:
 
-Dosya ve klasör tarama mekanizması henüz geliştirilmemiştir. Mevcut kurallar
-şu anda parse edilmiş AST nesneleri üzerinde çalışmaktadır.
+- Tek bir Python dosyasının yolu
+- Python proje klasörünün yolu
+
+Dosya ve klasör tarama mekanizması henüz geliştirilmemiştir.
+
+Mevcut `LongFunctionRule`, doğrudan parse edilmiş bir `ast.AST` nesnesi ve
+analiz edilen dosyanın yolunu kabul etmektedir.
 
 ## Çıktı
 

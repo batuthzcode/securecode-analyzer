@@ -38,11 +38,13 @@ src/
     ├── models.py
     └── rules/
         ├── __init__.py
-        └── base.py
+        ├── base.py
+        └── long_function.py
 
 tests/
-├── test_models.py
-└── test_base_rule.py
+├── test_base_rule.py
+├── test_long_function_rule.py
+└── test_models.py
 ```
 
 ### 3.1 `static_analyzer.models`
@@ -61,12 +63,18 @@ AST tabanlı analiz kurallarının uygulaması gereken ortak arayüzü tanımlar
 
 ### 3.3 `static_analyzer.rules`
 
-Kural arayüzlerinin paket dışından daha düzenli şekilde kullanılmasını sağlar.
+Kural arayüzlerinin ve somut kural sınıflarının paket dışından düzenli şekilde
+kullanılmasını sağlar.
 
-Bu yapı sayesinde aşağıdaki import kullanılabilir:
+### 3.4 `static_analyzer.rules.long_function`
+
+Yapılandırılmış satır sınırını aşan normal ve asenkron fonksiyonları tespit
+eden `LongFunctionRule` sınıfını içerir.
+
+Bu yapı sayesinde aşağıdaki importlar kullanılabilir:
 
 ```python
-from static_analyzer.rules import BaseRule
+from static_analyzer.rules import BaseRule, LongFunctionRule
 ```
 
 ## 4. Analiz Akışı
@@ -96,9 +104,12 @@ bir kez parse edilmesi planlanmaktadır. Böylece birden fazla kural
 AST tabanlı analiz, kuralın Python sözdizimini veya kodun yapısal ilişkilerini
 incelemesi gerektiğinde kullanılacaktır.
 
-Planlanan AST tabanlı kurallar:
+Uygulanan AST tabanlı kural:
 
 - Uzun fonksiyon tespiti
+
+Planlanan diğer AST tabanlı kurallar:
+
 - Uzun sınıf tespiti
 - Boş `except` bloğu tespiti
 - Fonksiyon isimlendirme kontrolü
@@ -181,8 +192,8 @@ alternatiflerden biri değerlendirilecektir:
 2. Çözüm önerisini `message` içerisinde göstermek
 3. Kural metadata bilgilerinde ortak bir öneri tanımlamak
 
-Bu karar, ilk gerçek analiz kuralı ve çıktı katmanı geliştirilirken
-netleştirilecektir.
+Bu karar, raporlama katmanı geliştirilirken ve çözüm önerilerinin çıktı
+formatındaki yeri kesinleştirilirken tekrar değerlendirilecektir.
 
 ## 7. Kural Mimarisi
 
@@ -262,17 +273,18 @@ değerlendirilecektir:
 
 Gerçek bir metin tabanlı kural geliştirilmeden arayüz gereksiz şekilde
 genişletilmeyecektir.
+
 ### 7.4 `LongFunctionRule` Sınıf Tasarımı
 
-İlk somut AST tabanlı analiz kuralı `LongFunctionRule` olacaktır.
+İlk somut AST tabanlı analiz kuralı olarak `LongFunctionRule` uygulanmıştır.
 
-Sınıf aşağıdaki dosyada bulunacaktır:
+Sınıf aşağıdaki dosyada bulunmaktadır:
 
 ```text
 src/static_analyzer/rules/long_function.py
 ```
 
-Sınıf, `BaseRule` soyut sınıfından kalıtım alacaktır:
+Sınıf, `BaseRule` soyut sınıfından kalıtım almaktadır:
 
 ```python
 class LongFunctionRule(BaseRule):
@@ -281,7 +293,7 @@ class LongFunctionRule(BaseRule):
 
 ### Sınıf Metadata Bilgileri
 
-`LongFunctionRule` aşağıdaki metadata bilgilerini tanımlayacaktır:
+`LongFunctionRule` aşağıdaki metadata bilgilerini tanımlamaktadır:
 
 | Alan | Değer |
 |---|---|
@@ -289,7 +301,7 @@ class LongFunctionRule(BaseRule):
 | `name` | `Long Function` |
 | `description` | Yapılandırılmış satır sınırını aşan fonksiyonları tespit eden açıklama |
 
-Bu bilgiler ileride terminal ve JSON raporlarında kullanılabilecektir.
+Bu bilgiler ileride terminal ve JSON raporlarında kullanılacaktır.
 
 ### Varsayılan Eşik Değeri
 
@@ -299,40 +311,39 @@ Kuralın varsayılan fonksiyon uzunluğu sınırı:
 DEFAULT_MAX_LINES = 50
 ```
 
-Sabit değer modül seviyesinde tanımlanacaktır. Böylece varsayılan değer hem
+Sabit değer modül seviyesinde tanımlanmıştır. Böylece varsayılan değer hem
 sınıf içinde hem de testlerde açık biçimde görülebilecektir.
 
-Kural oluşturulurken özel bir eşik değeri verilebilecektir:
+Kural oluşturulurken özel bir eşik değeri verilebilmektedir:
 
 ```python
 rule = LongFunctionRule(max_lines=30)
 ```
 
-Özel değer verilmezse `50` satırlık varsayılan sınır kullanılacaktır.
+Özel değer verilmezse `50` satırlık varsayılan sınır kullanılmaktadır.
 
 ### Constructor Tasarımı
 
-Sınıfın constructor metodu aşağıdaki sorumluluklara sahip olacaktır:
+Sınıfın constructor metodu aşağıdaki sorumluluklara sahiptir:
 
 - `max_lines` değerini kabul etmek
 - Değeri sınıf örneğinde saklamak
 - Eşik değerinin pozitif bir tam sayı olmasını doğrulamak
 
-Planlanan imza:
+Uygulanan imza:
 
 ```python
 def __init__(self, max_lines: int = DEFAULT_MAX_LINES) -> None:
     ...
 ```
 
-`max_lines` değerinin sıfırdan küçük veya sıfıra eşit olması durumunda
-`ValueError` üretilecektir.
+`max_lines` değeri pozitif bir tam sayı değilse `ValueError` üretilmektedir.
 
 Bu doğrulama, anlamlı olmayan eşik değerleriyle analiz yapılmasını engeller.
 
 ### `check()` Metodu
 
-Kural, `BaseRule` tarafından tanımlanan aşağıdaki sözleşmeyi uygulayacaktır:
+Kural, `BaseRule` tarafından tanımlanan aşağıdaki sözleşmeyi uygulamaktadır:
 
 ```python
 def check(self, tree: ast.AST, file_path: str) -> list[Finding]:
@@ -351,7 +362,7 @@ Metodun çalışma adımları:
 
 ### Fonksiyon Uzunluğu Hesabı
 
-Fonksiyon uzunluğu aşağıdaki formülle hesaplanacaktır:
+Fonksiyon uzunluğu aşağıdaki formülle hesaplanmaktadır:
 
 ```python
 end_line = node.end_lineno or node.lineno
@@ -359,21 +370,21 @@ function_length = end_line - node.lineno + 1
 ```
 
 `end_lineno` bilgisinin bulunmaması durumunda fonksiyon uzunluğu bir satır
-olarak değerlendirilecektir.
+olarak değerlendirilmektedir.
 
-Karşılaştırma aşağıdaki şekilde yapılacaktır:
+Karşılaştırma aşağıdaki şekilde yapılmaktadır:
 
 ```python
 if function_length > self.max_lines:
     ...
 ```
 
-Bu nedenle eşik değerine eşit fonksiyonlar bulgu üretmeyecektir.
+Bu nedenle eşik değerine eşit fonksiyonlar bulgu üretmemektedir.
 
 ### Bulgu Oluşturma
 
 Eşik değerini aşan her fonksiyon için aşağıdaki alanları içeren bir `Finding`
-oluşturulacaktır:
+oluşturulmaktadır:
 
 ```python
 Finding(
@@ -386,13 +397,13 @@ Finding(
 )
 ```
 
-Bulgu mesajı aşağıdaki biçimde olacaktır:
+Bulgu mesajı aşağıdaki biçimde oluşturulmaktadır:
 
 ```text
 Function 'process_data' has 64 lines, exceeding the limit of 50.
 ```
 
-Mesaj içerisinde aşağıdaki bilgiler bulunacaktır:
+Mesaj içerisinde aşağıdaki bilgiler bulunmaktadır:
 
 - Fonksiyon adı
 - Hesaplanan fonksiyon uzunluğu
@@ -400,23 +411,23 @@ Mesaj içerisinde aşağıdaki bilgiler bulunacaktır:
 
 ### Normal ve Asenkron Fonksiyon Desteği
 
-Aşağıdaki iki AST düğümü aynı kuralla kontrol edilecektir:
+Aşağıdaki iki AST düğümü aynı kuralla kontrol edilmektedir:
 
 ```python
 (ast.FunctionDef, ast.AsyncFunctionDef)
 ```
 
 Bu sayede hem `def` hem de `async def` ile tanımlanan fonksiyonlar
-desteklenecektir.
+desteklenmektedir.
 
 ### İç İçe Fonksiyon Davranışı
 
 `ast.walk()` bütün alt düğümleri dolaştığı için iç içe tanımlanan fonksiyonlar
-ayrı ayrı kontrol edilecektir.
+ayrı ayrı kontrol edilmektedir.
 
 Dış fonksiyonun uzunluğu, iç fonksiyona ait satırları da kapsayabilir. İç
 fonksiyon ise kendi başlangıç ve bitiş satırları üzerinden ayrıca
-değerlendirilecektir.
+değerlendirilmektedir.
 
 Bu davranış ilk sürüm için kabul edilmektedir.
 
@@ -426,43 +437,43 @@ AST üzerindeki `FunctionDef.lineno` değeri genellikle `def` veya `async def`
 satırını gösterir.
 
 Fonksiyona ait decorator satırları ilk sürümde fonksiyon uzunluğu hesabına
-eklenmeyecektir.
+eklenmemektedir.
 
 Bu karar analiz dokümanındaki ilk sürüm kapsamıyla uyumludur.
 
 ### Public Export
 
-Kural tamamlandığında aşağıdaki dosya üzerinden dışa aktarılacaktır:
+Kural aşağıdaki dosya üzerinden dışa aktarılmaktadır:
 
 ```text
 src/static_analyzer/rules/__init__.py
 ```
 
-Planlanan kullanım:
+Kullanım:
 
 ```python
 from static_analyzer.rules import LongFunctionRule
 ```
 
 Bu sayede kullanıcı kodunun kuralın gerçek modül yoluna bağımlı olması
-engellenecektir.
+engellenmektedir.
 
 ### Unit Test Yapısı
 
-Kural testleri aşağıdaki dosyada bulunacaktır:
+Kural testleri aşağıdaki dosyada bulunmaktadır:
 
 ```text
 tests/test_long_function_rule.py
 ```
 
 Testlerde küçük Python kaynak kodları `ast.parse()` ile doğrudan AST yapısına
-dönüştürülecektir.
+dönüştürülmektedir.
 
-Planlanan temel test grupları:
+Uygulanan temel test grupları:
 
 - Varsayılan eşik değerinin doğrulanması
 - Özel eşik değerinin kullanılabilmesi
-- Geçersiz eşik değerinin reddedilmesi
+- Sıfır, negatif, boolean ve tam sayı olmayan eşiklerin reddedilmesi
 - Kısa normal fonksiyonun bulgu üretmemesi
 - Uzun normal fonksiyonun bulgu üretmesi
 - Uzun asenkron fonksiyonun bulgu üretmesi
@@ -478,11 +489,11 @@ Bu yaklaşım iç içe fonksiyonları gözden kaçıracağı için tercih edilme
 
 Fonksiyon uzunluğunu hesaplamak için kaynak kod satırlarının ayrıca okunması da
 değerlendirilmiştir. AST zaten başlangıç ve bitiş satırı bilgilerini sunduğu
-için ilk sürümde ek bir kaynak kod işlemi yapılmayacaktır.
+için ilk sürümde ek bir kaynak kod işlemi yapılmamaktadır.
 
 ### Bilinen Sınırlamalar
 
-İlk sürüm aşağıdaki sınırlamalara sahip olacaktır:
+İlk sürüm aşağıdaki sınırlamalara sahiptir:
 
 - Boş satırlar uzunluğa dahil edilir.
 - Yorum satırları uzunluğa dahil edilir.
@@ -523,6 +534,12 @@ Mevcut unit testler aşağıdaki davranışları doğrulamaktadır:
 - `Finding` modelinin varsayılan olarak `WARNING` önem seviyesini kullanması
 - Soyut `BaseRule` sınıfının doğrudan oluşturulamaması
 - Somut bir kuralın `check()` sözleşmesini uygulayabilmesi
+- `LongFunctionRule` sınıfının varsayılan eşiği kullanması
+- Geçersiz eşik değerlerinin reddedilmesi
+- Eşik değerine eşit fonksiyonların kabul edilmesi
+- Uzun normal ve asenkron fonksiyonların tespit edilmesi
+- Birden fazla ve iç içe fonksiyonun ayrı ayrı kontrol edilmesi
+- Bulgu alanlarının doğru üretilmesi
 
 Bütün testler aşağıdaki komutla çalıştırılabilir:
 
@@ -530,8 +547,10 @@ Bütün testler aşağıdaki komutla çalıştırılabilir:
 python -m pytest -v
 ```
 
-Mevcut durumda dört unit test bulunmaktadır ve dört test de başarılı şekilde
-çalışmaktadır.
+Mevcut durumda toplam 14 unit test bulunmaktadır.
+
+Bu testlerin 10 tanesi `LongFunctionRule` davranışlarını doğrulamaktadır.
+Bütün testler başarılı şekilde çalışmaktadır.
 
 Her yeni analiz kuralı için en az aşağıdaki senaryolar test edilecektir:
 
@@ -545,7 +564,7 @@ Her yeni analiz kuralı için en az aşağıdaki senaryolar test edilecektir:
 - Kurala özgü sınır durumları
 
 Testlerde analiz edilmek istenen küçük Python kodları `ast.parse()` ile
-doğrudan AST yapısına dönüştürülebilecektir. Böylece testler için gereksiz
+doğrudan AST yapısına dönüştürülmektedir. Böylece testler için gereksiz
 geçici dosyalar oluşturulması önlenecektir.
 
 ## 10. Geliştirme ve Paketleme Yapısı
@@ -586,10 +605,12 @@ hazırlanmıştır:
 
 Prototip, kalıcı proje mimarisinin bir parçası olarak kullanılmamıştır.
 
-Prototip kodunun sorumlulukları, geliştirilecek gerçek kural sınıflarına,
-analiz motoruna ve çıktı katmanına ayrılacaktır. Böylece tek dosyada bulunan
-deneme kodu yerine test edilebilir ve genişletilebilir modüler bir yapı
-oluşturulacaktır.
+Prototip kodundaki uzun fonksiyon tespiti sorumluluğu
+`LongFunctionRule` sınıfına taşınmıştır. Kalan sorumluluklar analiz motoruna
+ve çıktı katmanına ayrılacaktır.
+
+Böylece tek dosyada bulunan deneme kodu yerine test edilebilir ve
+genişletilebilir modüler bir yapı oluşturulacaktır.
 
 ## 12. Mevcut Uygulama Durumu
 
@@ -607,6 +628,14 @@ Tamamlanan çalışmalar:
 - Geliştirme bağımlılıklarının tanımlanması
 - `.gitignore` dosyasının hazırlanması
 - Sanal geliştirme ortamının kurulması
+- `LongFunctionRule` sınıfının geliştirilmesi
+- Varsayılan 50 satır eşiğinin tanımlanması
+- Özel eşik değeri desteğinin eklenmesi
+- Geçersiz eşik değerlerinin reddedilmesi
+- Normal ve asenkron fonksiyon desteğinin eklenmesi
+- İç içe fonksiyonların ayrı ayrı kontrol edilmesi
+- `LongFunctionRule` sınıfının public paket üzerinden dışa aktarılması
+- Uzun fonksiyon kuralı için 10 test senaryosunun hazırlanması
 
 Henüz tamamlanmayan çalışmalar:
 
@@ -614,7 +643,7 @@ Henüz tamamlanmayan çalışmalar:
 - Kaynak kod okuma ve parse etme servisi
 - Analiz motoru
 - Kural kayıt mekanizması
-- Gerçek analiz kuralları
+- Diğer analiz kuralları
 - Metin tabanlı kural arayüzü
 - Terminal çıktı biçimlendiricisi
 - JSON çıktı katmanı
@@ -627,8 +656,6 @@ Henüz tamamlanmayan çalışmalar:
 
 Planlanan sonraki geliştirmeler:
 
-- İlk somut AST tabanlı analiz kuralının geliştirilmesi
-- Uzun fonksiyon kuralının hazırlanması
 - Klasör ve alt klasör taraması
 - Birden fazla analiz kuralının birlikte çalıştırılması
 - Yapılandırılabilir kural sınırları

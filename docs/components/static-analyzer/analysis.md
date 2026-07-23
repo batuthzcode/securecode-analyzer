@@ -6,7 +6,7 @@ Static Code Analyzer bileşeninin amacı, Python kaynak kodlarını çalıştır
 inceleyerek temel kod kalitesi ve güvenlik problemlerini tespit etmektir.
 
 Araç, tespit ettiği problemlerin doğrudan hata olduğunu iddia etmek yerine
-geliştirici tarafından incelenmesi gereken bulgular üretecektir.
+geliştirici tarafından incelenmesi gereken bulgular üretir.
 
 ## 2. Kapsam
 
@@ -50,23 +50,23 @@ Statik analiz aracı aşağıdaki fonksiyonel gereksinimleri karşılamalıdır:
 7. Bulguları terminalde gösterebilmelidir.
 8. Bulguları JSON formatına dönüştürebilmelidir.
 9. Dosya okuma ve sözdizimi hatalarını kontrollü şekilde yönetebilmelidir.
-10. Kritik veya yapılandırılmış eşik üzerindeki bulgular için başarısız exit
-    code üretebilmelidir.
+10. Yapılandırılan önem seviyesi eşiğine göre uygun exit code
+    üretebilmelidir.
 11. Aynı dosyada birden fazla bulgu üretebilmelidir.
 12. Bir dosyadaki hata mümkünse diğer dosyaların analizini durdurmamalıdır.
 
-## 5. Planlanan Analiz Kuralları
+## 5. Analiz Kuralları
 
-| Kural | Yaklaşım | Gerekçe |
-|---|---|---|
-| Uzun fonksiyon | AST | Fonksiyon başlangıç ve bitiş satırları yapısal olarak incelenir |
-| Uzun sınıf | AST | Gerçek sınıf tanımlarının ve satır aralıklarının bulunması gerekir |
-| Boş `except` bloğu | AST | Gerçek exception blokları incelenmelidir |
-| Fonksiyon isimlendirme | AST | Fonksiyon tanımlarının isimleri kontrol edilir |
-| Sınıf isimlendirme | AST | Sınıf tanımlarının isimleri kontrol edilir |
-| `TODO` ve `FIXME` | Satır taraması | Yorumlar AST içerisinde doğrudan korunmaz |
-| Hardcoded secret | Regex ve metin analizi | Şüpheli anahtar ve değer desenleri aranır |
-| Bağlantı adresi | Regex ve metin analizi | Kaynak kod içerisindeki bağlantı desenleri aranır |
+| Kural | Durum | Yaklaşım | Gerekçe |
+|---|---|---|---|
+| Uzun fonksiyon | Uygulandı | AST | Fonksiyon başlangıç ve bitiş satırları yapısal olarak incelenir |
+| Uzun sınıf | Planlandı | AST | Gerçek sınıf tanımlarının ve satır aralıklarının bulunması gerekir |
+| Boş `except` bloğu | Planlandı | AST | Gerçek exception blokları incelenmelidir |
+| Fonksiyon isimlendirme | Planlandı | AST | Fonksiyon tanımlarının isimleri kontrol edilir |
+| Sınıf isimlendirme | Planlandı | AST | Sınıf tanımlarının isimleri kontrol edilir |
+| `TODO` ve `FIXME` | Planlandı | Satır taraması | Yorumlar AST içerisinde doğrudan korunmaz |
+| Hardcoded secret | Planlandı | Regex ve metin analizi | Şüpheli anahtar ve değer desenleri aranır |
+| Bağlantı adresi | Planlandı | Regex ve metin analizi | Kaynak kod içerisindeki bağlantı desenleri aranır |
 
 AST tabanlı kontroller, yorum veya string içerisindeki ifadeleri gerçek Python
 yapılarıyla karıştırmamak için kullanılacaktır.
@@ -84,7 +84,7 @@ zorlaşabilecek fonksiyonları tespit etmektir.
 
 Bir fonksiyonun uzun olması tek başına kesin bir hata değildir. Bu nedenle
 kural, kodun hatalı olduğunu söylemek yerine geliştirici tarafından
-incelenmesi gereken bir kod kalitesi bulgusu üretecektir.
+incelenmesi gereken bir kod kalitesi bulgusu üretir.
 
 ### 6.2 Kural Bilgileri
 
@@ -108,7 +108,7 @@ WARNING
 
 ### 6.3 Analiz Yöntemi
 
-Bu kural Python'ın yerleşik `ast` modülünü kullanacaktır.
+Kural Python'ın yerleşik `ast` modülünü kullanır.
 
 AST tercih edilmesinin nedenleri:
 
@@ -118,67 +118,60 @@ AST tercih edilmesinin nedenleri:
 - Fonksiyonların başlangıç ve bitiş satırlarının alınabilmesi
 - İç içe tanımlanan fonksiyonların ayrı ayrı incelenebilmesi
 
-Kural aşağıdaki AST düğümlerini kontrol edecektir:
+Kural aşağıdaki AST düğümlerini kontrol eder:
 
 - `ast.FunctionDef`
 - `ast.AsyncFunctionDef`
 
 ### 6.4 Fonksiyon Uzunluğu Hesaplaması
 
-Fonksiyon uzunluğu aşağıdaki AST bilgileri kullanılarak hesaplanacaktır:
+Fonksiyon uzunluğu aşağıdaki AST bilgileri kullanılarak hesaplanır:
 
 - `lineno`: fonksiyon tanımının başladığı satır
 - `end_lineno`: fonksiyon tanımının bittiği satır
-
-Hesaplama:
 
 ```text
 fonksiyon uzunluğu = bitiş satırı - başlangıç satırı + 1
 ```
 
-`end_lineno` bilgisinin bulunmadığı durumda başlangıç satırı kullanılacaktır.
+`end_lineno` bilgisinin bulunmadığı durumda başlangıç satırı kullanılır.
 
 İlk sürümde başlangıç ve bitiş satırları arasındaki toplam fiziksel satır
-sayısı dikkate alınacaktır.
+sayısı dikkate alınır.
 
 ### 6.5 Varsayılan Eşik Değeri
 
-İlk sürümde varsayılan eşik:
+Varsayılan eşik:
 
 ```text
 50 satır
 ```
 
-Fonksiyon uzunluğu eşik değerinden büyük olduğunda bulgu üretilecektir.
-
-Örnek davranış:
+Fonksiyon uzunluğu eşik değerinden büyük olduğunda bulgu üretilir.
 
 - 49 satırlık fonksiyon bulgu üretmez.
 - 50 satırlık fonksiyon bulgu üretmez.
 - 51 satırlık fonksiyon bulgu üretir.
 
-Eşik değerinin daha sonra CLI veya yapılandırma dosyası üzerinden
-değiştirilebilir olması planlanmaktadır.
+Kural oluşturulurken özel bir eşik değeri verilebilir.
 
-### 6.6 Önem Seviyesi
+### 6.6 Eşik Doğrulaması
 
-Uzun fonksiyon bulgularının varsayılan önem seviyesi `WARNING` olacaktır.
+`max_lines` değeri pozitif bir tam sayı olmalıdır.
 
-Bu seviye seçilmiştir çünkü uzun fonksiyon:
+Aşağıdaki değerler reddedilir:
 
-- Doğrudan bir güvenlik açığı değildir.
-- Her zaman çalışma zamanı hatasına neden olmaz.
-- Kodun okunabilirliğini azaltabilir.
-- Unit test yazılmasını zorlaştırabilir.
-- Fonksiyonun birden fazla sorumluluk taşıdığına işaret edebilir.
-- Bakım maliyetini artırabilir.
+- `0`
+- Negatif tam sayılar
+- `True` ve `False`
+- Ondalıklı sayılar
+- Tam sayı olmayan diğer değerler
+
+Geçersiz değerlerde `ValueError` üretilir.
 
 ### 6.7 Üretilecek Bulgu
 
-Kural, eşik değerini aşan her fonksiyon için bir `Finding` nesnesi
-döndürecektir.
-
-Bulgu aşağıdaki alanları içerecektir:
+Kural, eşik değerini aşan her fonksiyon için bir `Finding` nesnesi döndürür.
 
 | Alan | Değer |
 |---|---|
@@ -195,110 +188,35 @@ Bulgu aşağıdaki alanları içerecektir:
 Function 'process_data' has 64 lines, exceeding the limit of 50.
 ```
 
-Örnek bulgu:
+### 6.8 Kabul Kriterleri
 
-```json
-{
-  "rule_id": "SA001",
-  "message": "Function 'process_data' has 64 lines, exceeding the limit of 50.",
-  "file_path": "example.py",
-  "line_number": 12,
-  "severity": "warning",
-  "column_number": 0
-}
-```
+Kural aşağıdaki koşulları sağlamaktadır:
 
-### 6.8 Normal ve Asenkron Fonksiyonlar
+1. Normal Python fonksiyonlarını tespit eder.
+2. Asenkron Python fonksiyonlarını tespit eder.
+3. Eşik değerini aşan fonksiyon için bulgu üretir.
+4. Eşik değerine eşit veya daha kısa fonksiyon için bulgu üretmez.
+5. Özel bir eşik değeriyle çalışır.
+6. Geçersiz eşik değerlerini reddeder.
+7. Bulgunun kural kimliği `SA001` olur.
+8. Bulgunun önem seviyesi `WARNING` olur.
+9. Bulgunun dosya yolu, satır numarası ve sütun numarası doğru olur.
+10. Birden fazla ve iç içe fonksiyon ayrı ayrı kontrol edilir.
 
-Kural hem normal hem de asenkron fonksiyonları kontrol etmelidir.
+### 6.9 Test Senaryoları
 
-Normal fonksiyon örneği:
+`LongFunctionRule` aşağıdaki senaryolarla doğrulanmıştır:
 
-```python
-def process_data():
-    pass
-```
-
-Asenkron fonksiyon örneği:
-
-```python
-async def fetch_data():
-    pass
-```
-
-Her iki fonksiyon türü için aynı uzunluk hesaplama yöntemi kullanılacaktır.
-
-### 6.9 İç İçe Fonksiyonlar
-
-Başka bir fonksiyon içerisinde tanımlanan fonksiyonlar da ayrı bir fonksiyon
-olarak değerlendirilecektir.
-
-Örnek:
-
-```python
-def outer_function():
-    def inner_function():
-        pass
-```
-
-`outer_function` ve `inner_function` kendi başlangıç ve bitiş satırlarına göre
-ayrı ayrı kontrol edilecektir.
-
-### 6.10 Kabul Kriterleri
-
-Uzun fonksiyon kuralı aşağıdaki koşulları sağlamalıdır:
-
-1. Normal Python fonksiyonlarını tespit etmelidir.
-2. Asenkron Python fonksiyonlarını tespit etmelidir.
-3. Eşik değerini aşan fonksiyon için bulgu üretmelidir.
-4. Eşik değerine eşit fonksiyon için bulgu üretmemelidir.
-5. Eşik değerinden kısa fonksiyon için bulgu üretmemelidir.
-6. Özel bir eşik değeriyle çalışabilmelidir.
-7. Bulgunun kural kimliği `SA001` olmalıdır.
-8. Bulgunun önem seviyesi `WARNING` olmalıdır.
-9. Bulgunun dosya yolu doğru olmalıdır.
-10. Bulgunun satır numarası fonksiyonun başlangıç satırı olmalıdır.
-11. Bulgunun sütun numarası AST düğümünden alınmalıdır.
-12. Bulgu mesajı fonksiyon adını içermelidir.
-13. Bulgu mesajı mevcut fonksiyon uzunluğunu içermelidir.
-14. Bulgu mesajı yapılandırılmış eşik değerini içermelidir.
-15. Birden fazla uzun fonksiyon için ayrı bulgular üretilmelidir.
-16. İç içe fonksiyonlar ayrı ayrı kontrol edilmelidir.
-
-### 6.11 Test Senaryoları
-
-Aşağıdaki unit test senaryoları hazırlanacaktır:
-
-- Kısa normal fonksiyon bulgu üretmez.
-- Uzun normal fonksiyon bulgu üretir.
-- Kısa asenkron fonksiyon bulgu üretmez.
-- Uzun asenkron fonksiyon bulgu üretir.
-- Eşik değerine eşit fonksiyon bulgu üretmez.
-- Özel eşik değeri kullanıldığında davranış değişir.
-- Birden fazla uzun fonksiyon ayrı bulgular üretir.
-- İç içe uzun fonksiyon ayrıca bulgu üretir.
-- Bulgu doğru kural kimliğini içerir.
-- Bulgu doğru dosya yolunu içerir.
-- Bulgu doğru satır numarasını içerir.
-- Bulgu doğru sütun numarasını içerir.
-- Bulgu doğru önem seviyesini içerir.
-- Bulgu mesajı gerekli bilgileri içerir.
-
-### 6.12 Kapsam Dışı Durumlar
-
-İlk sürümde aşağıdaki konular uzun fonksiyon kuralının kapsamı dışında
-tutulacaktır:
-
-- Boş satırların hesaplamadan çıkarılması
-- Yorum satırlarının hesaplamadan çıkarılması
-- Docstring satırlarının hesaplamadan çıkarılması
-- Fonksiyon karmaşıklığının ölçülmesi
-- Fonksiyonun yaptığı iş sayısının değerlendirilmesi
-- Fonksiyonun otomatik olarak parçalara ayrılması
-- Refactoring önerisinin otomatik uygulanması
-- Decorator satırlarının fonksiyon uzunluğuna eklenmesi
-
-Bu ihtiyaçlar daha sonraki sürümlerde ayrıca değerlendirilebilir.
+- Varsayılan eşik değeri
+- Sıfır ve negatif eşik değerleri
+- Boolean eşik değerleri
+- Ondalıklı eşik değerleri
+- Eşik değerine eşit fonksiyon
+- Uzun normal fonksiyon
+- Uzun asenkron fonksiyon
+- Birden fazla uzun fonksiyon
+- İç içe fonksiyonlar
+- Bulgu alanları ve mesaj içeriği
 
 ## 7. Çıktı Gereksinimleri
 
@@ -313,20 +231,11 @@ Her bulgu için aşağıdaki bilgilerin üretilmesi beklenmektedir:
 - Problem açıklaması
 - Çözüm önerisi
 
-Mevcut `Finding` modelinde aşağıdaki alanlar bulunmaktadır:
-
-- `rule_id`
-- `message`
-- `file_path`
-- `line_number`
-- `severity`
-- `column_number`
+Mevcut `Finding` modelinde `rule_id`, `message`, `file_path`, `line_number`,
+`severity` ve `column_number` alanları bulunmaktadır.
 
 Kural adı ve çözüm önerisinin hangi katmanda tutulacağı, raporlama bileşeni
 geliştirilirken netleştirilecektir.
-
-Sonuçlar ilk aşamada terminalde gösterilecek, daha sonra JSON formatında
-kaydedilebilecektir.
 
 ## 8. Hata Durumları
 
@@ -340,9 +249,6 @@ Aşağıdaki durumlar kullanıcıya anlaşılır hata mesajlarıyla bildirilmeli
 - Boş klasör verilmesi
 - Kaynak dosyanın UTF-8 olarak okunamaması
 - Analiz kuralının beklenmeyen hata üretmesi
-
-Bir dosyada hata oluşması durumunda mümkünse diğer dosyaların analizi devam
-etmelidir.
 
 ## 9. Fonksiyonel Olmayan Gereksinimler
 
@@ -383,20 +289,19 @@ Tamamlanan çalışmalar:
 - `Finding` veri modeli oluşturuldu.
 - Bulguların sözlük formatına dönüştürülmesi sağlandı.
 - AST tabanlı kurallar için `BaseRule` arayüzü oluşturuldu.
-- Veri modeli ve kural arayüzü unit testleri eklendi.
-- Python geliştirme ve test ortamı yapılandırıldı.
-- Teknik tasarım dokümanı güncellendi.
 - `LongFunctionRule` sınıfı geliştirildi.
 - Normal ve asenkron fonksiyon desteği eklendi.
 - İç içe fonksiyonların ayrı ayrı kontrol edilmesi sağlandı.
 - Yapılandırılabilir satır sınırı eklendi.
 - Geçersiz eşik değerleri için doğrulama eklendi.
 - Uzun fonksiyon kuralı 10 test senaryosuyla doğrulandı.
+- Projenin toplam 14 testi başarılı şekilde çalışmaktadır.
 
 Henüz tamamlanmayan çalışmalar:
 
 - Dosya ve klasör tarama mekanizması
 - Analiz motoru
+- Diğer analiz kuralları
 - CLI
 - Terminal ve JSON raporlama
 - Exit code yönetimi
