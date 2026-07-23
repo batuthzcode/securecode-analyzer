@@ -262,6 +262,234 @@ değerlendirilecektir:
 
 Gerçek bir metin tabanlı kural geliştirilmeden arayüz gereksiz şekilde
 genişletilmeyecektir.
+### 7.4 `LongFunctionRule` Sınıf Tasarımı
+
+İlk somut AST tabanlı analiz kuralı `LongFunctionRule` olacaktır.
+
+Sınıf aşağıdaki dosyada bulunacaktır:
+
+```text
+src/static_analyzer/rules/long_function.py
+```
+
+Sınıf, `BaseRule` soyut sınıfından kalıtım alacaktır:
+
+```python
+class LongFunctionRule(BaseRule):
+    ...
+```
+
+### Sınıf Metadata Bilgileri
+
+`LongFunctionRule` aşağıdaki metadata bilgilerini tanımlayacaktır:
+
+| Alan | Değer |
+|---|---|
+| `rule_id` | `SA001` |
+| `name` | `Long Function` |
+| `description` | Yapılandırılmış satır sınırını aşan fonksiyonları tespit eden açıklama |
+
+Bu bilgiler ileride terminal ve JSON raporlarında kullanılabilecektir.
+
+### Varsayılan Eşik Değeri
+
+Kuralın varsayılan fonksiyon uzunluğu sınırı:
+
+```python
+DEFAULT_MAX_LINES = 50
+```
+
+Sabit değer modül seviyesinde tanımlanacaktır. Böylece varsayılan değer hem
+sınıf içinde hem de testlerde açık biçimde görülebilecektir.
+
+Kural oluşturulurken özel bir eşik değeri verilebilecektir:
+
+```python
+rule = LongFunctionRule(max_lines=30)
+```
+
+Özel değer verilmezse `50` satırlık varsayılan sınır kullanılacaktır.
+
+### Constructor Tasarımı
+
+Sınıfın constructor metodu aşağıdaki sorumluluklara sahip olacaktır:
+
+- `max_lines` değerini kabul etmek
+- Değeri sınıf örneğinde saklamak
+- Eşik değerinin pozitif bir tam sayı olmasını doğrulamak
+
+Planlanan imza:
+
+```python
+def __init__(self, max_lines: int = DEFAULT_MAX_LINES) -> None:
+    ...
+```
+
+`max_lines` değerinin sıfırdan küçük veya sıfıra eşit olması durumunda
+`ValueError` üretilecektir.
+
+Bu doğrulama, anlamlı olmayan eşik değerleriyle analiz yapılmasını engeller.
+
+### `check()` Metodu
+
+Kural, `BaseRule` tarafından tanımlanan aşağıdaki sözleşmeyi uygulayacaktır:
+
+```python
+def check(self, tree: ast.AST, file_path: str) -> list[Finding]:
+    ...
+```
+
+Metodun çalışma adımları:
+
+1. Boş bir bulgu listesi oluşturulur.
+2. AST düğümleri `ast.walk()` kullanılarak dolaşılır.
+3. `ast.FunctionDef` ve `ast.AsyncFunctionDef` düğümleri seçilir.
+4. Her fonksiyonun başlangıç ve bitiş satırları alınır.
+5. Fonksiyonun toplam fiziksel satır sayısı hesaplanır.
+6. Uzunluk yapılandırılmış eşik değerinden büyükse `Finding` oluşturulur.
+7. Tespit edilen bütün bulgular liste olarak döndürülür.
+
+### Fonksiyon Uzunluğu Hesabı
+
+Fonksiyon uzunluğu aşağıdaki formülle hesaplanacaktır:
+
+```python
+end_line = node.end_lineno or node.lineno
+function_length = end_line - node.lineno + 1
+```
+
+`end_lineno` bilgisinin bulunmaması durumunda fonksiyon uzunluğu bir satır
+olarak değerlendirilecektir.
+
+Karşılaştırma aşağıdaki şekilde yapılacaktır:
+
+```python
+if function_length > self.max_lines:
+    ...
+```
+
+Bu nedenle eşik değerine eşit fonksiyonlar bulgu üretmeyecektir.
+
+### Bulgu Oluşturma
+
+Eşik değerini aşan her fonksiyon için aşağıdaki alanları içeren bir `Finding`
+oluşturulacaktır:
+
+```python
+Finding(
+    rule_id=self.rule_id,
+    message=message,
+    file_path=file_path,
+    line_number=node.lineno,
+    column_number=node.col_offset,
+    severity=Severity.WARNING,
+)
+```
+
+Bulgu mesajı aşağıdaki biçimde olacaktır:
+
+```text
+Function 'process_data' has 64 lines, exceeding the limit of 50.
+```
+
+Mesaj içerisinde aşağıdaki bilgiler bulunacaktır:
+
+- Fonksiyon adı
+- Hesaplanan fonksiyon uzunluğu
+- Yapılandırılmış eşik değeri
+
+### Normal ve Asenkron Fonksiyon Desteği
+
+Aşağıdaki iki AST düğümü aynı kuralla kontrol edilecektir:
+
+```python
+(ast.FunctionDef, ast.AsyncFunctionDef)
+```
+
+Bu sayede hem `def` hem de `async def` ile tanımlanan fonksiyonlar
+desteklenecektir.
+
+### İç İçe Fonksiyon Davranışı
+
+`ast.walk()` bütün alt düğümleri dolaştığı için iç içe tanımlanan fonksiyonlar
+ayrı ayrı kontrol edilecektir.
+
+Dış fonksiyonun uzunluğu, iç fonksiyona ait satırları da kapsayabilir. İç
+fonksiyon ise kendi başlangıç ve bitiş satırları üzerinden ayrıca
+değerlendirilecektir.
+
+Bu davranış ilk sürüm için kabul edilmektedir.
+
+### Decorator Satırları
+
+AST üzerindeki `FunctionDef.lineno` değeri genellikle `def` veya `async def`
+satırını gösterir.
+
+Fonksiyona ait decorator satırları ilk sürümde fonksiyon uzunluğu hesabına
+eklenmeyecektir.
+
+Bu karar analiz dokümanındaki ilk sürüm kapsamıyla uyumludur.
+
+### Public Export
+
+Kural tamamlandığında aşağıdaki dosya üzerinden dışa aktarılacaktır:
+
+```text
+src/static_analyzer/rules/__init__.py
+```
+
+Planlanan kullanım:
+
+```python
+from static_analyzer.rules import LongFunctionRule
+```
+
+Bu sayede kullanıcı kodunun kuralın gerçek modül yoluna bağımlı olması
+engellenecektir.
+
+### Unit Test Yapısı
+
+Kural testleri aşağıdaki dosyada bulunacaktır:
+
+```text
+tests/test_long_function_rule.py
+```
+
+Testlerde küçük Python kaynak kodları `ast.parse()` ile doğrudan AST yapısına
+dönüştürülecektir.
+
+Planlanan temel test grupları:
+
+- Varsayılan eşik değerinin doğrulanması
+- Özel eşik değerinin kullanılabilmesi
+- Geçersiz eşik değerinin reddedilmesi
+- Kısa normal fonksiyonun bulgu üretmemesi
+- Uzun normal fonksiyonun bulgu üretmesi
+- Uzun asenkron fonksiyonun bulgu üretmesi
+- Eşik değerine eşit fonksiyonun bulgu üretmemesi
+- Birden fazla uzun fonksiyonun ayrı bulgular üretmesi
+- İç içe fonksiyonların ayrı kontrol edilmesi
+- Bulgu alanlarının doğru oluşturulması
+
+### Değerlendirilen Alternatifler
+
+Fonksiyonların yalnızca doğrudan AST gövdesinde aranması değerlendirilmiştir.
+Bu yaklaşım iç içe fonksiyonları gözden kaçıracağı için tercih edilmemiştir.
+
+Fonksiyon uzunluğunu hesaplamak için kaynak kod satırlarının ayrıca okunması da
+değerlendirilmiştir. AST zaten başlangıç ve bitiş satırı bilgilerini sunduğu
+için ilk sürümde ek bir kaynak kod işlemi yapılmayacaktır.
+
+### Bilinen Sınırlamalar
+
+İlk sürüm aşağıdaki sınırlamalara sahip olacaktır:
+
+- Boş satırlar uzunluğa dahil edilir.
+- Yorum satırları uzunluğa dahil edilir.
+- Docstring satırları uzunluğa dahil edilir.
+- Decorator satırları uzunluğa dahil edilmez.
+- Dış fonksiyonun uzunluğu iç fonksiyonun satırlarını da kapsayabilir.
+- Fonksiyonun bilişsel veya döngüsel karmaşıklığı ölçülmez.
 
 ## 8. Hata Yönetimi
 
