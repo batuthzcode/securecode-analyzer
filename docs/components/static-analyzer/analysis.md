@@ -9,7 +9,6 @@ Araç, tespit ettiği problemlerin doğrudan hata olduğunu iddia etmek yerine
 geliştirici tarafından incelenmesi gereken bulgular üretir.
 
 ## 2. Kapsam
-
 Bileşenin temel kapsamı aşağıdaki işlemleri içerir:
 
 - Tek bir Python dosyasını analiz etmek
@@ -60,7 +59,7 @@ Statik analiz aracı aşağıdaki fonksiyonel gereksinimleri karşılamalıdır:
 | Kural | Durum | Yaklaşım | Gerekçe |
 |---|---|---|---|
 | Uzun fonksiyon | Uygulandı | AST | Fonksiyon başlangıç ve bitiş satırları yapısal olarak incelenir |
-| Uzun sınıf | Planlandı | AST | Gerçek sınıf tanımlarının ve satır aralıklarının bulunması gerekir |
+| Uzun sınıf | Geliştiriliyor | AST | Gerçek sınıf tanımlarının ve satır aralıklarının bulunması gerekir |
 | Boş `except` bloğu | Planlandı | AST | Gerçek exception blokları incelenmelidir |
 | Fonksiyon isimlendirme | Planlandı | AST | Fonksiyon tanımlarının isimleri kontrol edilir |
 | Sınıf isimlendirme | Planlandı | AST | Sınıf tanımlarının isimleri kontrol edilir |
@@ -217,8 +216,203 @@ Kural aşağıdaki koşulları sağlamaktadır:
 - Birden fazla uzun fonksiyon
 - İç içe fonksiyonlar
 - Bulgu alanları ve mesaj içeriği
+## 7. Uzun Sınıf Kuralı
 
-## 7. Çıktı Gereksinimleri
+### 7.1 Amaç
+
+Uzun sınıf kuralının amacı; çok fazla sorumluluk üstlenmiş olabilecek,
+okunması, test edilmesi ve bakımı zorlaşan sınıfları tespit etmektir.
+
+Bir sınıfın uzun olması tek başına kesin bir kod hatası değildir. Bu nedenle
+kural, geliştirici tarafından incelenmesi gereken bir kod kalitesi bulgusu
+üretecektir.
+
+### 7.2 Kural Bilgileri
+
+Kural kimliği:
+
+```text
+SA002
+```
+
+Kural adı:
+
+```text
+Long Class
+```
+
+Varsayılan önem seviyesi:
+
+```text
+WARNING
+```
+
+### 7.3 Analiz Yöntemi
+
+Kural Python'ın yerleşik `ast` modülünü kullanacaktır.
+
+AST tercih edilmesinin nedenleri:
+
+- Gerçek sınıf tanımlarının güvenilir şekilde bulunabilmesi
+- Yorum veya string içerisindeki `class` ifadelerinin dikkate alınmaması
+- Sınıfların başlangıç ve bitiş satırlarının alınabilmesi
+- İç içe tanımlanan sınıfların ayrı ayrı incelenebilmesi
+- Metotların ait oldukları sınıf yapısı içerisinde değerlendirilmesi
+
+Kural aşağıdaki AST düğümünü kontrol edecektir:
+
+```python
+ast.ClassDef
+```
+
+### 7.4 Sınıf Uzunluğu Hesaplaması
+
+Sınıf uzunluğu aşağıdaki AST bilgileri kullanılarak hesaplanacaktır:
+
+- `lineno`: sınıf tanımının başladığı satır
+- `end_lineno`: sınıf tanımının bittiği satır
+
+```text
+sınıf uzunluğu = bitiş satırı - başlangıç satırı + 1
+```
+
+Planlanan Python hesabı:
+
+```python
+end_line = node.end_lineno or node.lineno
+class_length = end_line - node.lineno + 1
+```
+
+`end_lineno` bilgisinin bulunmadığı durumda başlangıç satırı yedek değer olarak
+kullanılacaktır.
+
+İlk sürümde başlangıç ve bitiş satırları arasındaki toplam fiziksel satır
+sayısı dikkate alınacaktır.
+
+### 7.5 Varsayılan Eşik Değeri
+
+Varsayılan sınıf uzunluğu sınırı:
+
+```text
+200 satır
+```
+
+Sınıf uzunluğu eşik değerinden büyük olduğunda bulgu üretilecektir.
+
+- 199 satırlık sınıf bulgu üretmez.
+- 200 satırlık sınıf bulgu üretmez.
+- 201 satırlık sınıf bulgu üretir.
+
+Kural oluşturulurken özel bir eşik değeri verilebilecektir:
+
+```python
+rule = LongClassRule(max_lines=100)
+```
+
+### 7.6 Eşik Doğrulaması
+
+`max_lines` değeri pozitif bir tam sayı olmalıdır.
+
+Aşağıdaki değerler reddedilecektir:
+
+- `0`
+- Negatif tam sayılar
+- `True` ve `False`
+- Ondalıklı sayılar
+- Tam sayı olmayan diğer değerler
+
+Geçersiz değerlerde `ValueError` üretilecektir.
+
+### 7.7 Üretilecek Bulgu
+
+Kural, eşik değerini aşan her sınıf için bir `Finding` nesnesi döndürecektir.
+
+| Alan | Değer |
+|---|---|
+| `rule_id` | `SA002` |
+| `message` | Sınıf adı, mevcut uzunluk ve izin verilen eşik |
+| `file_path` | Analiz edilen dosyanın yolu |
+| `line_number` | Sınıfın başladığı satır |
+| `column_number` | AST düğümündeki `col_offset` değeri |
+| `severity` | `WARNING` |
+
+Örnek mesaj:
+
+```text
+Class 'DataProcessor' has 241 lines, exceeding the limit of 200.
+```
+
+### 7.8 İç İçe Sınıf Davranışı
+
+AST düğümleri `ast.walk()` ile dolaşılacaktır.
+
+Bu nedenle iç içe tanımlanan sınıflar ayrı AST düğümleri olarak kontrol
+edilecektir.
+
+Dış sınıfın uzunluğu iç sınıfa ait satırları kapsayabilir. İç sınıf ise kendi
+başlangıç ve bitiş satırları üzerinden ayrıca değerlendirilecektir.
+
+Bu davranış ilk sürüm için kabul edilmektedir.
+
+### 7.9 Decorator Satırları
+
+AST üzerindeki `ClassDef.lineno` değeri genellikle `class` satırını gösterir.
+
+Sınıfa ait decorator satırları ilk sürümde sınıf uzunluğu hesabına dahil
+edilmeyecektir.
+
+Bu davranış `LongFunctionRule` ile tutarlı olacaktır.
+
+### 7.10 Kabul Kriterleri
+
+Kural aşağıdaki koşulları sağlamalıdır:
+
+1. Python sınıf tanımlarını tespit etmelidir.
+2. Eşik değerini aşan sınıf için bulgu üretmelidir.
+3. Eşik değerine eşit sınıf için bulgu üretmemelidir.
+4. Eşik değerinden kısa sınıf için bulgu üretmemelidir.
+5. Varsayılan eşik değeri 200 olmalıdır.
+6. Özel bir eşik değeriyle çalışabilmelidir.
+7. Geçersiz eşik değerlerini reddetmelidir.
+8. Bulgunun kural kimliği `SA002` olmalıdır.
+9. Bulgunun önem seviyesi `WARNING` olmalıdır.
+10. Dosya yolu, satır numarası ve sütun numarası doğru olmalıdır.
+11. Birden fazla uzun sınıf için ayrı bulgular oluşturmalıdır.
+12. İç içe sınıfları ayrı ayrı kontrol etmelidir.
+13. Bulgu mesajında sınıf adı bulunmalıdır.
+14. Bulgu mesajında hesaplanan sınıf uzunluğu bulunmalıdır.
+15. Bulgu mesajında yapılandırılmış eşik değeri bulunmalıdır.
+
+### 7.11 Planlanan Test Senaryoları
+
+`LongClassRule` için aşağıdaki senaryolar test edilecektir:
+
+- Varsayılan 200 satır eşik değeri
+- Özel eşik değerinin kullanılması
+- Sıfır eşik değerinin reddedilmesi
+- Negatif eşik değerinin reddedilmesi
+- Boolean eşik değerinin reddedilmesi
+- Ondalıklı eşik değerinin reddedilmesi
+- Eşik değerinden kısa sınıf
+- Eşik değerine eşit sınıf
+- Eşik değerini aşan sınıf
+- Birden fazla uzun sınıf
+- İç içe sınıflar
+- Bulgu alanları ve mesaj içeriği
+
+### 7.12 İlk Sürüm Kapsamı Dışındaki Durumlar
+
+İlk sürümde aşağıdaki ölçümler yapılmayacaktır:
+
+- Sınıf içerisindeki metot sayısı
+- Sınıf içerisindeki alan sayısı
+- Sınıfın kalıtım derinliği
+- Sınıfın bağımlılık sayısı
+- Sınıfın bağlılık veya uyum seviyesi
+- Bilişsel karmaşıklık
+- Yalnızca çalıştırılabilir satırların sayılması
+
+## 8. Çıktı Gereksinimleri
 
 Her bulgu için aşağıdaki bilgilerin üretilmesi beklenmektedir:
 
@@ -237,7 +431,7 @@ Mevcut `Finding` modelinde `rule_id`, `message`, `file_path`, `line_number`,
 Kural adı ve çözüm önerisinin hangi katmanda tutulacağı, raporlama bileşeni
 geliştirilirken netleştirilecektir.
 
-## 8. Hata Durumları
+## 9. Hata Durumları
 
 Aşağıdaki durumlar kullanıcıya anlaşılır hata mesajlarıyla bildirilmelidir:
 
@@ -250,37 +444,37 @@ Aşağıdaki durumlar kullanıcıya anlaşılır hata mesajlarıyla bildirilmeli
 - Kaynak dosyanın UTF-8 olarak okunamaması
 - Analiz kuralının beklenmeyen hata üretmesi
 
-## 9. Fonksiyonel Olmayan Gereksinimler
+## 10. Fonksiyonel Olmayan Gereksinimler
 
-### 9.1 Genişletilebilirlik
+### 10.1 Genişletilebilirlik
 
 Yeni analiz kuralları mevcut kurallar değiştirilmeden eklenebilmelidir.
 
-### 9.2 Test Edilebilirlik
+### 10.2 Test Edilebilirlik
 
 Her analiz kuralı bağımsız unit testlerle doğrulanabilmelidir.
 
-### 9.3 Okunabilirlik
+### 10.3 Okunabilirlik
 
 Kod, anlaşılır sınıf ve fonksiyon isimleriyle geliştirilmelidir. Kamuya açık
 sınıf ve fonksiyonlar açıklayıcı docstring içermelidir.
 
-### 9.4 Güvenlik
+### 10.4 Güvenlik
 
 Analiz edilen kaynak kod çalıştırılmamalıdır. Kaynak kod yalnızca metin ve AST
 yapısı üzerinden incelenmelidir.
 
-### 9.5 Taşınabilirlik
+### 10.5 Taşınabilirlik
 
 Araç Windows, Linux ve macOS ortamlarında çalışabilecek şekilde
 geliştirilmelidir.
 
-### 9.6 Performans
+### 10.6 Performans
 
 Her Python dosyası AST tabanlı kurallar için mümkün olduğunca yalnızca bir kez
 parse edilmelidir.
 
-## 10. Mevcut Durum
+## 11. Mevcut Durum
 
 Tamamlanan çalışmalar:
 
@@ -301,13 +495,14 @@ Henüz tamamlanmayan çalışmalar:
 
 - Dosya ve klasör tarama mekanizması
 - Analiz motoru
+- `SA002` uzun sınıf kuralının geliştirilmesi
 - Diğer analiz kuralları
 - CLI
 - Terminal ve JSON raporlama
 - Exit code yönetimi
 - CI/CD entegrasyonu
 
-## 11. Navigation
+## 12. Navigation
 
 - [Static Code Analyzer sayfasına dön](README.md)
 - [Teknik Tasarım](technical-design.md)
