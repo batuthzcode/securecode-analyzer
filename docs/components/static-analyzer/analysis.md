@@ -503,7 +503,189 @@ Henüz tamamlanmayan çalışmalar:
 - Terminal ve JSON raporlama
 - Exit code yönetimi
 - CI/CD entegrasyonu
-## 12. Navigation
+
+## 12. Dosya Tarayıcı Gereksinimleri
+
+### 12.1 Amaç
+
+Dosya tarayıcı, kullanıcı tarafından verilen hedef dizin içerisindeki Python
+kaynak dosyalarını bulmakla sorumludur.
+
+Tarayıcı yalnızca dosya keşfi yapacaktır. Dosya içeriğini okuma, kaynak kodu
+parse etme ve analiz kurallarını çalıştırma sorumlulukları sonraki
+bileşenlerde ele alınacaktır.
+
+Bu ayrım sayesinde dosya keşfi ve kaynak kod analizi birbirinden bağımsız
+olarak test edilebilir.
+
+### 12.2 Girdi
+
+Tarayıcı hedef dizini aşağıdaki veri tiplerinden biriyle kabul edebilmelidir:
+
+```python
+str | pathlib.Path
+```
+
+Örnek:
+
+```python
+scanner.scan("src")
+```
+
+veya:
+
+```python
+scanner.scan(Path("src"))
+```
+
+### 12.3 Hedef Dizin Doğrulaması
+
+Tarayıcı analiz başlamadan önce hedef yolu doğrulamalıdır.
+
+Aşağıdaki davranışlar uygulanacaktır:
+
+- Hedef yol mevcut değilse `FileNotFoundError` üretilmesi
+- Hedef yol bir dizin değilse `NotADirectoryError` üretilmesi
+- Geçerli bir dizin verilirse taramanın başlatılması
+
+Hatalar sessizce yok sayılmayacaktır. Böylece CLI katmanı ileride kullanıcıya
+anlaşılır bir hata mesajı gösterebilecektir.
+
+### 12.4 Python Dosyalarının Bulunması
+
+Tarayıcı hedef dizin içerisindeki `.py` uzantılı dosyaları bulmalıdır.
+
+Arama aşağıdaki kapsamı içermelidir:
+
+- Hedef dizinin doğrudan içerisindeki Python dosyaları
+- Hedef dizinin alt klasörlerindeki Python dosyaları
+- Birden fazla klasör seviyesindeki Python dosyaları
+
+Python uzantısı taşımayan dosyalar sonuç listesine dahil edilmemelidir.
+
+Örnek olarak aşağıdaki dosyalar dikkate alınmaz:
+
+```text
+README.md
+requirements.txt
+config.json
+example.pyc
+```
+
+### 12.5 Varsayılan Hariç Tutulan Dizinler
+
+Aşağıdaki dizinler varsayılan olarak tarama dışında bırakılmalıdır:
+
+```text
+.git
+.venv
+__pycache__
+```
+
+Bu dizinlerin içindeki `.py` dosyaları sonuç listesine eklenmemelidir.
+
+Hariç tutulan dizinler alt klasörleriyle birlikte tarama dışında
+bırakılmalıdır.
+
+### 12.6 Özel Hariç Tutma Desteği
+
+Kullanıcı varsayılan dizinlere ek olarak özel klasör adları verebilmelidir.
+
+Örnek:
+
+```python
+scanner = FileScanner(
+    excluded_directories={"generated", "vendor"},
+)
+```
+
+Özel dizinler varsayılan hariç tutma listesine eklenmelidir. Varsayılan
+güvenli hariç tutmalar kaldırılmamalıdır.
+
+### 12.7 Çıktı
+
+Tarama sonucunda Python dosyalarının `pathlib.Path` nesnelerinden oluşan bir
+listesi döndürülmelidir:
+
+```python
+list[Path]
+```
+
+Sonuç listesi aynı dosya yapısı için her çalıştırmada aynı sırada olmalıdır.
+
+Bu nedenle dosya yolları sıralanarak döndürülmelidir.
+
+Hiç Python dosyası bulunmaması hata değildir. Bu durumda boş liste
+döndürülmelidir:
+
+```python
+[]
+```
+
+### 12.8 Sembolik Bağlantılar
+
+İlk sürümde sembolik bağlantı olarak tanımlanan dizinler takip
+edilmeyecektir.
+
+Bu karar aşağıdaki riskleri azaltır:
+
+- Sonsuz klasör döngüleri
+- Aynı dosyanın birden fazla kez bulunması
+- Hedef dizinin dışındaki dosyaların yanlışlıkla taranması
+
+### 12.9 Sorumluluk Sınırları
+
+Dosya tarayıcı ilk sürümde aşağıdaki işlemleri yapmayacaktır:
+
+- Dosya içeriğini okumak
+- UTF-8 doğrulaması yapmak
+- Python sözdizimini doğrulamak
+- AST oluşturmak
+- Analiz kurallarını çalıştırmak
+- Bulgu üretmek
+- Terminal veya JSON çıktısı oluşturmak
+
+Bu sorumluluklar kaynak kod okuyucu, analiz motoru ve raporlama katmanlarında
+ele alınacaktır.
+
+### 12.10 Kabul Kriterleri
+
+Dosya tarayıcı aşağıdaki koşulları sağlamalıdır:
+
+1. Geçerli bir hedef dizini kabul eder.
+2. `str` ve `Path` girdileriyle çalışır.
+3. Hedef dizindeki `.py` dosyalarını bulur.
+4. Alt klasörlerdeki `.py` dosyalarını bulur.
+5. Python olmayan dosyaları dikkate almaz.
+6. `.git` dizinini tarama dışında bırakır.
+7. `.venv` dizinini tarama dışında bırakır.
+8. `__pycache__` dizinini tarama dışında bırakır.
+9. Özel olarak belirtilen klasörleri tarama dışında bırakır.
+10. Sonuçları sıralı şekilde döndürür.
+11. Sonuçları `Path` nesneleri olarak döndürür.
+12. Python dosyası olmayan dizin için boş liste döndürür.
+13. Mevcut olmayan hedef için `FileNotFoundError` üretir.
+14. Dosya olarak verilen hedef için `NotADirectoryError` üretir.
+15. Sembolik bağlantı dizinlerini takip etmez.
+
+### 12.11 Planlanan Test Senaryoları
+
+Dosya tarayıcı için aşağıdaki testler hazırlanacaktır:
+
+- Varsayılan hariç tutulan dizinlerin doğrulanması
+- Özel hariç tutulan dizinlerin saklanması
+- Mevcut olmayan hedef yol
+- Hedef yolun dosya olması
+- Boş dizin taraması
+- Kök dizindeki Python dosyasının bulunması
+- Alt klasörlerdeki Python dosyalarının bulunması
+- Python olmayan dosyaların yok sayılması
+- Varsayılan hariç tutulan klasörlerin atlanması
+- Özel hariç tutulan klasörlerin atlanması
+- Sonuçların sıralı döndürülmesi
+- Sonuçların `Path` nesnelerinden oluşması
+
+## 13. Navigation
 
 - [Static Code Analyzer sayfasına dön](README.md)
 - [Teknik Tasarım](technical-design.md)
