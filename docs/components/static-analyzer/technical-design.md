@@ -39,10 +39,12 @@ src/
     └── rules/
         ├── __init__.py
         ├── base.py
+        ├── long_class.py
         └── long_function.py
 
 tests/
 ├── test_base_rule.py
+├── test_long_class_rule.py
 ├── test_long_function_rule.py
 └── test_models.py
 ```
@@ -76,6 +78,19 @@ Bu yapı sayesinde aşağıdaki importlar kullanılabilir:
 ```python
 from static_analyzer.rules import BaseRule, LongFunctionRule
 ```
+### 3.5 `static_analyzer.rules.long_class`
+
+Yapılandırılmış satır sınırını aşan Python sınıflarını tespit eden
+`LongClassRule` sınıfını içerir.
+
+Kural, normal ve iç içe sınıf tanımlarını `ast.ClassDef` düğümleri üzerinden
+kontrol eder.
+
+Bu yapı sayesinde aşağıdaki import kullanılabilir:
+
+```python
+from static_analyzer.rules import LongClassRule
+```
 
 ## 4. Analiz Akışı
 
@@ -104,13 +119,13 @@ bir kez parse edilmesi planlanmaktadır. Böylece birden fazla kural
 AST tabanlı analiz, kuralın Python sözdizimini veya kodun yapısal ilişkilerini
 incelemesi gerektiğinde kullanılacaktır.
 
-Uygulanan AST tabanlı kural:
+Uygulanan AST tabanlı kurallar:
 
 - Uzun fonksiyon tespiti
+- Uzun sınıf tespiti
 
 Planlanan diğer AST tabanlı kurallar:
 
-- Uzun sınıf tespiti
 - Boş `except` bloğu tespiti
 - Fonksiyon isimlendirme kontrolü
 - Sınıf isimlendirme kontrolü
@@ -501,6 +516,237 @@ için ilk sürümde ek bir kaynak kod işlemi yapılmamaktadır.
 - Decorator satırları uzunluğa dahil edilmez.
 - Dış fonksiyonun uzunluğu iç fonksiyonun satırlarını da kapsayabilir.
 - Fonksiyonun bilişsel veya döngüsel karmaşıklığı ölçülmez.
+### 7.5 `LongClassRule` Sınıf Tasarımı
+
+İkinci somut AST tabanlı analiz kuralı olarak `LongClassRule`
+uygulanmıştır.
+
+Sınıf aşağıdaki dosyada bulunmaktadır:
+
+```text
+src/static_analyzer/rules/long_class.py
+```
+
+Sınıf, `BaseRule` soyut sınıfından kalıtım almaktadır:
+
+```python
+class LongClassRule(BaseRule):
+    ...
+```
+
+#### Kural Metadata Bilgileri
+
+`LongClassRule` aşağıdaki metadata bilgilerini tanımlar:
+
+| Alan | Değer |
+|---|---|
+| `rule_id` | `SA002` |
+| `name` | `Long Class` |
+| `description` | Yapılandırılmış satır sınırını aşan sınıfları tespit eden açıklama |
+
+Bu bilgiler ileride terminal ve JSON raporlarında kullanılacaktır.
+
+#### Varsayılan Eşik Değeri
+
+Kuralın varsayılan sınıf uzunluğu sınırı:
+
+```python
+DEFAULT_MAX_CLASS_LINES = 200
+```
+
+Kural oluşturulurken özel bir eşik değeri verilebilir:
+
+```python
+rule = LongClassRule(max_lines=100)
+```
+
+Özel değer verilmezse 200 satırlık varsayılan sınır kullanılır.
+
+#### Constructor Tasarımı
+
+Constructor aşağıdaki sorumluluklara sahiptir:
+
+- `max_lines` değerini kabul etmek
+- Eşik değerini kural örneğinde saklamak
+- Değerin pozitif bir tam sayı olduğunu doğrulamak
+
+Uygulanan imza:
+
+```python
+def __init__(
+    self,
+    max_lines: int = DEFAULT_MAX_CLASS_LINES,
+) -> None:
+    ...
+```
+
+Aşağıdaki değerler geçersiz kabul edilir:
+
+- `0`
+- Negatif tam sayılar
+- Boolean değerler
+- Ondalıklı sayılar
+- Tam sayı olmayan diğer değerler
+
+Geçersiz eşik değerlerinde `ValueError` üretilir.
+
+#### `check()` Metodu
+
+Kural, `BaseRule` tarafından tanımlanan aşağıdaki sözleşmeyi uygular:
+
+```python
+def check(
+    self,
+    tree: ast.AST,
+    file_path: str,
+) -> list[Finding]:
+    ...
+```
+
+Metodun çalışma sırası:
+
+1. Boş bir bulgu listesi oluşturulur.
+2. AST düğümleri `ast.walk()` ile dolaşılır.
+3. `ast.ClassDef` düğümleri seçilir.
+4. Her sınıfın başlangıç ve bitiş satırları alınır.
+5. Sınıfın toplam fiziksel satır sayısı hesaplanır.
+6. Uzunluk eşik değerinden büyükse `Finding` oluşturulur.
+7. Bütün bulgular liste olarak döndürülür.
+
+#### Sınıf Uzunluğu Hesabı
+
+Sınıf uzunluğu aşağıdaki kodla hesaplanır:
+
+```python
+end_line = node.end_lineno or node.lineno
+class_length = end_line - node.lineno + 1
+```
+
+`end_lineno` bulunmadığında `lineno` yedek değer olarak kullanılır.
+
+Karşılaştırma davranışı:
+
+```python
+if class_length <= self.max_lines:
+    continue
+```
+
+Bu nedenle:
+
+- Eşik değerinden kısa sınıflar bulgu üretmez.
+- Eşik değerine eşit sınıflar bulgu üretmez.
+- Eşik değerinden uzun sınıflar bulgu üretir.
+
+#### Bulgu Oluşturma
+
+Eşik değerini aşan her sınıf için bir `Finding` nesnesi oluşturulur:
+
+```python
+Finding(
+    rule_id=self.rule_id,
+    message=message,
+    file_path=file_path,
+    line_number=node.lineno,
+    column_number=node.col_offset,
+    severity=Severity.WARNING,
+)
+```
+
+Bulgu mesajı aşağıdaki biçimdedir:
+
+```text
+Class 'DataProcessor' has 241 lines, exceeding the limit of 200.
+```
+
+Mesaj içerisinde şunlar yer alır:
+
+- Sınıf adı
+- Hesaplanan sınıf uzunluğu
+- Yapılandırılmış eşik değeri
+
+#### İç İçe Sınıf Davranışı
+
+AST düğümleri `ast.walk()` ile dolaşıldığı için iç içe sınıflar ayrı
+`ast.ClassDef` düğümleri olarak kontrol edilir.
+
+Dış sınıfın uzunluğu iç sınıfa ait satırları da kapsayabilir. İç sınıf ise
+kendi başlangıç ve bitiş satırlarına göre ayrıca değerlendirilir.
+
+Bu davranış ilk sürüm için kabul edilmektedir.
+
+#### Decorator Satırları
+
+`ClassDef.lineno` değeri genellikle `class` ifadesinin bulunduğu satırı
+gösterir.
+
+Sınıf decorator satırları ilk sürümde uzunluk hesabına dahil edilmez.
+
+Bu davranış `LongFunctionRule` ile tutarlıdır.
+
+#### Public Export
+
+Kural aşağıdaki paket dosyası üzerinden dışa aktarılır:
+
+```text
+src/static_analyzer/rules/__init__.py
+```
+
+Kullanım:
+
+```python
+from static_analyzer.rules import LongClassRule
+```
+
+Bu yaklaşım kullanıcı kodunun doğrudan gerçek modül yoluna bağımlı olmasını
+engeller.
+
+#### Unit Test Yapısı
+
+Kural testleri aşağıdaki dosyada bulunur:
+
+```text
+tests/test_long_class_rule.py
+```
+
+Testlerde küçük Python kaynak kodları `ast.parse()` ile AST yapısına
+dönüştürülmektedir.
+
+Test edilen temel davranışlar:
+
+- Varsayılan 200 satır eşiğinin kullanılması
+- Özel eşik değerinin kullanılabilmesi
+- Geçersiz eşik değerlerinin reddedilmesi
+- Eşik değerine eşit sınıfın kabul edilmesi
+- Uzun sınıf için bulgu oluşturulması
+- Birden fazla uzun sınıfın ayrı bulgular üretmesi
+- İç içe sınıfların ayrı ayrı kontrol edilmesi
+- Bulgu alanlarının doğru oluşturulması
+- Bulgu mesajının doğru oluşturulması
+
+#### Değerlendirilen Alternatifler
+
+Sınıfların yalnızca AST ağacının en üst seviyesinde aranması
+değerlendirilmiştir.
+
+Bu yaklaşım iç içe sınıfları gözden kaçıracağı için tercih edilmemiştir.
+
+Sınıf uzunluğunun kaynak kod satırları yeniden okunarak hesaplanması da
+değerlendirilmiştir. AST başlangıç ve bitiş satırlarını sağladığı için ek
+kaynak kod işleme yapılmamıştır.
+
+#### Bilinen Sınırlamalar
+
+İlk sürüm aşağıdaki sınırlamalara sahiptir:
+
+- Boş satırlar sınıf uzunluğuna dahil edilir.
+- Yorum satırları sınıf uzunluğuna dahil edilir.
+- Docstring satırları sınıf uzunluğuna dahil edilir.
+- Decorator satırları sınıf uzunluğuna dahil edilmez.
+- Dış sınıfın uzunluğu iç sınıfın satırlarını kapsayabilir.
+- Metot sayısı ölçülmez.
+- Alan sayısı ölçülmez.
+- Kalıtım derinliği ölçülmez.
+- Sınıf bağlılığı veya uyumu ölçülmez.
 
 ## 8. Hata Yönetimi
 
@@ -525,6 +771,13 @@ Dosya okuma ve sözdizimi hataları, kod kalitesi bulgularından ayrı şekilde
 raporlanacaktır.
 
 ## 9. Test Stratejisi
+- `LongClassRule` sınıfının varsayılan eşiği kullanması
+- Özel sınıf uzunluğu eşiğinin kullanılabilmesi
+- Geçersiz sınıf eşiklerinin reddedilmesi
+- Eşik değerine eşit sınıfların kabul edilmesi
+- Uzun sınıfların tespit edilmesi
+- Birden fazla ve iç içe sınıfın ayrı ayrı kontrol edilmesi
+- `SA002` bulgu alanlarının doğru üretilmesi
 
 Projede otomatik testler için `pytest` kullanılmaktadır.
 
@@ -547,9 +800,12 @@ Bütün testler aşağıdaki komutla çalıştırılabilir:
 python -m pytest -v
 ```
 
-Mevcut durumda toplam 14 unit test bulunmaktadır.
+Mevcut durumda toplam 24 unit test bulunmaktadır.
 
-Bu testlerin 10 tanesi `LongFunctionRule` davranışlarını doğrulamaktadır.
+- 10 test `LongFunctionRule` davranışlarını doğrulamaktadır.
+- 10 test `LongClassRule` davranışlarını doğrulamaktadır.
+- 4 test ortak veri modeli ve temel kural arayüzünü doğrulamaktadır.
+
 Bütün testler başarılı şekilde çalışmaktadır.
 
 Her yeni analiz kuralı için en az aşağıdaki senaryolar test edilecektir:
@@ -636,6 +892,14 @@ Tamamlanan çalışmalar:
 - İç içe fonksiyonların ayrı ayrı kontrol edilmesi
 - `LongFunctionRule` sınıfının public paket üzerinden dışa aktarılması
 - Uzun fonksiyon kuralı için 10 test senaryosunun hazırlanması
+- `LongClassRule` sınıfının geliştirilmesi
+- Varsayılan 200 satır sınıf eşiğinin tanımlanması
+- Özel sınıf eşik değeri desteğinin eklenmesi
+- Geçersiz sınıf eşik değerlerinin reddedilmesi
+- İç içe sınıfların ayrı ayrı kontrol edilmesi
+- `LongClassRule` sınıfının public paket üzerinden dışa aktarılması
+- Uzun sınıf kuralı için 10 test senaryosunun hazırlanması
+- Projedeki toplam 24 testin başarıyla çalıştırılması
 
 Henüz tamamlanmayan çalışmalar:
 

@@ -59,7 +59,7 @@ Statik analiz aracı aşağıdaki fonksiyonel gereksinimleri karşılamalıdır:
 | Kural | Durum | Yaklaşım | Gerekçe |
 |---|---|---|---|
 | Uzun fonksiyon | Uygulandı | AST | Fonksiyon başlangıç ve bitiş satırları yapısal olarak incelenir |
-| Uzun sınıf | Geliştiriliyor | AST | Gerçek sınıf tanımlarının ve satır aralıklarının bulunması gerekir |
+| Uzun sınıf | Uygulandı | AST | Sınıf başlangıç ve bitiş satırları yapısal olarak incelenir |
 | Boş `except` bloğu | Planlandı | AST | Gerçek exception blokları incelenmelidir |
 | Fonksiyon isimlendirme | Planlandı | AST | Fonksiyon tanımlarının isimleri kontrol edilir |
 | Sınıf isimlendirme | Planlandı | AST | Sınıf tanımlarının isimleri kontrol edilir |
@@ -225,7 +225,7 @@ okunması, test edilmesi ve bakımı zorlaşan sınıfları tespit etmektir.
 
 Bir sınıfın uzun olması tek başına kesin bir kod hatası değildir. Bu nedenle
 kural, geliştirici tarafından incelenmesi gereken bir kod kalitesi bulgusu
-üretecektir.
+üretir.
 
 ### 7.2 Kural Bilgileri
 
@@ -249,7 +249,7 @@ WARNING
 
 ### 7.3 Analiz Yöntemi
 
-Kural Python'ın yerleşik `ast` modülünü kullanacaktır.
+Kural Python'ın yerleşik `ast` modülünü kullanır.
 
 AST tercih edilmesinin nedenleri:
 
@@ -259,7 +259,7 @@ AST tercih edilmesinin nedenleri:
 - İç içe tanımlanan sınıfların ayrı ayrı incelenebilmesi
 - Metotların ait oldukları sınıf yapısı içerisinde değerlendirilmesi
 
-Kural aşağıdaki AST düğümünü kontrol edecektir:
+Kural aşağıdaki AST düğümünü kontrol eder:
 
 ```python
 ast.ClassDef
@@ -267,7 +267,7 @@ ast.ClassDef
 
 ### 7.4 Sınıf Uzunluğu Hesaplaması
 
-Sınıf uzunluğu aşağıdaki AST bilgileri kullanılarak hesaplanacaktır:
+Sınıf uzunluğu aşağıdaki AST bilgileri kullanılarak hesaplanır:
 
 - `lineno`: sınıf tanımının başladığı satır
 - `end_lineno`: sınıf tanımının bittiği satır
@@ -276,7 +276,7 @@ Sınıf uzunluğu aşağıdaki AST bilgileri kullanılarak hesaplanacaktır:
 sınıf uzunluğu = bitiş satırı - başlangıç satırı + 1
 ```
 
-Planlanan Python hesabı:
+Uygulanan Python hesabı:
 
 ```python
 end_line = node.end_lineno or node.lineno
@@ -284,10 +284,10 @@ class_length = end_line - node.lineno + 1
 ```
 
 `end_lineno` bilgisinin bulunmadığı durumda başlangıç satırı yedek değer olarak
-kullanılacaktır.
+kullanılır.
 
 İlk sürümde başlangıç ve bitiş satırları arasındaki toplam fiziksel satır
-sayısı dikkate alınacaktır.
+sayısı dikkate alınır.
 
 ### 7.5 Varsayılan Eşik Değeri
 
@@ -297,13 +297,13 @@ Varsayılan sınıf uzunluğu sınırı:
 200 satır
 ```
 
-Sınıf uzunluğu eşik değerinden büyük olduğunda bulgu üretilecektir.
+Sınıf uzunluğu eşik değerinden büyük olduğunda bulgu üretilir.
 
 - 199 satırlık sınıf bulgu üretmez.
 - 200 satırlık sınıf bulgu üretmez.
 - 201 satırlık sınıf bulgu üretir.
 
-Kural oluşturulurken özel bir eşik değeri verilebilecektir:
+Kural oluşturulurken özel bir eşik değeri verilebilir:
 
 ```python
 rule = LongClassRule(max_lines=100)
@@ -313,7 +313,7 @@ rule = LongClassRule(max_lines=100)
 
 `max_lines` değeri pozitif bir tam sayı olmalıdır.
 
-Aşağıdaki değerler reddedilecektir:
+Aşağıdaki değerler reddedilir:
 
 - `0`
 - Negatif tam sayılar
@@ -321,11 +321,11 @@ Aşağıdaki değerler reddedilecektir:
 - Ondalıklı sayılar
 - Tam sayı olmayan diğer değerler
 
-Geçersiz değerlerde `ValueError` üretilecektir.
+Geçersiz değerlerde `ValueError` üretilir.
 
 ### 7.7 Üretilecek Bulgu
 
-Kural, eşik değerini aşan her sınıf için bir `Finding` nesnesi döndürecektir.
+Kural, eşik değerini aşan her sınıf için bir `Finding` nesnesi döndürür.
 
 | Alan | Değer |
 |---|---|
@@ -344,13 +344,13 @@ Class 'DataProcessor' has 241 lines, exceeding the limit of 200.
 
 ### 7.8 İç İçe Sınıf Davranışı
 
-AST düğümleri `ast.walk()` ile dolaşılacaktır.
+AST düğümleri `ast.walk()` ile dolaşılır.
 
 Bu nedenle iç içe tanımlanan sınıflar ayrı AST düğümleri olarak kontrol
-edilecektir.
+edilir.
 
 Dış sınıfın uzunluğu iç sınıfa ait satırları kapsayabilir. İç sınıf ise kendi
-başlangıç ve bitiş satırları üzerinden ayrıca değerlendirilecektir.
+başlangıç ve bitiş satırları üzerinden ayrıca değerlendirilir.
 
 Bu davranış ilk sürüm için kabul edilmektedir.
 
@@ -359,33 +359,33 @@ Bu davranış ilk sürüm için kabul edilmektedir.
 AST üzerindeki `ClassDef.lineno` değeri genellikle `class` satırını gösterir.
 
 Sınıfa ait decorator satırları ilk sürümde sınıf uzunluğu hesabına dahil
-edilmeyecektir.
+edilmez.
 
-Bu davranış `LongFunctionRule` ile tutarlı olacaktır.
+Bu davranış `LongFunctionRule` ile tutarlıdır.
 
 ### 7.10 Kabul Kriterleri
 
-Kural aşağıdaki koşulları sağlamalıdır:
+Kural aşağıdaki koşulları sağlamaktadır:
 
-1. Python sınıf tanımlarını tespit etmelidir.
-2. Eşik değerini aşan sınıf için bulgu üretmelidir.
-3. Eşik değerine eşit sınıf için bulgu üretmemelidir.
-4. Eşik değerinden kısa sınıf için bulgu üretmemelidir.
-5. Varsayılan eşik değeri 200 olmalıdır.
-6. Özel bir eşik değeriyle çalışabilmelidir.
-7. Geçersiz eşik değerlerini reddetmelidir.
-8. Bulgunun kural kimliği `SA002` olmalıdır.
-9. Bulgunun önem seviyesi `WARNING` olmalıdır.
-10. Dosya yolu, satır numarası ve sütun numarası doğru olmalıdır.
-11. Birden fazla uzun sınıf için ayrı bulgular oluşturmalıdır.
-12. İç içe sınıfları ayrı ayrı kontrol etmelidir.
-13. Bulgu mesajında sınıf adı bulunmalıdır.
-14. Bulgu mesajında hesaplanan sınıf uzunluğu bulunmalıdır.
-15. Bulgu mesajında yapılandırılmış eşik değeri bulunmalıdır.
+1. Python sınıf tanımlarını tespit eder.
+2. Eşik değerini aşan sınıf için bulgu üretir.
+3. Eşik değerine eşit sınıf için bulgu üretmez.
+4. Eşik değerinden kısa sınıf için bulgu üretmez.
+5. Varsayılan eşik değeri 200'dür.
+6. Özel bir eşik değeriyle çalışır.
+7. Geçersiz eşik değerlerini reddeder.
+8. Bulgunun kural kimliği `SA002` olur.
+9. Bulgunun önem seviyesi `WARNING` olur.
+10. Dosya yolu, satır numarası ve sütun numarası doğru olur.
+11. Birden fazla uzun sınıf için ayrı bulgular oluşturur.
+12. İç içe sınıfları ayrı ayrı kontrol eder.
+13. Bulgu mesajında sınıf adı bulunur.
+14. Bulgu mesajında hesaplanan sınıf uzunluğu bulunur.
+15. Bulgu mesajında yapılandırılmış eşik değeri bulunur.
 
-### 7.11 Planlanan Test Senaryoları
+### 7.11 Test Senaryoları
 
-`LongClassRule` için aşağıdaki senaryolar test edilecektir:
+`LongClassRule` aşağıdaki senaryolarla doğrulanmıştır:
 
 - Varsayılan 200 satır eşik değeri
 - Özel eşik değerinin kullanılması
@@ -402,7 +402,7 @@ Kural aşağıdaki koşulları sağlamalıdır:
 
 ### 7.12 İlk Sürüm Kapsamı Dışındaki Durumlar
 
-İlk sürümde aşağıdaki ölçümler yapılmayacaktır:
+İlk sürümde aşağıdaki ölçümler yapılmaz:
 
 - Sınıf içerisindeki metot sayısı
 - Sınıf içerisindeki alan sayısı
@@ -411,7 +411,6 @@ Kural aşağıdaki koşulları sağlamalıdır:
 - Sınıfın bağlılık veya uyum seviyesi
 - Bilişsel karmaşıklık
 - Yalnızca çalıştırılabilir satırların sayılması
-
 ## 8. Çıktı Gereksinimleri
 
 Her bulgu için aşağıdaki bilgilerin üretilmesi beklenmektedir:
@@ -486,22 +485,24 @@ Tamamlanan çalışmalar:
 - `LongFunctionRule` sınıfı geliştirildi.
 - Normal ve asenkron fonksiyon desteği eklendi.
 - İç içe fonksiyonların ayrı ayrı kontrol edilmesi sağlandı.
-- Yapılandırılabilir satır sınırı eklendi.
+- Yapılandırılabilir fonksiyon uzunluğu sınırı eklendi.
+- `LongClassRule` sınıfı geliştirildi.
+- Yapılandırılabilir sınıf uzunluğu sınırı eklendi.
+- İç içe sınıfların ayrı ayrı kontrol edilmesi sağlandı.
 - Geçersiz eşik değerleri için doğrulama eklendi.
 - Uzun fonksiyon kuralı 10 test senaryosuyla doğrulandı.
-- Projenin toplam 14 testi başarılı şekilde çalışmaktadır.
+- Uzun sınıf kuralı 10 test senaryosuyla doğrulandı.
+- Projenin toplam 24 testi başarılı şekilde çalışmaktadır.
 
 Henüz tamamlanmayan çalışmalar:
 
 - Dosya ve klasör tarama mekanizması
 - Analiz motoru
-- `SA002` uzun sınıf kuralının geliştirilmesi
 - Diğer analiz kuralları
 - CLI
 - Terminal ve JSON raporlama
 - Exit code yönetimi
 - CI/CD entegrasyonu
-
 ## 12. Navigation
 
 - [Static Code Analyzer sayfasına dön](README.md)

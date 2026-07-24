@@ -57,9 +57,51 @@ Kural aşağıdaki durumları destekler:
 - Yapılandırılabilir satır sınırı
 - Aynı dosyada birden fazla bulgu
 
+### SA002 — Long Class
+
+Yapılandırılmış satır sınırını aşan Python sınıflarını tespit eder.
+
+Varsayılan eşik:
+
+```text
+200 satır
+```
+
+Varsayılan önem seviyesi:
+
+```text
+WARNING
+```
+
+Örnek kullanım:
+
+```python
+import ast
+
+from static_analyzer.rules import LongClassRule
+
+source = """
+class DataProcessor:
+    first_value = 1
+    second_value = 2
+"""
+
+tree = ast.parse(source)
+rule = LongClassRule(max_lines=2)
+
+findings = rule.check(tree, "example.py")
+```
+
+Kural aşağıdaki durumları destekler:
+
+- Python sınıf tanımları
+- İç içe sınıflar
+- Yapılandırılabilir satır sınırı
+- Aynı dosyada birden fazla bulgu
+- Geçersiz eşik değerlerinin reddedilmesi
+
 ## Planlanan Kontroller
 
-- Uzun sınıf tespiti
 - Boş `except` bloğu tespiti
 - `TODO` ve `FIXME` ifadelerinin tespiti
 - Fonksiyon ve sınıf isimlendirme kontrolü
@@ -96,9 +138,11 @@ Bütün testler aşağıdaki komutla çalıştırılır:
 python -m pytest -v
 ```
 
-Mevcut durumda toplam 14 test bulunmaktadır.
+Mevcut durumda toplam 24 test bulunmaktadır.
 
-Bunların 10 tanesi `LongFunctionRule` davranışlarını doğrulamaktadır.
+- 10 test `LongFunctionRule` davranışlarını doğrulamaktadır.
+- 10 test `LongClassRule` davranışlarını doğrulamaktadır.
+- 4 test ortak veri modeli ve temel kural arayüzünü doğrulamaktadır.
 
 ## Dokümantasyon
 
@@ -117,6 +161,10 @@ Tamamlanan çalışmalar:
 - Normal ve asenkron fonksiyon desteği
 - İç içe fonksiyon desteği
 - Unit testler
+- `SA002` uzun sınıf kuralı
+- Yapılandırılabilir sınıf uzunluğu sınırı
+- İç içe sınıf desteği
+- Geçersiz sınıf eşiği doğrulaması
 
 Henüz tamamlanmayan çalışmalar:
 
