@@ -1039,8 +1039,187 @@ Analiz motoru aşağıdaki senaryolarla doğrulanacaktır:
 - Bulgu sırasının korunması
 - Hiç bulgu olmadığında boş liste döndürülmesi
 - Kural exception'ının gizlenmemesi
+## 15. Metin Tabanlı Kural Arayüzü Gereksinimleri
 
-## 15. Navigation
+### 15.1 Amaç
+
+Metin tabanlı kural arayüzü, AST içerisinde doğrudan korunmayan kaynak kod
+bilgilerinin analiz edilmesini sağlayacaktır.
+
+Bu arayüz özellikle aşağıdaki kontroller için kullanılacaktır:
+
+- `TODO` ifadelerinin tespiti
+- `FIXME` ifadelerinin tespiti
+- Şüpheli hardcoded secret değerlerinin aranması
+- Kaynak kod içerisindeki metin desenlerinin kontrol edilmesi
+
+AST tabanlı ve metin tabanlı kurallar ayrı sözleşmeler kullanacaktır.
+
+### 15.2 Arayüz
+
+Metin tabanlı kurallar aşağıdaki soyut sınıfı uygulamalıdır:
+
+```python
+class BaseTextRule(ABC):
+    rule_id: str
+    name: str
+    description: str
+
+    @abstractmethod
+    def check(
+        self,
+        source: str,
+        file_path: str,
+    ) -> list[Finding]:
+        ...
+```
+
+Her metin tabanlı kural aşağıdaki girdileri almalıdır:
+
+- Kaynak dosyanın tam metni
+- Kaynak dosyanın yolu
+
+Kurallar tespit ettikleri problemleri `Finding` nesneleri olarak
+döndürmelidir.
+
+### 15.3 AST Kurallarından Ayrılması
+
+Mevcut `BaseRule` arayüzü AST tabanlı kurallar için kullanılmaya devam
+edecektir:
+
+```python
+def check(
+    self,
+    tree: ast.AST,
+    file_path: str,
+) -> list[Finding]:
+    ...
+```
+
+Yeni `BaseTextRule` ise kaynak metne ihtiyaç duyan kurallar için
+kullanılacaktır:
+
+```python
+def check(
+    self,
+    source: str,
+    file_path: str,
+) -> list[Finding]:
+    ...
+```
+
+Bu ayrım sayesinde AST tabanlı kuralların mevcut sözleşmesi
+değiştirilmeyecektir.
+
+### 15.4 AnalysisEngine Entegrasyonu
+
+`AnalysisEngine`, kayıtlı kuralın türüne göre doğru girdiyi göndermelidir.
+
+AST tabanlı kurallar için:
+
+```python
+rule.check(
+    source_file.tree,
+    str(source_file.file_path),
+)
+```
+
+Metin tabanlı kurallar için:
+
+```python
+rule.check(
+    source_file.source,
+    str(source_file.file_path),
+)
+```
+
+Kaynak dosya tekrar okunmamalı ve AST tekrar oluşturulmamalıdır.
+
+`SourceFile` içerisindeki mevcut `source` ve `tree` alanları
+kullanılmalıdır.
+
+### 15.5 Kural Sırası
+
+AST ve metin tabanlı kurallar, `AnalysisEngine` constructor metoduna
+verildikleri sırada çalıştırılmalıdır.
+
+Örnek:
+
+```python
+engine = AnalysisEngine(
+    rules=[
+        LongFunctionRule(),
+        TodoFixmeRule(),
+        LongClassRule(),
+    ]
+)
+```
+
+Bu örnekte çalışma sırası aşağıdaki gibi olmalıdır:
+
+1. `LongFunctionRule`
+2. `TodoFixmeRule`
+3. `LongClassRule`
+
+Kuralların ürettiği bulguların sırası korunmalıdır.
+
+### 15.6 Hata Davranışı
+
+Metin tabanlı bir kuralın ürettiği beklenmeyen exception sessizce
+gizlenmemelidir.
+
+Hata, mevcut AST tabanlı kural davranışıyla tutarlı şekilde çağıran
+katmana iletilmelidir.
+
+### 15.7 Sorumluluk Sınırları
+
+`BaseTextRule` aşağıdaki işlemleri yapmayacaktır:
+
+- Dosya sisteminden kaynak dosya okumak
+- AST oluşturmak
+- Klasör taramak
+- Terminal çıktısı oluşturmak
+- JSON raporu oluşturmak
+- Exit code belirlemek
+
+Bu işlemler diğer bileşenlerin sorumluluğundadır.
+
+### 15.8 Kabul Kriterleri
+
+Metin tabanlı kural altyapısı aşağıdaki koşulları sağlamalıdır:
+
+1. `BaseTextRule` doğrudan oluşturulamaz.
+2. Somut bir metin kuralı `check()` metodunu uygulayabilir.
+3. Kural kaynak kod metnini alır.
+4. Kural gerçek dosya yolunu alır.
+5. Kural sıfır, bir veya birden fazla `Finding` döndürebilir.
+6. `AnalysisEngine` AST tabanlı kuralları desteklemeye devam eder.
+7. `AnalysisEngine` metin tabanlı kuralları çalıştırabilir.
+8. AST kurallarına mevcut AST nesnesi gönderilir.
+9. Metin kurallarına mevcut kaynak kod metni gönderilir.
+10. Kaynak dosya tekrar okunmaz.
+11. Kaynak kod tekrar parse edilmez.
+12. AST ve metin kurallarının çalışma sırası korunur.
+13. Kural exception'ları gizlenmez.
+
+### 15.9 Planlanan Test Senaryoları
+
+Metin tabanlı kural altyapısı aşağıdaki senaryolarla doğrulanacaktır:
+
+- `BaseTextRule` sınıfının doğrudan oluşturulamaması
+- Somut bir metin kuralının oluşturulabilmesi
+- Kaynak kod metninin kurala aktarılması
+- Gerçek dosya yolunun kurala aktarılması
+- AST tabanlı kural desteğinin korunması
+- Metin tabanlı kuralın AnalysisEngine tarafından çalıştırılması
+- AST ve metin kurallarının birlikte çalıştırılması
+- Kural çalışma sırasının korunması
+- Bulguların ortak listede birleştirilmesi
+- Kaynak kodun tekrar okunmaması
+- AST yapısının tekrar oluşturulmaması
+- Metin kuralı exception'ının gizlenmemesi
+
+## 16. Navigation
 
 - [Static Code Analyzer sayfasına dön](README.md)
 - [Teknik Tasarım](technical-design.md)
