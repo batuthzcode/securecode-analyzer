@@ -155,6 +155,51 @@ scanner = FileScanner(
 
 Özel dizinler varsayılan hariç tutmalara eklenir; varsayılan dizinler
 kaldırılmaz.
+## Python Kaynak Kod Okuyucu
+
+`SourceReader`, Python kaynak dosyalarını UTF-8 olarak okur ve kaynak kodu
+AST yapısına dönüştürür.
+
+Modül:
+
+```text
+src/static_analyzer/source_reader.py
+```
+
+Örnek kullanım:
+
+```python
+from static_analyzer.source_reader import SourceReader
+
+reader = SourceReader()
+source_file = reader.read("example.py")
+
+print(source_file.file_path)
+print(source_file.source)
+print(source_file.tree)
+```
+
+Okuma işlemi sonucunda bir `SourceFile` nesnesi döndürülür:
+
+```python
+@dataclass(frozen=True, slots=True)
+class SourceFile:
+    file_path: Path
+    source: str
+    tree: ast.AST
+```
+
+Kaynak kod okuyucu aşağıdaki davranışları destekler:
+
+- `str` ve `pathlib.Path` dosya yolları
+- UTF-8 kaynak kod okuma
+- Kaynak kod metninin korunması
+- Kaynak kodun `ast.parse()` ile parse edilmesi
+- Dosyanın yalnızca bir kez parse edilmesi
+- Syntax hatalarında gerçek dosya yolunun gösterilmesi
+- Mevcut olmayan dosyaların reddedilmesi
+- Dizin olarak verilen hedeflerin reddedilmesi
+- UTF-8 olmayan dosyaların reddedilmesi
 
 ## Planlanan Kontroller
 
@@ -194,11 +239,12 @@ Bütün testler aşağıdaki komutla çalıştırılır:
 python -m pytest -v
 ```
 
-Mevcut durumda toplam 36 test bulunmaktadır.
+Mevcut durumda toplam 47 test bulunmaktadır.
 
 - 10 test `LongFunctionRule` davranışlarını doğrulamaktadır.
 - 10 test `LongClassRule` davranışlarını doğrulamaktadır.
 - 12 test `FileScanner` davranışlarını doğrulamaktadır.
+- 11 test `SourceReader` davranışlarını doğrulamaktadır.
 - 4 test ortak veri modeli ve temel kural arayüzünü doğrulamaktadır.
 
 Bütün testler başarılı şekilde çalışmaktadır.
@@ -235,12 +281,17 @@ Tamamlanan çalışmalar:
 - Dosya yollarının sıralı `Path` nesneleri olarak döndürülmesi sağlandı.
 - Dosya tarayıcı 12 test senaryosuyla doğrulandı.
 - Projedeki toplam 36 test başarıyla çalıştırıldı.
+- `SourceFile` veri modeli geliştirildi.
+- `SourceReader` sınıfı geliştirildi.
+- Python kaynak dosyalarının UTF-8 olarak okunması sağlandı.
+- Kaynak kodun AST yapısına dönüştürülmesi sağlandı.
+- Syntax ve encoding hatalarının gizlenmeden iletilmesi sağlandı.
+- Kaynak kod okuyucu 11 test senaryosuyla doğrulandı.
+- Projedeki toplam 47 test başarıyla çalıştırıldı.
 
 
 Henüz tamamlanmayan çalışmalar:
 
-- Dosya içeriğini UTF-8 olarak okuma
-- Python kaynak kodunu parse etme ve syntax hatalarını yönetme
 - Analiz motoru
 - CLI
 - Terminal ve JSON raporlama

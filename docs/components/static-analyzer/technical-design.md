@@ -37,6 +37,7 @@ src/
     ├── __init__.py
     ├── file_scanner.py
     ├── models.py
+    ├── source_reader.py
     └── rules/
         ├── __init__.py
         ├── base.py
@@ -48,7 +49,8 @@ tests/
 ├── test_file_scanner.py
 ├── test_long_class_rule.py
 ├── test_long_function_rule.py
-└── test_models.py
+├── test_models.py
+└── test_source_reader.py
 ```
 
 ### 3.1 `static_analyzer.models`
@@ -124,6 +126,27 @@ from static_analyzer.file_scanner import FileScanner
 
 scanner = FileScanner()
 python_files = scanner.scan("src")
+```
+### 3.7 `static_analyzer.source_reader`
+
+Python kaynak dosyalarının UTF-8 olarak okunmasından ve AST yapısına
+dönüştürülmesinden sorumludur.
+
+Modül aşağıdaki yapıları içerir:
+
+- `SourceFile`
+- `SourceReader`
+
+`SourceFile`, dosya yolu, kaynak kod metni ve oluşturulan AST yapısını aynı
+değiştirilemez veri modelinde tutar.
+
+Örnek kullanım:
+
+```python
+from static_analyzer.source_reader import SourceReader
+
+reader = SourceReader()
+source_file = reader.read("example.py")
 ```
 
 ## 4. Analiz Akışı
@@ -1042,8 +1065,233 @@ Doğrulanan temel davranışlar:
 
 Bu sorumluluklar ihtiyaç ortaya çıktığında ayrı geliştirme adımları olarak
 ele alınacaktır.
+## 9. Kaynak Kod Okuyucu Tasarımı
 
-## 9. Hata Yönetimi
+### 9.1 Amaç
+
+`SourceReader`, `FileScanner` tarafından bulunan Python kaynak dosyalarının
+okunmasından ve AST yapısına dönüştürülmesinden sorumludur.
+
+Dosya keşfi, kaynak kod okuma ve analiz kurallarını çalıştırma sorumlulukları
+ayrı bileşenlerde tutulmaktadır.
+
+Bu ayrım sayesinde kaynak kod okuma ve parse etme davranışları bağımsız
+şekilde test edilebilmektedir.
+
+### 9.2 Modül Konumu
+
+Kaynak kod okuyucu aşağıdaki modülde bulunmaktadır:
+
+```text
+src/static_analyzer/source_reader.py
+```
+
+Testleri aşağıdaki dosyada bulunmaktadır:
+
+```text
+tests/test_source_reader.py
+```
+
+### 9.3 `SourceFile` Veri Modeli
+
+Okunan kaynak kod ve oluşturulan AST aynı veri modelinde tutulmaktadır:
+
+```python
+@dataclass(frozen=True, slots=True)
+class SourceFile:
+    file_path: Path
+    source: str
+    tree: ast.AST
+```
+
+Alanların sorumlulukları:
+
+| Alan | Veri tipi | Açıklama |
+|---|---|---|
+| `file_path` | `Path` | Okunan kaynak dosyanın yolu |
+| `source` | `str` | Dosyanın UTF-8 olarak okunan tam içeriği |
+| `tree` | `ast.AST` | Kaynak koddan oluşturulan AST yapısı |
+
+`frozen=True` kullanılması sonuç nesnesinin sonradan yanlışlıkla
+değiştirilmesini engeller.
+
+`slots=True` kullanılması veri modelinin yalnızca tanımlanan alanları
+saklamasını sağlar.
+
+### 9.4 `SourceReader` Sınıfı
+
+`SourceReader`, kaynak dosyayı okuyan ve parse eden `read()` metodunu içerir.
+
+```python
+class SourceReader:
+    def read(self, target: str | Path) -> SourceFile:
+        ...
+```
+
+Metot hem `str` hem de `pathlib.Path` dosya yollarını kabul eder.
+
+Hedef yol ilk olarak `Path` nesnesine dönüştürülür:
+
+```python
+file_path = Path(target)
+```
+
+### 9.5 Hedef Dosya Doğrulaması
+
+Kaynak dosya okunmadan önce hedef yol doğrulanır.
+
+Hedef mevcut değilse:
+
+```python
+raise FileNotFoundError(
+    f"Source file does not exist: {file_path}"
+)
+```
+
+Hedef bir dizinse:
+
+```python
+raise IsADirectoryError(
+    f"Source path is a directory: {file_path}"
+)
+```
+
+Bu hatalar kaynak kod okuyucu tarafından gizlenmez. Analiz motoru veya CLI
+katmanı ileride bu hataları kullanıcı dostu mesajlara dönüştürecektir.
+
+### 9.6 UTF-8 Kaynak Kod Okuma
+
+Kaynak dosya açıkça UTF-8 encoding kullanılarak okunur:
+
+```python
+source = file_path.read_text(encoding="utf-8")
+```
+
+Encoding değerinin açıkça belirtilmesi işletim sisteminin varsayılan encoding
+değerine bağımlılığı azaltır.
+
+UTF-8 olmayan bir dosyada oluşan `UnicodeDecodeError` gizlenmez.
+
+### 9.7 AST Oluşturma
+
+Okunan kaynak kod Python standart kütüphanesindeki `ast.parse()` fonksiyonuna
+gönderilir:
+
+```python
+tree = ast.parse(
+    source,
+    filename=str(file_path),
+)
+```
+
+Dosya yolunun `filename` parametresine verilmesinin nedeni, oluşabilecek
+`SyntaxError` nesnesinde gerçek dosya yolunun bulunmasını sağlamaktır.
+
+Kaynak dosya her `read()` çağrısında yalnızca bir kez parse edilir.
+
+Bu sayede aynı dosyanın her analiz kuralı için yeniden parse edilmesi
+engellenebilecektir.
+
+### 9.8 Syntax Hatası Davranışı
+
+Kaynak kod geçerli Python sözdizimine sahip değilse `ast.parse()`
+`SyntaxError` üretir.
+
+İlk sürümde bu hata:
+
+- Gizlenmez
+- `Finding` nesnesine dönüştürülmez
+- Boş AST ile değiştirilmez
+
+Analiz motoru geliştirildiğinde syntax hatası bulunan dosyayı raporlayıp diğer
+dosyaların analizine devam edecektir.
+
+### 9.9 Sonuç Oluşturma
+
+Kaynak kod başarıyla okunduğunda ve parse edildiğinde bir `SourceFile` nesnesi
+döndürülür:
+
+```python
+return SourceFile(
+    file_path=file_path,
+    source=source,
+    tree=tree,
+)
+```
+
+Bu yapı sayesinde sonraki bileşenler aynı dosya için:
+
+- Dosya yoluna
+- Kaynak kod metnine
+- AST yapısına
+
+aynı nesne üzerinden erişebilir.
+
+### 9.10 Analiz Akışındaki Konumu
+
+Kaynak kod okuyucu analiz akışında `FileScanner` ile analiz motoru arasında
+yer alır:
+
+```text
+FileScanner
+    ↓
+SourceReader
+    ↓
+Analysis Engine
+    ↓
+Rules
+    ↓
+Findings
+```
+
+`FileScanner` yalnızca dosya yollarını bulur.
+
+`SourceReader` her dosyayı okur ve AST yapısını oluşturur.
+
+Analiz motoru ise oluşturulan `SourceFile` nesnesini analiz kurallarına
+gönderir.
+
+### 9.11 Test Stratejisi
+
+`SourceReader` için 11 test senaryosu hazırlanmıştır.
+
+Testlerde `pytest` tarafından sağlanan `tmp_path` ve `monkeypatch`
+fixture'ları kullanılmaktadır.
+
+Doğrulanan temel davranışlar:
+
+- Geçerli Python dosyasından `SourceFile` oluşturulması
+- `str` dosya yolunun kabul edilmesi
+- `Path` dosya yolunun kabul edilmesi
+- Dosya yolunun `Path` olarak saklanması
+- Kaynak kod metninin değiştirilmeden korunması
+- AST yapısının kaynak kodu temsil etmesi
+- Mevcut olmayan dosyanın reddedilmesi
+- Dizin hedefinin reddedilmesi
+- Geçersiz Python kodunda `SyntaxError` üretilmesi
+- Syntax hatasında gerçek dosya yolunun bulunması
+- UTF-8 olmayan dosyada `UnicodeDecodeError` üretilmesi
+- Kaynak kodun yalnızca bir kez parse edilmesi
+
+`ast.parse()` çağrı sayısını doğrulamak için test içerisinde `monkeypatch`
+kullanılmaktadır.
+
+### 9.12 Bilinen Sınırlamalar
+
+İlk sürüm aşağıdaki işlemleri yapmaz:
+
+- Klasör taramak
+- Dosya uzantısını doğrulamak
+- Encoding tahmini yapmak
+- Syntax hatasını kullanıcı dostu rapora dönüştürmek
+- AST analiz kurallarını çalıştırmak
+- Bulgu üretmek
+- Terminal veya JSON çıktısı oluşturmak
+- Aynı dosya için AST önbelleği tutmak
+
+Bu sorumluluklar analiz motoru ve raporlama katmanlarında ele alınacaktır.
+
+## 10. Hata Yönetimi
 
 Aşağıdaki durumlar kontrollü şekilde yönetilecektir:
 
@@ -1065,7 +1313,7 @@ durdurmayacaktır.
 Dosya okuma ve sözdizimi hataları, kod kalitesi bulgularından ayrı şekilde
 raporlanacaktır.
 
-## 10. Test Stratejisi
+## 11. Test Stratejisi
 
 Projede otomatik testler için `pytest` kullanılmaktadır.
 
@@ -1095,6 +1343,15 @@ Mevcut unit testler aşağıdaki davranışları doğrulamaktadır:
 - Python olmayan dosyaların yok sayılması
 - Hariç tutulan klasörlerin taranmaması
 - Tarama sonuçlarının sıralı `Path` nesneleri olması
+- `SourceReader` sınıfının `str` ve `Path` girdileriyle çalışması
+- Python kaynak kodunun UTF-8 olarak okunması
+- Kaynak kod metninin değiştirilmeden korunması
+- AST yapısının doğru oluşturulması
+- Mevcut olmayan dosyanın reddedilmesi
+- Dizin hedefinin reddedilmesi
+- Syntax ve encoding hatalarının gizlenmemesi
+- Syntax hatasında gerçek dosya yolunun gösterilmesi
+- Kaynak kodun yalnızca bir kez parse edilmesi
 
 Bütün testler aşağıdaki komutla çalıştırılabilir:
 
@@ -1102,11 +1359,12 @@ Bütün testler aşağıdaki komutla çalıştırılabilir:
 python -m pytest -v
 ```
 
-Mevcut durumda toplam 36 unit test bulunmaktadır.
+Mevcut durumda toplam 47 unit test bulunmaktadır.
 
 - 10 test `LongFunctionRule` davranışlarını doğrulamaktadır.
 - 10 test `LongClassRule` davranışlarını doğrulamaktadır.
 - 12 test `FileScanner` davranışlarını doğrulamaktadır.
+- 11 test `SourceReader` davranışlarını doğrulamaktadır.
 - 4 test ortak veri modeli ve temel kural arayüzünü doğrulamaktadır.
 
 Bütün testler başarılı şekilde çalışmaktadır.
@@ -1126,7 +1384,7 @@ Testlerde analiz edilmek istenen küçük Python kodları `ast.parse()` ile
 doğrudan AST yapısına dönüştürülmektedir. Böylece testler için gereksiz
 geçici dosyalar oluşturulması önlenecektir.
 
-## 11. Geliştirme ve Paketleme Yapısı
+## 12. Geliştirme ve Paketleme Yapısı
 
 Proje yapılandırması `pyproject.toml` dosyasında tutulmaktadır.
 
@@ -1151,7 +1409,7 @@ Yerel geliştirme bağımlılıkları `.venv` sanal ortamında tutulur. Sanal or
 önbellekler ve paketleme çıktıları `.gitignore` ile Git takibinin dışında
 bırakılır.
 
-## 12. Prototip ve Kalıcı Mimariye Geçiş
+## 13. Prototip ve Kalıcı Mimariye Geçiş
 
 İlk AST prototipi aşağıdaki teknik kararları doğrulamak amacıyla
 hazırlanmıştır:
@@ -1171,7 +1429,7 @@ ve çıktı katmanına ayrılacaktır.
 Böylece tek dosyada bulunan deneme kodu yerine test edilebilir ve
 genişletilebilir modüler bir yapı oluşturulacaktır.
 
-## 13. Mevcut Uygulama Durumu
+## 14. Mevcut Uygulama Durumu
 
 Tamamlanan çalışmalar:
 
@@ -1211,10 +1469,19 @@ Tamamlanan çalışmalar:
 - Sonuçların sıralı `Path` nesneleri olarak döndürülmesi
 - Dosya tarayıcı için 12 test senaryosunun hazırlanması
 - Projedeki toplam 36 testin başarıyla çalıştırılması
+- `SourceFile` veri modelinin geliştirilmesi
+- `SourceReader` sınıfının geliştirilmesi
+- Python kaynak dosyalarının UTF-8 olarak okunması
+- Kaynak kodun `ast.parse()` ile AST yapısına dönüştürülmesi
+- AST oluşturulurken gerçek dosya yolunun kullanılması
+- Syntax hatalarının gizlenmeden iletilmesi
+- UTF-8 encoding hatalarının gizlenmeden iletilmesi
+- Kaynak kodun yalnızca bir kez parse edilmesi
+- Kaynak kod okuyucu için 11 test senaryosunun hazırlanması
+- Projedeki toplam 47 testin başarıyla çalıştırılması
 
 Henüz tamamlanmayan çalışmalar:
 
-- Kaynak kod okuma ve parse etme servisi
 - Analiz motoru
 - Kural kayıt mekanizması
 - Diğer analiz kuralları
@@ -1226,7 +1493,7 @@ Henüz tamamlanmayan çalışmalar:
 - Aracın kendi kaynak kodunu analiz etmesi
 - CI/CD entegrasyonu
 
-## 14. Gelecek Geliştirmeler
+## 15. Gelecek Geliştirmeler
 
 Planlanan sonraki geliştirmeler:
 
@@ -1246,7 +1513,7 @@ Planlanan sonraki geliştirmeler:
 - Statik analiz aracının kendi kaynak kodu üzerinde çalıştırılması
 - GitHub Actions entegrasyonu
 
-## 15. Navigation
+## 16. Navigation
 
 - [Static Code Analyzer sayfasına dön](README.md)
 - [Analiz ve Gereksinimler](analysis.md)

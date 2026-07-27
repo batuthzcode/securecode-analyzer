@@ -492,16 +492,28 @@ Tamamlanan çalışmalar:
 - Geçersiz eşik değerleri için doğrulama eklendi.
 - Uzun fonksiyon kuralı 10 test senaryosuyla doğrulandı.
 - Uzun sınıf kuralı 10 test senaryosuyla doğrulandı.
-- Projenin toplam 24 testi başarılı şekilde çalışmaktadır.
+- `SourceFile` veri modeli geliştirildi.
+- `SourceReader` sınıfı geliştirildi.
+- Python kaynak dosyalarının UTF-8 olarak okunması sağlandı.
+- Kaynak kodun `ast.parse()` ile AST yapısına dönüştürülmesi sağlandı.
+- AST oluşturulurken gerçek dosya yolunun kullanılması sağlandı.
+- Syntax hatalarının gizlenmeden iletilmesi sağlandı.
+- UTF-8 encoding hatalarının gizlenmeden iletilmesi sağlandı.
+- Kaynak dosyalarının yalnızca bir kez parse edilmesi sağlandı.
+- Kaynak kod okuyucu 11 test senaryosuyla doğrulandı.
+- Projenin toplam 47 testi başarılı şekilde çalışmaktadır.
 
 Henüz tamamlanmayan çalışmalar:
 
-- Dosya ve klasör tarama mekanizması
 - Analiz motoru
-- Diğer analiz kuralları
+- TODO/FIXME kuralı
+- Boş `except` kuralı
+- İsimlendirme kuralları
+- Hardcoded secret kuralı
 - CLI
 - Terminal ve JSON raporlama
 - Exit code yönetimi
+- Aracın kendi kaynak kodunu analiz etmesi
 - CI/CD entegrasyonu
 
 ## 12. Dosya Tarayıcı Gereksinimleri
