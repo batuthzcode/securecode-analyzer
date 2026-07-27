@@ -6,7 +6,11 @@ from collections.abc import Iterable
 
 from static_analyzer.models import Finding
 from static_analyzer.rules.base import BaseRule
+from static_analyzer.rules.base_text import BaseTextRule
 from static_analyzer.source_reader import SourceFile
+
+
+type AnalysisRule = BaseRule | BaseTextRule
 
 
 class AnalysisEngine:
@@ -14,7 +18,7 @@ class AnalysisEngine:
 
     def __init__(
         self,
-        rules: Iterable[BaseRule],
+        rules: Iterable[AnalysisRule],
     ) -> None:
         """Initialize the engine with an immutable rule collection."""
 
@@ -24,15 +28,23 @@ class AnalysisEngine:
         self,
         source_file: SourceFile,
     ) -> list[Finding]:
-        """Run every rule and return their combined findings."""
+        """Run every registered rule and combine their findings."""
 
         findings: list[Finding] = []
+        file_path = str(source_file.file_path)
 
         for rule in self.rules:
-            rule_findings = rule.check(
-                source_file.tree,
-                str(source_file.file_path),
-            )
+            if isinstance(rule, BaseTextRule):
+                rule_findings = rule.check(
+                    source_file.source,
+                    file_path,
+                )
+            else:
+                rule_findings = rule.check(
+                    source_file.tree,
+                    file_path,
+                )
+
             findings.extend(rule_findings)
 
         return findings
