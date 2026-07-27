@@ -99,6 +99,62 @@ Kural aşağıdaki durumları destekler:
 - Yapılandırılabilir satır sınırı
 - Aynı dosyada birden fazla bulgu
 - Geçersiz eşik değerlerinin reddedilmesi
+## Python Dosya Tarayıcı
+
+`FileScanner`, kullanıcı tarafından verilen hedef dizindeki Python kaynak
+dosyalarını bulur.
+
+Modül:
+
+```text
+src/static_analyzer/file_scanner.py
+```
+
+Örnek kullanım:
+
+```python
+from static_analyzer.file_scanner import FileScanner
+
+scanner = FileScanner()
+python_files = scanner.scan("src")
+
+for python_file in python_files:
+    print(python_file)
+```
+
+Tarayıcı aşağıdaki davranışları destekler:
+
+- `str` ve `pathlib.Path` hedefleri
+- Alt klasörlerin özyinelemeli taranması
+- Yalnızca `.py` dosyalarının bulunması
+- Sonuçların sıralı döndürülmesi
+- Sonuçların `Path` nesneleri olarak döndürülmesi
+- Mevcut olmayan hedeflerin reddedilmesi
+- Dosya olarak verilen hedeflerin reddedilmesi
+- Özel klasör hariç tutma desteği
+- Sembolik bağlantılı dizinlerin takip edilmemesi
+
+Varsayılan olarak tarama dışında bırakılan dizinler:
+
+```text
+.git
+.venv
+__pycache__
+```
+
+Özel hariç tutulan dizinler oluşturucu üzerinden eklenebilir:
+
+```python
+scanner = FileScanner(
+    excluded_directories={
+        "generated",
+        "vendor",
+    }
+)
+```
+
+Özel dizinler varsayılan hariç tutmalara eklenir; varsayılan dizinler
+kaldırılmaz.
 
 ## Planlanan Kontroller
 
@@ -138,7 +194,14 @@ Bütün testler aşağıdaki komutla çalıştırılır:
 python -m pytest -v
 ```
 
-Mevcut durumda toplam 24 test bulunmaktadır.
+Mevcut durumda toplam 36 test bulunmaktadır.
+
+- 10 test `LongFunctionRule` davranışlarını doğrulamaktadır.
+- 10 test `LongClassRule` davranışlarını doğrulamaktadır.
+- 12 test `FileScanner` davranışlarını doğrulamaktadır.
+- 4 test ortak veri modeli ve temel kural arayüzünü doğrulamaktadır.
+
+Bütün testler başarılı şekilde çalışmaktadır.
 
 - 10 test `LongFunctionRule` davranışlarını doğrulamaktadır.
 - 10 test `LongClassRule` davranışlarını doğrulamaktadır.
@@ -165,10 +228,19 @@ Tamamlanan çalışmalar:
 - Yapılandırılabilir sınıf uzunluğu sınırı
 - İç içe sınıf desteği
 - Geçersiz sınıf eşiği doğrulaması
+- Python dosya tarayıcı geliştirildi.
+- Alt klasörlerdeki `.py` dosyalarının bulunması sağlandı.
+- Varsayılan ve özel klasör hariç tutma desteği eklendi.
+- Sembolik bağlantılı dizinlerin takip edilmesi engellendi.
+- Dosya yollarının sıralı `Path` nesneleri olarak döndürülmesi sağlandı.
+- Dosya tarayıcı 12 test senaryosuyla doğrulandı.
+- Projedeki toplam 36 test başarıyla çalıştırıldı.
+
 
 Henüz tamamlanmayan çalışmalar:
 
-- Dosya ve klasör tarama
+- Dosya içeriğini UTF-8 olarak okuma
+- Python kaynak kodunu parse etme ve syntax hatalarını yönetme
 - Analiz motoru
 - CLI
 - Terminal ve JSON raporlama

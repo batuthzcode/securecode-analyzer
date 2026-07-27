@@ -35,6 +35,7 @@ Statik analiz bileşeninin mevcut dosya yapısı aşağıdaki gibidir:
 src/
 └── static_analyzer/
     ├── __init__.py
+    ├── file_scanner.py
     ├── models.py
     └── rules/
         ├── __init__.py
@@ -44,6 +45,7 @@ src/
 
 tests/
 ├── test_base_rule.py
+├── test_file_scanner.py
 ├── test_long_class_rule.py
 ├── test_long_function_rule.py
 └── test_models.py
@@ -90,6 +92,38 @@ Bu yapı sayesinde aşağıdaki import kullanılabilir:
 
 ```python
 from static_analyzer.rules import LongClassRule
+```
+### 3.6 `static_analyzer.file_scanner`
+
+Kullanıcı tarafından verilen hedef dizin içerisindeki Python kaynak
+dosyalarını bulmaktan sorumludur.
+
+Modül aşağıdaki yapıları içerir:
+
+- `DEFAULT_EXCLUDED_DIRECTORIES`
+- `FileScanner`
+
+`FileScanner`, hedef dizini ve alt klasörlerini tarar. Yalnızca `.py`
+uzantılı dosyaları döndürür.
+
+Varsayılan olarak aşağıdaki klasörleri tarama dışında bırakır:
+
+```text
+.git
+.venv
+__pycache__
+```
+
+Kullanıcı tarafından verilen özel klasör isimleri varsayılan hariç tutma
+listesine eklenir.
+
+Örnek kullanım:
+
+```python
+from static_analyzer.file_scanner import FileScanner
+
+scanner = FileScanner()
+python_files = scanner.scan("src")
 ```
 
 ## 4. Analiz Akışı
@@ -748,7 +782,268 @@ kaynak kod işleme yapılmamıştır.
 - Kalıtım derinliği ölçülmez.
 - Sınıf bağlılığı veya uyumu ölçülmez.
 
-## 8. Hata Yönetimi
+## 8. Dosya Tarayıcı Tasarımı
+
+### 8.1 Amaç
+
+`FileScanner`, analiz edilecek Python kaynak dosyalarının keşfedilmesinden
+sorumludur.
+
+Dosya tarayıcı yalnızca dosya yollarını bulur. Dosya içeriğinin okunması,
+AST oluşturulması ve analiz kurallarının çalıştırılması farklı bileşenlerin
+sorumluluğundadır.
+
+Bu sorumluluk ayrımı sayesinde dosya keşfi bağımsız şekilde test
+edilebilmektedir.
+
+### 8.2 Modül Konumu
+
+Dosya tarayıcı aşağıdaki modülde bulunmaktadır:
+
+```text
+src/static_analyzer/file_scanner.py
+```
+
+Testleri ise aşağıdaki dosyada bulunmaktadır:
+
+```text
+tests/test_file_scanner.py
+```
+
+### 8.3 Varsayılan Hariç Tutmalar
+
+Tarama sırasında aşağıdaki klasörler varsayılan olarak atlanmaktadır:
+
+```python
+DEFAULT_EXCLUDED_DIRECTORIES = frozenset(
+    {
+        ".git",
+        ".venv",
+        "__pycache__",
+    }
+)
+```
+
+`frozenset` kullanılmasının nedenleri:
+
+- Varsayılan değerlerin yanlışlıkla değiştirilmesini engellemek
+- Klasör adlarında hızlı üyelik kontrolü yapmak
+- Güvenli varsayılanları açık biçimde tanımlamak
+
+### 8.4 Constructor Tasarımı
+
+`FileScanner`, kullanıcı tarafından özel hariç tutulacak klasör isimlerini
+kabul edebilir.
+
+Uygulanan constructor imzası:
+
+```python
+def __init__(
+    self,
+    excluded_directories: Iterable[str] | None = None,
+) -> None:
+    ...
+```
+
+Özel hariç tutmalar varsayılan değerlerin yerine geçmez. Varsayılan listeye
+eklenir:
+
+```python
+custom_exclusions = frozenset(excluded_directories or ())
+self.excluded_directories = (
+    DEFAULT_EXCLUDED_DIRECTORIES | custom_exclusions
+)
+```
+
+Bu davranış `.git`, `.venv` ve `__pycache__` gibi güvenli varsayılanların
+yanlışlıkla kaldırılmasını engeller.
+
+### 8.5 `scan()` Metodu
+
+Tarama metodu aşağıdaki imzaya sahiptir:
+
+```python
+def scan(self, target: str | Path) -> list[Path]:
+    ...
+```
+
+Metot hem `str` hem de `pathlib.Path` hedeflerini kabul eder.
+
+Hedef değer ilk olarak `Path` nesnesine dönüştürülür:
+
+```python
+target_path = Path(target)
+```
+
+### 8.6 Hedef Doğrulaması
+
+Tarama başlamadan önce hedef yol doğrulanır.
+
+Hedef mevcut değilse:
+
+```python
+raise FileNotFoundError(
+    f"Target path does not exist: {target_path}"
+)
+```
+
+Hedef bir dizin değilse:
+
+```python
+raise NotADirectoryError(
+    f"Target path is not a directory: {target_path}"
+)
+```
+
+Bu hatalar dosya tarayıcı tarafından gizlenmez. İleride CLI katmanı bu
+hataları kullanıcı tarafından anlaşılır terminal mesajlarına
+dönüştürecektir.
+
+### 8.7 Özyinelemeli Dizin Taraması
+
+Alt klasörlerin taranması için Python standart kütüphanesindeki `os.walk()`
+kullanılmaktadır:
+
+```python
+for current_root, directory_names, file_names in os.walk(
+    target_path,
+    followlinks=False,
+):
+    ...
+```
+
+`os.walk()` tercih edilmesinin nedenleri:
+
+- Alt klasörleri özyinelemeli olarak dolaşabilmesi
+- Taranacak alt klasör listesinin yerinde değiştirilebilmesi
+- Sembolik bağlantı davranışının kontrol edilebilmesi
+- Python standart kütüphanesinde bulunması
+
+### 8.8 Hariç Tutulan Klasörlerin Budanması
+
+`os.walk()` tarafından sağlanan `directory_names` listesi yerinde
+değiştirilmektedir:
+
+```python
+directory_names[:] = sorted(
+    directory_name
+    for directory_name in directory_names
+    if directory_name not in self.excluded_directories
+    and not (
+        current_directory / directory_name
+    ).is_symlink()
+)
+```
+
+Listenin yerinde değiştirilmesi önemlidir. Bu sayede `os.walk()` hariç
+tutulan klasörlerin içine hiç girmez.
+
+Klasörlerin yalnızca sonuç aşamasında filtrelenmesi tercih edilmemiştir.
+Böyle bir yaklaşım gereksiz dosya sistemi taraması yapılmasına neden olurdu.
+
+### 8.9 Sembolik Bağlantı Davranışı
+
+`followlinks=False` kullanılarak sembolik bağlantılı dizinlerin takip
+edilmemesi sağlanmaktadır.
+
+Ek olarak alt klasör listesi oluşturulurken `is_symlink()` kontrolü
+yapılmaktadır.
+
+Bu karar aşağıdaki riskleri azaltır:
+
+- Sonsuz dizin döngüleri
+- Aynı dosyanın birden fazla kez bulunması
+- Hedef dizinin dışındaki dosyalara geçilmesi
+
+### 8.10 Python Dosyalarının Seçilmesi
+
+Her dosyanın uzantısı `Path.suffix` ile kontrol edilir:
+
+```python
+if file_path.suffix == ".py":
+    python_files.append(file_path)
+```
+
+Bu nedenle yalnızca tam olarak `.py` uzantısına sahip dosyalar sonuç
+listesine eklenir.
+
+Aşağıdaki dosyalar dikkate alınmaz:
+
+```text
+README.md
+example.pyc
+requirements.txt
+config.json
+```
+
+### 8.11 Sıralı Sonuçlar
+
+Bulunan dosyalar sıralanarak döndürülmektedir:
+
+```python
+return sorted(python_files)
+```
+
+Sıralı sonuçların sağladığı avantajlar:
+
+- Testlerin deterministik olması
+- Terminal ve JSON çıktılarının kararlı olması
+- Farklı çalıştırmaların daha kolay karşılaştırılması
+- İşletim sisteminden kaynaklanan dosya sırası farklılıklarının azaltılması
+
+### 8.12 Çıktı Tipi
+
+Metot aşağıdaki türde sonuç döndürür:
+
+```python
+list[Path]
+```
+
+Dosya bulunmaması hata değildir. Böyle bir durumda boş liste döndürülür:
+
+```python
+[]
+```
+
+### 8.13 Test Stratejisi
+
+`FileScanner` için 12 test senaryosu hazırlanmıştır.
+
+Testler `pytest` tarafından sağlanan `tmp_path` fixture'ını kullanır. Böylece
+gerçek proje dizini değiştirilmeden geçici dosya yapıları oluşturulabilir.
+
+Doğrulanan temel davranışlar:
+
+- Varsayılan klasör hariç tutmalarının kullanılması
+- Özel hariç tutmaların varsayılanlara eklenmesi
+- Mevcut olmayan hedef yolun reddedilmesi
+- Dosya olarak verilen hedefin reddedilmesi
+- Boş dizin için boş liste döndürülmesi
+- Kök dizindeki Python dosyalarının bulunması
+- Alt klasörlerdeki Python dosyalarının bulunması
+- Python olmayan dosyaların yok sayılması
+- Varsayılan klasörlerin atlanması
+- Özel klasörlerin atlanması
+- Sonuçların sıralı olması
+- Sonuçların `Path` nesnelerinden oluşması
+
+### 8.14 Bilinen Sınırlamalar
+
+İlk sürüm aşağıdaki işlemleri gerçekleştirmez:
+
+- Dosya içeriğini okumak
+- Dosya encoding bilgisini doğrulamak
+- Python syntax doğrulaması yapmak
+- AST oluşturmak
+- Analiz kurallarını çalıştırmak
+- Tek bir dosyayı doğrudan hedef olarak kabul etmek
+- Büyük projeler için paralel tarama yapmak
+- Dosya uzantısını büyük/küçük harf duyarsız değerlendirmek
+
+Bu sorumluluklar ihtiyaç ortaya çıktığında ayrı geliştirme adımları olarak
+ele alınacaktır.
+
+## 9. Hata Yönetimi
 
 Aşağıdaki durumlar kontrollü şekilde yönetilecektir:
 
@@ -770,14 +1065,7 @@ durdurmayacaktır.
 Dosya okuma ve sözdizimi hataları, kod kalitesi bulgularından ayrı şekilde
 raporlanacaktır.
 
-## 9. Test Stratejisi
-- `LongClassRule` sınıfının varsayılan eşiği kullanması
-- Özel sınıf uzunluğu eşiğinin kullanılabilmesi
-- Geçersiz sınıf eşiklerinin reddedilmesi
-- Eşik değerine eşit sınıfların kabul edilmesi
-- Uzun sınıfların tespit edilmesi
-- Birden fazla ve iç içe sınıfın ayrı ayrı kontrol edilmesi
-- `SA002` bulgu alanlarının doğru üretilmesi
+## 10. Test Stratejisi
 
 Projede otomatik testler için `pytest` kullanılmaktadır.
 
@@ -788,11 +1076,25 @@ Mevcut unit testler aşağıdaki davranışları doğrulamaktadır:
 - Soyut `BaseRule` sınıfının doğrudan oluşturulamaması
 - Somut bir kuralın `check()` sözleşmesini uygulayabilmesi
 - `LongFunctionRule` sınıfının varsayılan eşiği kullanması
-- Geçersiz eşik değerlerinin reddedilmesi
+- Geçersiz fonksiyon eşik değerlerinin reddedilmesi
 - Eşik değerine eşit fonksiyonların kabul edilmesi
 - Uzun normal ve asenkron fonksiyonların tespit edilmesi
 - Birden fazla ve iç içe fonksiyonun ayrı ayrı kontrol edilmesi
-- Bulgu alanlarının doğru üretilmesi
+- `SA001` bulgu alanlarının doğru üretilmesi
+- `LongClassRule` sınıfının varsayılan eşiği kullanması
+- Özel sınıf uzunluğu eşiğinin kullanılabilmesi
+- Geçersiz sınıf eşiklerinin reddedilmesi
+- Eşik değerine eşit sınıfların kabul edilmesi
+- Uzun sınıfların tespit edilmesi
+- Birden fazla ve iç içe sınıfın ayrı ayrı kontrol edilmesi
+- `SA002` bulgu alanlarının doğru üretilmesi
+- `FileScanner` sınıfının varsayılan hariç tutmaları kullanması
+- Özel hariç tutmaların varsayılan listeye eklenmesi
+- Geçersiz hedef yolların reddedilmesi
+- Alt klasörlerdeki Python dosyalarının bulunması
+- Python olmayan dosyaların yok sayılması
+- Hariç tutulan klasörlerin taranmaması
+- Tarama sonuçlarının sıralı `Path` nesneleri olması
 
 Bütün testler aşağıdaki komutla çalıştırılabilir:
 
@@ -800,10 +1102,11 @@ Bütün testler aşağıdaki komutla çalıştırılabilir:
 python -m pytest -v
 ```
 
-Mevcut durumda toplam 24 unit test bulunmaktadır.
+Mevcut durumda toplam 36 unit test bulunmaktadır.
 
 - 10 test `LongFunctionRule` davranışlarını doğrulamaktadır.
 - 10 test `LongClassRule` davranışlarını doğrulamaktadır.
+- 12 test `FileScanner` davranışlarını doğrulamaktadır.
 - 4 test ortak veri modeli ve temel kural arayüzünü doğrulamaktadır.
 
 Bütün testler başarılı şekilde çalışmaktadır.
@@ -823,7 +1126,7 @@ Testlerde analiz edilmek istenen küçük Python kodları `ast.parse()` ile
 doğrudan AST yapısına dönüştürülmektedir. Böylece testler için gereksiz
 geçici dosyalar oluşturulması önlenecektir.
 
-## 10. Geliştirme ve Paketleme Yapısı
+## 11. Geliştirme ve Paketleme Yapısı
 
 Proje yapılandırması `pyproject.toml` dosyasında tutulmaktadır.
 
@@ -848,7 +1151,7 @@ Yerel geliştirme bağımlılıkları `.venv` sanal ortamında tutulur. Sanal or
 önbellekler ve paketleme çıktıları `.gitignore` ile Git takibinin dışında
 bırakılır.
 
-## 11. Prototip ve Kalıcı Mimariye Geçiş
+## 12. Prototip ve Kalıcı Mimariye Geçiş
 
 İlk AST prototipi aşağıdaki teknik kararları doğrulamak amacıyla
 hazırlanmıştır:
@@ -868,7 +1171,7 @@ ve çıktı katmanına ayrılacaktır.
 Böylece tek dosyada bulunan deneme kodu yerine test edilebilir ve
 genişletilebilir modüler bir yapı oluşturulacaktır.
 
-## 12. Mevcut Uygulama Durumu
+## 13. Mevcut Uygulama Durumu
 
 Tamamlanan çalışmalar:
 
@@ -885,9 +1188,9 @@ Tamamlanan çalışmalar:
 - `.gitignore` dosyasının hazırlanması
 - Sanal geliştirme ortamının kurulması
 - `LongFunctionRule` sınıfının geliştirilmesi
-- Varsayılan 50 satır eşiğinin tanımlanması
-- Özel eşik değeri desteğinin eklenmesi
-- Geçersiz eşik değerlerinin reddedilmesi
+- Varsayılan 50 satır fonksiyon eşiğinin tanımlanması
+- Özel fonksiyon eşik değeri desteğinin eklenmesi
+- Geçersiz fonksiyon eşik değerlerinin reddedilmesi
 - Normal ve asenkron fonksiyon desteğinin eklenmesi
 - İç içe fonksiyonların ayrı ayrı kontrol edilmesi
 - `LongFunctionRule` sınıfının public paket üzerinden dışa aktarılması
@@ -899,11 +1202,18 @@ Tamamlanan çalışmalar:
 - İç içe sınıfların ayrı ayrı kontrol edilmesi
 - `LongClassRule` sınıfının public paket üzerinden dışa aktarılması
 - Uzun sınıf kuralı için 10 test senaryosunun hazırlanması
-- Projedeki toplam 24 testin başarıyla çalıştırılması
+- `FileScanner` sınıfının geliştirilmesi
+- Hedef dizin doğrulamasının eklenmesi
+- Alt klasörlerdeki Python dosyalarının bulunması
+- Varsayılan klasör hariç tutmalarının tanımlanması
+- Özel klasör hariç tutma desteğinin eklenmesi
+- Sembolik bağlantılı dizinlerin takip edilmemesi
+- Sonuçların sıralı `Path` nesneleri olarak döndürülmesi
+- Dosya tarayıcı için 12 test senaryosunun hazırlanması
+- Projedeki toplam 36 testin başarıyla çalıştırılması
 
 Henüz tamamlanmayan çalışmalar:
 
-- Dosya bulma ve klasör tarama mekanizması
 - Kaynak kod okuma ve parse etme servisi
 - Analiz motoru
 - Kural kayıt mekanizması
@@ -916,12 +1226,17 @@ Henüz tamamlanmayan çalışmalar:
 - Aracın kendi kaynak kodunu analiz etmesi
 - CI/CD entegrasyonu
 
-## 13. Gelecek Geliştirmeler
+## 14. Gelecek Geliştirmeler
 
 Planlanan sonraki geliştirmeler:
 
-- Klasör ve alt klasör taraması
+- Kaynak dosyaların UTF-8 olarak okunması
+- Python kaynak kodunun parse edilmesi ve syntax hatalarının yönetilmesi
 - Birden fazla analiz kuralının birlikte çalıştırılması
+- TODO/FIXME kuralının geliştirilmesi
+- Boş `except` kuralının geliştirilmesi
+- İsimlendirme kurallarının geliştirilmesi
+- Hardcoded secret kuralının geliştirilmesi
 - Yapılandırılabilir kural sınırları
 - Terminal raporu
 - JSON raporu
@@ -931,7 +1246,7 @@ Planlanan sonraki geliştirmeler:
 - Statik analiz aracının kendi kaynak kodu üzerinde çalıştırılması
 - GitHub Actions entegrasyonu
 
-## 14. Navigation
+## 15. Navigation
 
 - [Static Code Analyzer sayfasına dön](README.md)
 - [Analiz ve Gereksinimler](analysis.md)
