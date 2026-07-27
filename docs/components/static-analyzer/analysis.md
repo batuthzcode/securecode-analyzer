@@ -510,7 +510,17 @@ Tamamlanan çalışmalar:
 - UTF-8 encoding hatalarının gizlenmeden iletilmesi sağlandı.
 - Kaynak dosyalarının yalnızca bir kez parse edilmesi sağlandı.
 - Kaynak kod okuyucu 11 test senaryosuyla doğrulandı.
-- Projenin toplam 59 testi başarılı şekilde çalışmaktadır.
+- Projenin toplam 71 testi başarılı şekilde çalışmaktadır.
+- `BaseTextRule` soyut kural arayüzü geliştirildi.
+- Metin tabanlı kuralların kaynak kod metni ve dosya yolu alması sağlandı.
+- `BaseTextRule` sınıfının public kural paketi üzerinden dışa aktarılması sağlandı.
+- `AnalysisEngine` içerisine metin tabanlı kural desteği eklendi.
+- AST tabanlı kurallara mevcut AST nesnesinin gönderilmesi korundu.
+- Metin tabanlı kurallara `SourceFile.source` değerinin gönderilmesi sağlandı.
+- AST ve metin tabanlı kuralların kayıt sırasına göre çalıştırılması sağlandı.
+- Farklı kural türlerinin bulgularının ortak listede birleştirilmesi sağlandı.
+- Kaynak dosyanın tekrar okunmaması ve tekrar parse edilmemesi doğrulandı.
+- Metin tabanlı kural altyapısı 12 test senaryosuyla doğrulandı.
 
 Henüz tamamlanmayan çalışmalar:
 

@@ -164,6 +164,67 @@ AST yapısına dönüştürür.
 
 `AnalysisEngine`, parse edilmiş bir `SourceFile` üzerinde kayıtlı analiz
 kurallarını çalıştırır.
+### BaseTextRule
+
+`BaseTextRule`, AST içerisinde doğrudan korunmayan kaynak kod bilgilerinin
+incelenmesi için kullanılan soyut kural arayüzüdür.
+
+Metin tabanlı kurallar aşağıdaki bilgileri alır:
+
+- Kaynak dosyanın tam metni
+- Kaynak dosyanın yolu
+
+Somut bir metin tabanlı kural aşağıdaki sözleşmeyi uygular:
+
+```python
+def check(
+    self,
+    source: str,
+    file_path: str,
+) -> list[Finding]:
+    ...
+```
+
+`AnalysisEngine`, kural türüne göre doğru girdiyi gönderir:
+
+- `BaseRule` kurallarına `SourceFile.tree`
+- `BaseTextRule` kurallarına `SourceFile.source`
+
+Örnek metin tabanlı kural:
+
+```python
+from static_analyzer.models import Finding
+from static_analyzer.rules import BaseTextRule
+
+
+class ExampleTextRule(BaseTextRule):
+    rule_id = "TEXT001"
+    name = "Example Text Rule"
+    description = "Example source text analysis rule."
+
+    def check(
+        self,
+        source: str,
+        file_path: str,
+    ) -> list[Finding]:
+        return []
+```
+
+AST ve metin tabanlı kurallar aynı analiz motorunda birlikte
+kullanılabilir:
+
+```python
+engine = AnalysisEngine(
+    rules=[
+        LongFunctionRule(),
+        ExampleTextRule(),
+        LongClassRule(),
+    ]
+)
+```
+
+Kurallar motor içerisine verildikleri sırayla çalıştırılır ve ürettikleri
+bulgular aynı sırayla ortak listede birleştirilir.
 
 Motorun temel sorumlulukları:
 
@@ -321,11 +382,16 @@ Tamamlanan çalışmalar:
 - Kaynak kodun AST yapısına dönüştürülmesi sağlandı.
 - Syntax ve encoding hatalarının gizlenmeden iletilmesi sağlandı.
 - Kaynak kod okuyucu 11 test senaryosuyla doğrulandı.
-- Projedeki toplam 59 test başarıyla çalıştırıldı.
+- Projedeki toplam 71 test başarıyla çalıştırıldı.
 - `AnalysisEngine` sınıfı geliştirildi.
 - Birden fazla analiz kuralının aynı AST üzerinde çalıştırılması sağlandı.
 - Kural bulgularının ortak bir listede birleştirilmesi sağlandı.
 - Analiz motoru 12 test senaryosuyla doğrulandı.
+- `BaseTextRule` soyut arayüzü geliştirildi.
+- Metin tabanlı kurallar için kaynak metin analizi desteği eklendi.
+- `AnalysisEngine` içerisinde AST ve metin tabanlı kural desteği birleştirildi.
+- Karma kural çalıştırma sırasının korunması sağlandı.
+- Metin tabanlı kural altyapısı 12 test senaryosuyla doğrulandı.
 
 
 Henüz tamamlanmayan çalışmalar:
