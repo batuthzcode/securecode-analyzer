@@ -494,6 +494,15 @@ Tamamlanan çalışmalar:
 - Uzun sınıf kuralı 10 test senaryosuyla doğrulandı.
 - `SourceFile` veri modeli geliştirildi.
 - `SourceReader` sınıfı geliştirildi.
+- `AnalysisEngine` sınıfı geliştirildi.
+- Analiz kurallarının değiştirilemez bir `tuple` içerisinde saklanması sağlandı.
+- Kayıtlı kuralların aynı AST nesnesi üzerinde çalıştırılması sağlandı.
+- Her kurala gerçek kaynak dosya yolunun iletilmesi sağlandı.
+- Birden fazla kuralın bulgularının ortak listede birleştirilmesi sağlandı.
+- Kural ve bulgu sırasının korunması sağlandı.
+- Analiz sırasında kaynak kodun tekrar parse edilmesi engellendi.
+- Kural exception'larının gizlenmeden çağıran katmana iletilmesi sağlandı.
+- Analiz motoru 12 test senaryosuyla doğrulandı.
 - Python kaynak dosyalarının UTF-8 olarak okunması sağlandı.
 - Kaynak kodun `ast.parse()` ile AST yapısına dönüştürülmesi sağlandı.
 - AST oluşturulurken gerçek dosya yolunun kullanılması sağlandı.
@@ -501,11 +510,10 @@ Tamamlanan çalışmalar:
 - UTF-8 encoding hatalarının gizlenmeden iletilmesi sağlandı.
 - Kaynak dosyalarının yalnızca bir kez parse edilmesi sağlandı.
 - Kaynak kod okuyucu 11 test senaryosuyla doğrulandı.
-- Projenin toplam 47 testi başarılı şekilde çalışmaktadır.
+- Projenin toplam 59 testi başarılı şekilde çalışmaktadır.
 
 Henüz tamamlanmayan çalışmalar:
 
-- Analiz motoru
 - TODO/FIXME kuralı
 - Boş `except` kuralı
 - İsimlendirme kuralları

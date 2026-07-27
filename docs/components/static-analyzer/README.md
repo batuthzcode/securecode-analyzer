@@ -160,6 +160,40 @@ kaldırılmaz.
 `SourceReader`, Python kaynak dosyalarını UTF-8 olarak okur ve kaynak kodu
 AST yapısına dönüştürür.
 
+### AnalysisEngine
+
+`AnalysisEngine`, parse edilmiş bir `SourceFile` üzerinde kayıtlı analiz
+kurallarını çalıştırır.
+
+Motorun temel sorumlulukları:
+
+- Analiz kurallarını değiştirilemez bir `tuple` içerisinde saklamak
+- Her kuralı aynı AST nesnesi üzerinde çalıştırmak
+- Gerçek kaynak dosya yolunu kurallara iletmek
+- Kuralların ürettiği bulguları ortak bir listede toplamak
+- Kural ve bulgu sırasını korumak
+- Kaynak kodun tekrar parse edilmesini önlemek
+- Beklenmeyen kural exception'larını gizlememek
+
+Örnek kullanım:
+
+```python
+from static_analyzer.analysis_engine import AnalysisEngine
+from static_analyzer.rules import LongClassRule, LongFunctionRule
+from static_analyzer.source_reader import SourceReader
+
+source_file = SourceReader().read("example.py")
+
+engine = AnalysisEngine(
+    rules=[
+        LongFunctionRule(),
+        LongClassRule(),
+    ]
+)
+
+findings = engine.analyze(source_file)
+```
+
 Modül:
 
 ```text
@@ -287,12 +321,15 @@ Tamamlanan çalışmalar:
 - Kaynak kodun AST yapısına dönüştürülmesi sağlandı.
 - Syntax ve encoding hatalarının gizlenmeden iletilmesi sağlandı.
 - Kaynak kod okuyucu 11 test senaryosuyla doğrulandı.
-- Projedeki toplam 47 test başarıyla çalıştırıldı.
+- Projedeki toplam 59 test başarıyla çalıştırıldı.
+- `AnalysisEngine` sınıfı geliştirildi.
+- Birden fazla analiz kuralının aynı AST üzerinde çalıştırılması sağlandı.
+- Kural bulgularının ortak bir listede birleştirilmesi sağlandı.
+- Analiz motoru 12 test senaryosuyla doğrulandı.
 
 
 Henüz tamamlanmayan çalışmalar:
 
-- Analiz motoru
 - CLI
 - Terminal ve JSON raporlama
 - Exit code yönetimi

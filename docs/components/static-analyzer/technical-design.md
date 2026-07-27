@@ -35,6 +35,7 @@ Statik analiz bileşeninin mevcut dosya yapısı aşağıdaki gibidir:
 src/
 └── static_analyzer/
     ├── __init__.py
+    ├── analysis_engine.py
     ├── file_scanner.py
     ├── models.py
     ├── source_reader.py
@@ -45,6 +46,7 @@ src/
         └── long_function.py
 
 tests/
+├── test_analysis_engine.py
 ├── test_base_rule.py
 ├── test_file_scanner.py
 ├── test_long_class_rule.py
@@ -149,25 +151,72 @@ reader = SourceReader()
 source_file = reader.read("example.py")
 ```
 
+### 3.8 `static_analyzer.analysis_engine`
+
+Parse edilmiş kaynak dosya üzerinde kayıtlı analiz kurallarını çalıştıran
+`AnalysisEngine` sınıfını içerir.
+
+Temel sorumlulukları:
+
+- Kuralları değiştirilemez bir `tuple` içerisinde saklamak
+- Her kayıtlı kuralı yalnızca bir kez çalıştırmak
+- `SourceFile` içerisindeki mevcut AST nesnesini yeniden kullanmak
+- Gerçek kaynak dosya yolunu her kurala iletmek
+- Kuralların ürettiği bulguları ortak bir listede birleştirmek
+- Kural ve bulgu sırasını korumak
+- Kural exception'larını gizlemeden çağıran katmana iletmek
+
+Temel kullanım:
+
+```python
+from static_analyzer.analysis_engine import AnalysisEngine
+from static_analyzer.rules import LongClassRule, LongFunctionRule
+
+engine = AnalysisEngine(
+    rules=[
+        LongFunctionRule(),
+        LongClassRule(),
+    ]
+)
+
+findings = engine.analyze(source_file)
+```
+
+Analiz motoru kaynak dosyayı okumaz ve kaynak kodu yeniden parse etmez.
+Bu sorumluluk `SourceReader` bileşenine aittir.
+
+Kurallar şu bilgilerle çalıştırılır:
+
+```python
+rule.check(
+    source_file.tree,
+    str(source_file.file_path),
+)
+```
+
+Her kuralın döndürdüğü `Finding` nesneleri tek bir `list[Finding]`
+içerisinde toplanır.
+
 ## 4. Analiz Akışı
 
-Bileşenin planlanan temel çalışma sırası aşağıdaki şekilde olacaktır:
+Bileşenin mevcut ve planlanan çalışma sırası aşağıdaki şekildedir:
 
 1. Kullanıcıdan analiz edilecek dosya veya klasör yolu alınır.
-2. Analiz edilmesi gereken Python dosyaları bulunur.
-3. Her dosyanın içeriği UTF-8 formatında okunur.
-4. Kaynak kod `ast.parse()` kullanılarak AST yapısına dönüştürülür.
-5. Oluşturulan AST, kayıtlı AST tabanlı kurallara gönderilir.
-6. Metin tabanlı kurallar, kaynak kod veya kaynak kod satırları üzerinde
+2. `FileScanner` analiz edilecek Python dosyalarını bulur.
+3. `SourceReader` her kaynak dosyayı UTF-8 olarak okur.
+4. Kaynak kod bir kez `ast.parse()` ile AST yapısına dönüştürülür.
+5. `AnalysisEngine` kayıtlı AST tabanlı kuralları aynı AST nesnesi üzerinde
+   çalıştırır.
+6. Kuralların döndürdüğü `Finding` nesneleri ortak bir listede birleştirilir.
+7. Planlanan metin tabanlı kurallar kaynak kod veya kaynak satırları üzerinde
    çalıştırılır.
-7. Kuralların döndürdüğü `Finding` nesneleri ortak bir listede toplanır.
 8. Sonuçlar terminalde kullanıcıya gösterilir.
 9. İstenirse sonuçlar JSON dosyasına yazılır.
 10. Bulunan problemlere ve önem seviyesi eşiğine göre uygun exit code üretilir.
 
-Bir Python dosyasının her AST kuralı için tekrar parse edilmesi yerine dosyanın
-bir kez parse edilmesi planlanmaktadır. Böylece birden fazla kural
-çalıştırıldığında gereksiz işlem tekrarı önlenecektir.
+`SourceReader` tarafından oluşturulan AST, `AnalysisEngine` tarafından yeniden
+kullanılır. Analiz motoru kaynak kodu tekrar parse etmez; böylece birden fazla
+kural çalıştırıldığında gereksiz işlem tekrarı önlenir.
 
 ## 5. Analiz Kuralı Türleri
 
@@ -1065,6 +1114,7 @@ Doğrulanan temel davranışlar:
 
 Bu sorumluluklar ihtiyaç ortaya çıktığında ayrı geliştirme adımları olarak
 ele alınacaktır.
+
 ## 9. Kaynak Kod Okuyucu Tasarımı
 
 ### 9.1 Amaç
@@ -1156,8 +1206,8 @@ raise IsADirectoryError(
 )
 ```
 
-Bu hatalar kaynak kod okuyucu tarafından gizlenmez. Analiz motoru veya CLI
-katmanı ileride bu hataları kullanıcı dostu mesajlara dönüştürecektir.
+Bu hatalar kaynak kod okuyucu tarafından gizlenmez. Üst seviye koordinasyon
+veya CLI katmanı ileride bu hataları kullanıcı dostu mesajlara dönüştürecektir.
 
 ### 9.6 UTF-8 Kaynak Kod Okuma
 
@@ -1190,7 +1240,7 @@ Dosya yolunun `filename` parametresine verilmesinin nedeni, oluşabilecek
 Kaynak dosya her `read()` çağrısında yalnızca bir kez parse edilir.
 
 Bu sayede aynı dosyanın her analiz kuralı için yeniden parse edilmesi
-engellenebilecektir.
+engellenmektedir.
 
 ### 9.8 Syntax Hatası Davranışı
 
@@ -1203,8 +1253,8 @@ Kaynak kod geçerli Python sözdizimine sahip değilse `ast.parse()`
 - `Finding` nesnesine dönüştürülmez
 - Boş AST ile değiştirilmez
 
-Analiz motoru geliştirildiğinde syntax hatası bulunan dosyayı raporlayıp diğer
-dosyaların analizine devam edecektir.
+Üst seviye koordinasyon veya CLI katmanı syntax hatası bulunan dosyayı
+raporlayarak diğer dosyaların analizine devam edebilir.
 
 ### 9.9 Sonuç Oluşturma
 
@@ -1289,9 +1339,169 @@ kullanılmaktadır.
 - Terminal veya JSON çıktısı oluşturmak
 - Aynı dosya için AST önbelleği tutmak
 
-Bu sorumluluklar analiz motoru ve raporlama katmanlarında ele alınacaktır.
+Bu sorumluluklar üst seviye koordinasyon, raporlama ve CLI katmanlarında
+ele alınacaktır.
 
-## 10. Hata Yönetimi
+## 10. Analiz Motoru Tasarımı
+
+### 10.1 Amaç
+
+`AnalysisEngine`, `SourceReader` tarafından oluşturulan `SourceFile` nesnesi
+üzerinde kayıtlı analiz kurallarını çalıştırmaktan sorumludur.
+
+Motor, kaynak dosyayı tekrar okumaz ve kaynak kodu tekrar parse etmez. Hazır AST
+nesnesini kullanarak bütün kural sonuçlarını ortak bir bulgu listesinde toplar.
+
+### 10.2 Modül Konumu
+
+Analiz motoru aşağıdaki modülde bulunmaktadır:
+
+```text
+src/static_analyzer/analysis_engine.py
+```
+
+Testleri aşağıdaki dosyada bulunmaktadır:
+
+```text
+tests/test_analysis_engine.py
+```
+
+### 10.3 Constructor Tasarımı
+
+Constructor, `BaseRule` örneklerinden oluşan herhangi bir iterable kabul eder:
+
+```python
+def __init__(
+    self,
+    rules: Iterable[BaseRule],
+) -> None:
+    self.rules = tuple(rules)
+```
+
+Kuralların `tuple` içerisinde saklanması, motor oluşturulduktan sonra kural
+koleksiyonunun yanlışlıkla değiştirilmesini engeller.
+
+Generator gibi tek kullanımlık iterable değerler de constructor sırasında
+tüketilerek kararlı bir kural koleksiyonuna dönüştürülür.
+
+Boş bir kural koleksiyonu geçerlidir. Bu durumda analiz sonucu boş listedir.
+
+### 10.4 `analyze()` Metodu
+
+Analiz metodu bir `SourceFile` kabul eder ve birleşik bulgu listesini döndürür:
+
+```python
+def analyze(
+    self,
+    source_file: SourceFile,
+) -> list[Finding]:
+    ...
+```
+
+Metot aşağıdaki çalışma sırasını uygular:
+
+1. Boş bir `Finding` listesi oluşturur.
+2. Kayıtlı kuralları constructor'a verildikleri sırayla dolaşır.
+3. Her kuralın `check()` metodunu yalnızca bir kez çağırır.
+4. Aynı AST nesnesini ve gerçek dosya yolunu kurala iletir.
+5. Kuralın döndürdüğü bulguları ortak listeye ekler.
+6. Birleştirilmiş bulgu listesini döndürür.
+
+### 10.5 Kural Çağrısı
+
+Her kural aşağıdaki bilgilerle çalıştırılır:
+
+```python
+rule_findings = rule.check(
+    source_file.tree,
+    str(source_file.file_path),
+)
+```
+
+`source_file.tree` doğrudan kullanıldığı için kaynak kod yeniden parse edilmez.
+
+Dosya yolu `str` biçiminde gönderilir. Bu davranış mevcut `BaseRule.check()`
+sözleşmesiyle uyumludur.
+
+### 10.6 Bulguların Birleştirilmesi
+
+Her kural sıfır, bir veya birden fazla `Finding` döndürebilir.
+
+Sonuçlar aşağıdaki işlemle tek listede birleştirilir:
+
+```python
+findings.extend(rule_findings)
+```
+
+Bulgu sırası deterministiktir:
+
+1. Kuralların motora verildiği sıra korunur.
+2. Her kuralın kendi içerisinde döndürdüğü bulgu sırası korunur.
+
+Analiz motoru ilk sürümde bulguları yeniden sıralamaz.
+
+### 10.7 Hata Davranışı
+
+Bir kural beklenmeyen exception üretirse analiz motoru bu hatayı sessizce
+gizlemez.
+
+Exception çağıran katmana iletilir. Böylece hata davranışı görünür ve test
+edilebilir kalır.
+
+Bir kural hatasından sonra diğer dosyaların analizine devam etme sorumluluğu
+ileride geliştirilecek üst seviye koordinasyon veya CLI katmanına aittir.
+
+### 10.8 Sorumluluk Sınırları
+
+`AnalysisEngine` aşağıdaki işlemleri gerçekleştirmez:
+
+- Klasör taramak
+- Python dosyalarını bulmak
+- Kaynak dosyayı okumak
+- Kaynak kodu parse etmek
+- AST oluşturmak
+- Terminal çıktısı üretmek
+- JSON raporu oluşturmak
+- Exit code belirlemek
+- Dosya okuma veya syntax hatalarını kullanıcı dostu rapora dönüştürmek
+
+Bu sorumluluklar `FileScanner`, `SourceReader`, raporlama ve CLI
+bileşenlerine ayrılmıştır.
+
+### 10.9 Test Stratejisi
+
+`AnalysisEngine` için 12 test senaryosu hazırlanmıştır.
+
+Doğrulanan temel davranışlar:
+
+- Kuralların `tuple` olarak saklanması
+- Boş kural koleksiyonunun boş sonuç döndürmesi
+- Tek kuralın yalnızca bir kez çalıştırılması
+- Birden fazla kuralın ayrı ayrı ve yalnızca bir kez çalıştırılması
+- Aynı AST nesnesinin bütün kurallara iletilmesi
+- Gerçek dosya yolunun `str` olarak kurallara iletilmesi
+- Kaynak kodun yeniden parse edilmemesi
+- Tek bulgunun döndürülmesi
+- Bir kuralın birden fazla bulgusunun korunması
+- Kural ve bulgu sırasının korunması
+- Bulgusuz kuralın boş sonuç üretmesi
+- Kural exception'ının gizlenmemesi
+
+### 10.10 Bilinen Sınırlamalar
+
+İlk sürümde analiz motoru:
+
+- Kuralları çalışma anında ekleyip kaldırmaz
+- Bulguları önem seviyesine veya dosya konumuna göre sıralamaz
+- Kural exception'larını bulguya dönüştürmez
+- Bir kural hatasından sonra aynı dosyadaki diğer kurallara devam etmez
+- Birden fazla dosyanın analizini koordine etmez
+- Paralel kural çalıştırma yapmaz
+
+Bu ihtiyaçlar üst seviye analiz koordinasyonu ve CLI tasarımı geliştirilirken
+yeniden değerlendirilecektir.
+
+## 11. Hata Yönetimi
 
 Aşağıdaki durumlar kontrollü şekilde yönetilecektir:
 
@@ -1313,7 +1523,7 @@ durdurmayacaktır.
 Dosya okuma ve sözdizimi hataları, kod kalitesi bulgularından ayrı şekilde
 raporlanacaktır.
 
-## 11. Test Stratejisi
+## 12. Test Stratejisi
 
 Projede otomatik testler için `pytest` kullanılmaktadır.
 
@@ -1352,6 +1562,13 @@ Mevcut unit testler aşağıdaki davranışları doğrulamaktadır:
 - Syntax ve encoding hatalarının gizlenmemesi
 - Syntax hatasında gerçek dosya yolunun gösterilmesi
 - Kaynak kodun yalnızca bir kez parse edilmesi
+- `AnalysisEngine` kurallarının `tuple` içerisinde saklanması
+- Boş kural koleksiyonunun boş sonuç döndürmesi
+- Her kayıtlı kuralın yalnızca bir kez çalıştırılması
+- Aynı AST nesnesi ve gerçek dosya yolunun kurallara iletilmesi
+- Birden fazla kuralın bulgularının sıralı şekilde birleştirilmesi
+- Kaynak kodun analiz motorunda yeniden parse edilmemesi
+- Kural exception'larının gizlenmemesi
 
 Bütün testler aşağıdaki komutla çalıştırılabilir:
 
@@ -1359,12 +1576,13 @@ Bütün testler aşağıdaki komutla çalıştırılabilir:
 python -m pytest -v
 ```
 
-Mevcut durumda toplam 47 unit test bulunmaktadır.
+Mevcut durumda toplam 59 unit test bulunmaktadır.
 
 - 10 test `LongFunctionRule` davranışlarını doğrulamaktadır.
 - 10 test `LongClassRule` davranışlarını doğrulamaktadır.
 - 12 test `FileScanner` davranışlarını doğrulamaktadır.
 - 11 test `SourceReader` davranışlarını doğrulamaktadır.
+- 12 test `AnalysisEngine` davranışlarını doğrulamaktadır.
 - 4 test ortak veri modeli ve temel kural arayüzünü doğrulamaktadır.
 
 Bütün testler başarılı şekilde çalışmaktadır.
@@ -1384,7 +1602,7 @@ Testlerde analiz edilmek istenen küçük Python kodları `ast.parse()` ile
 doğrudan AST yapısına dönüştürülmektedir. Böylece testler için gereksiz
 geçici dosyalar oluşturulması önlenecektir.
 
-## 12. Geliştirme ve Paketleme Yapısı
+## 13. Geliştirme ve Paketleme Yapısı
 
 Proje yapılandırması `pyproject.toml` dosyasında tutulmaktadır.
 
@@ -1409,7 +1627,7 @@ Yerel geliştirme bağımlılıkları `.venv` sanal ortamında tutulur. Sanal or
 önbellekler ve paketleme çıktıları `.gitignore` ile Git takibinin dışında
 bırakılır.
 
-## 13. Prototip ve Kalıcı Mimariye Geçiş
+## 14. Prototip ve Kalıcı Mimariye Geçiş
 
 İlk AST prototipi aşağıdaki teknik kararları doğrulamak amacıyla
 hazırlanmıştır:
@@ -1422,14 +1640,15 @@ hazırlanmıştır:
 
 Prototip, kalıcı proje mimarisinin bir parçası olarak kullanılmamıştır.
 
-Prototip kodundaki uzun fonksiyon tespiti sorumluluğu
-`LongFunctionRule` sınıfına taşınmıştır. Kalan sorumluluklar analiz motoruna
-ve çıktı katmanına ayrılacaktır.
+Prototip kodundaki uzun fonksiyon tespiti `LongFunctionRule` sınıfına,
+kaynak kod okuma ve parse etme `SourceReader` bileşenine, kural koordinasyonu
+ise `AnalysisEngine` sınıfına taşınmıştır. Kalan sorumluluklar raporlama ve
+CLI katmanlarına ayrılacaktır.
 
 Böylece tek dosyada bulunan deneme kodu yerine test edilebilir ve
 genişletilebilir modüler bir yapı oluşturulacaktır.
 
-## 14. Mevcut Uygulama Durumu
+## 15. Mevcut Uygulama Durumu
 
 Tamamlanan çalışmalar:
 
@@ -1468,7 +1687,6 @@ Tamamlanan çalışmalar:
 - Sembolik bağlantılı dizinlerin takip edilmemesi
 - Sonuçların sıralı `Path` nesneleri olarak döndürülmesi
 - Dosya tarayıcı için 12 test senaryosunun hazırlanması
-- Projedeki toplam 36 testin başarıyla çalıştırılması
 - `SourceFile` veri modelinin geliştirilmesi
 - `SourceReader` sınıfının geliştirilmesi
 - Python kaynak dosyalarının UTF-8 olarak okunması
@@ -1478,11 +1696,19 @@ Tamamlanan çalışmalar:
 - UTF-8 encoding hatalarının gizlenmeden iletilmesi
 - Kaynak kodun yalnızca bir kez parse edilmesi
 - Kaynak kod okuyucu için 11 test senaryosunun hazırlanması
-- Projedeki toplam 47 testin başarıyla çalıştırılması
+- `AnalysisEngine` sınıfının geliştirilmesi
+- Analiz kurallarının değiştirilemez bir `tuple` içerisinde saklanması
+- Kayıtlı kuralların aynı AST nesnesi üzerinde çalıştırılması
+- Gerçek kaynak dosya yolunun kurallara iletilmesi
+- Birden fazla kuralın bulgularının ortak listede birleştirilmesi
+- Kural ve bulgu sırasının korunması
+- Kaynak kodun analiz motorunda yeniden parse edilmemesi
+- Kural exception'larının gizlenmeden iletilmesi
+- Analiz motoru için 12 test senaryosunun hazırlanması
+- Projedeki toplam 59 testin başarıyla çalıştırılması
 
 Henüz tamamlanmayan çalışmalar:
 
-- Analiz motoru
 - Kural kayıt mekanizması
 - Diğer analiz kuralları
 - Metin tabanlı kural arayüzü
@@ -1493,13 +1719,10 @@ Henüz tamamlanmayan çalışmalar:
 - Aracın kendi kaynak kodunu analiz etmesi
 - CI/CD entegrasyonu
 
-## 15. Gelecek Geliştirmeler
+## 16. Gelecek Geliştirmeler
 
 Planlanan sonraki geliştirmeler:
 
-- Kaynak dosyaların UTF-8 olarak okunması
-- Python kaynak kodunun parse edilmesi ve syntax hatalarının yönetilmesi
-- Birden fazla analiz kuralının birlikte çalıştırılması
 - TODO/FIXME kuralının geliştirilmesi
 - Boş `except` kuralının geliştirilmesi
 - İsimlendirme kurallarının geliştirilmesi
@@ -1513,7 +1736,7 @@ Planlanan sonraki geliştirmeler:
 - Statik analiz aracının kendi kaynak kodu üzerinde çalıştırılması
 - GitHub Actions entegrasyonu
 
-## 16. Navigation
+## 17. Navigation
 
 - [Static Code Analyzer sayfasına dön](README.md)
 - [Analiz ve Gereksinimler](analysis.md)
