@@ -706,6 +706,9 @@ içeriğini okumak ve AST yapısına dönüştürmekle sorumludur.
 Dosya keşfi, kaynak kod okuma ve analiz kurallarını çalıştırma sorumlulukları
 ayrı bileşenlerde tutulacaktır.
 
+Bu ayrım sayesinde kaynak kod okuma ve parse etme davranışları bağımsız
+şekilde test edilebilir.
+
 ### 13.2 Girdi
 
 Kaynak kod okuyucu hem `str` hem de `pathlib.Path` dosya yollarını kabul
@@ -713,6 +716,16 @@ etmelidir:
 
 ```python
 str | pathlib.Path
+```
+
+Örnek kullanımlar:
+
+```python
+reader.read("example.py")
+```
+
+```python
+reader.read(Path("example.py"))
 ```
 
 ### 13.3 Kaynak Kodun Okunması
@@ -723,7 +736,8 @@ Python kaynak dosyaları UTF-8 encoding kullanılarak okunmalıdır:
 source = file_path.read_text(encoding="utf-8")
 ```
 
-Okunan kaynak kod metin olarak döndürülebilmelidir.
+Okunan kaynak kod herhangi bir değişiklik yapılmadan sonuç nesnesinde
+saklanmalıdır.
 
 ### 13.4 AST Oluşturulması
 
@@ -740,38 +754,43 @@ tree = ast.parse(
 Dosya yolunun `filename` parametresine verilmesi, syntax hata mesajlarında
 gerçek dosya yolunun görünmesini sağlar.
 
+Kaynak dosya her okuma işleminde yalnızca bir kez parse edilmelidir.
+
 ### 13.5 Hedef Dosya Doğrulaması
 
-Kaynak kod okuyucu aşağıdaki durumları doğrulamalıdır:
+Kaynak kod okuyucu dosyayı okumadan önce hedef yolu doğrulamalıdır.
 
-- Dosya yolu mevcut değilse `FileNotFoundError`
-- Hedef bir dizinse `IsADirectoryError`
-- Hedef dosya okunabiliyorsa işlemin devam etmesi
+Aşağıdaki davranışlar uygulanmalıdır:
+
+- Dosya yolu mevcut değilse `FileNotFoundError` üretilmesi
+- Hedef yol bir dizinse `IsADirectoryError` üretilmesi
+- Geçerli bir dosya verilirse okuma ve parse işleminin devam etmesi
 
 ### 13.6 Syntax Hataları
 
 Geçersiz Python sözdizimi `ast.parse()` tarafından `SyntaxError` olarak
 raporlanmalıdır.
 
-İlk sürümde `SyntaxError` gizlenmeyecek veya kod kalitesi bulgusuna
-dönüştürülmeyecektir.
+İlk sürümde `SyntaxError`:
 
-Analiz motoru daha sonra bu hatayı yakalayarak diğer dosyaların analizine
-devam edebilecektir.
+- Gizlenmemelidir.
+- Boş bir AST ile değiştirilmemelidir.
+- Kod kalitesi bulgusuna dönüştürülmemelidir.
+
+Analiz motoru ileride bu hatayı kaydederek diğer dosyaların analizine devam
+edecektir.
 
 ### 13.7 Encoding Hataları
 
 UTF-8 olmayan kaynak dosyalarında oluşan `UnicodeDecodeError`
 gizlenmemelidir.
 
-Bu hata ileride analiz motoru veya CLI tarafından kullanıcı dostu bir
-mesaja dönüştürülecektir.
+Encoding tahmini yapılmayacaktır. Kaynak dosyaların UTF-8 olması
+beklenmektedir.
 
 ### 13.8 Çıktı Modeli
 
-Okunan kaynak kod ve oluşturulan AST aynı sonuç nesnesinde tutulmalıdır.
-
-Planlanan veri modeli:
+Okunan kaynak kod ve oluşturulan AST aynı sonuç nesnesinde tutulmalıdır:
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -781,8 +800,16 @@ class SourceFile:
     tree: ast.AST
 ```
 
-Bu yapı sayesinde analiz kuralları aynı dosyayı tekrar okumadan ve tekrar
-parse etmeden çalıştırılabilir.
+Alanların sorumlulukları:
+
+| Alan | Açıklama |
+|---|---|
+| `file_path` | Okunan dosyanın `Path` biçimindeki yolu |
+| `source` | Dosyanın UTF-8 olarak okunan tam içeriği |
+| `tree` | Kaynak koddan oluşturulan AST yapısı |
+
+Bu yapı sayesinde analiz kuralları dosyayı tekrar okumadan ve tekrar parse
+etmeden çalıştırılabilir.
 
 ### 13.9 Sorumluluk Sınırları
 
@@ -794,34 +821,41 @@ Kaynak kod okuyucu aşağıdaki işlemleri yapmayacaktır:
 - Terminal çıktısı oluşturmak
 - JSON raporu oluşturmak
 - Exit code belirlemek
+- Syntax veya encoding hatalarını kullanıcı dostu rapora dönüştürmek
 
 ### 13.10 Kabul Kriterleri
 
 Kaynak kod okuyucu aşağıdaki koşulları sağlamalıdır:
 
 1. `str` ve `Path` dosya yollarını kabul eder.
-2. Python dosyasını UTF-8 ile okur.
-3. Kaynak kod metnini sonuç içerisinde saklar.
-4. Kaynak kodu yalnızca bir kez AST yapısına dönüştürür.
-5. Dosya yolunu sonuç içerisinde `Path` olarak saklar.
-6. Geçerli Python kodu için AST döndürür.
+2. Python dosyasını UTF-8 olarak okur.
+3. Kaynak kod metnini değiştirmeden saklar.
+4. Geçerli Python kodundan AST oluşturur.
+5. Kaynak dosyayı yalnızca bir kez parse eder.
+6. Dosya yolunu sonuç nesnesinde `Path` olarak saklar.
 7. Mevcut olmayan dosya için `FileNotFoundError` üretir.
 8. Dizin olarak verilen hedef için `IsADirectoryError` üretir.
 9. Geçersiz Python kodu için `SyntaxError` üretir.
-10. UTF-8 olmayan dosya için `UnicodeDecodeError` üretir.
+10. Syntax hatasında gerçek dosya yolunu gösterir.
+11. UTF-8 olmayan dosya için `UnicodeDecodeError` üretir.
+12. Sonucu değiştirilemez bir `SourceFile` nesnesinde tutar.
 
-### 13.11 Planlanan Test Senaryoları
+### 13.11 Test Senaryoları
+
+`SourceReader` aşağıdaki senaryolarla doğrulanmıştır:
 
 - Geçerli Python dosyasının okunması
 - `str` dosya yolunun kabul edilmesi
 - `Path` dosya yolunun kabul edilmesi
-- Dosya yolunun sonuçta `Path` olarak saklanması
-- Kaynak kod metninin doğru saklanması
+- Dosya yolunun `Path` olarak saklanması
+- Kaynak kod metninin değiştirilmeden korunması
 - AST yapısının oluşturulması
-- Syntax hatasında gerçek dosya yolunun bulunması
 - Mevcut olmayan dosyanın reddedilmesi
 - Dizin hedefinin reddedilmesi
-- UTF-8 olmayan dosyanın reddedilmesi
+- Geçersiz Python kodunda `SyntaxError` üretilmesi
+- Syntax hatasında gerçek dosya yolunun bulunması
+- UTF-8 olmayan dosyada `UnicodeDecodeError` üretilmesi
+- Kaynak kodun yalnızca bir kez parse edilmesi
 
 ## 14. Navigation
 
