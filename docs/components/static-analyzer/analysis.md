@@ -856,8 +856,183 @@ Kaynak kod okuyucu aşağıdaki koşulları sağlamalıdır:
 - Syntax hatasında gerçek dosya yolunun bulunması
 - UTF-8 olmayan dosyada `UnicodeDecodeError` üretilmesi
 - Kaynak kodun yalnızca bir kez parse edilmesi
+## 14. Analiz Motoru Gereksinimleri
 
-## 14. Navigation
+### 14.1 Amaç
+
+Analiz motoru, kaynak kod okuyucu tarafından oluşturulan `SourceFile`
+nesnesi üzerinde kayıtlı statik analiz kurallarını çalıştırmakla sorumludur.
+
+Her kuralın ürettiği bulgular ortak bir listede toplanarak çağıran katmana
+döndürülmelidir.
+
+Analiz motoru kaynak dosyayı tekrar okumamalı veya tekrar parse etmemelidir.
+`SourceFile` içerisinde bulunan hazır AST yapısını kullanmalıdır.
+
+### 14.2 Girdiler
+
+Analiz motoru iki temel girdiye ihtiyaç duyar:
+
+1. Çalıştırılacak analiz kuralları
+2. Analiz edilecek `SourceFile` nesnesi
+
+Kurallar `BaseRule` arayüzünü uygulamalıdır:
+
+```python
+Iterable[BaseRule]
+```
+
+Analiz edilecek kaynak kod aşağıdaki modelle temsil edilmelidir:
+
+```python
+SourceFile
+```
+
+### 14.3 Kural Kaydı
+
+Analiz motorunun constructor metodu çalıştırılacak kuralları kabul etmelidir.
+
+Örnek:
+
+```python
+engine = AnalysisEngine(
+    rules=[
+        LongFunctionRule(),
+        LongClassRule(),
+    ]
+)
+```
+
+Constructor metoduna verilen kurallar motor içerisinde değiştirilemez bir
+koleksiyon olarak saklanmalıdır.
+
+Bu amaçla kuralların `tuple` yapısına dönüştürülmesi planlanmaktadır:
+
+```python
+self.rules = tuple(rules)
+```
+
+Hiç kural verilmemesi geçerli bir durumdur. Bu durumda analiz sonucunda boş
+bulgu listesi döndürülmelidir.
+
+### 14.4 Kuralların Çalıştırılması
+
+Her kayıtlı kural analiz sırasında bir kez çalıştırılmalıdır.
+
+Her kurala aynı AST nesnesi ve gerçek kaynak dosya yolu gönderilmelidir:
+
+```python
+rule.check(
+    source_file.tree,
+    str(source_file.file_path),
+)
+```
+
+Kaynak kod analiz motoru içerisinde tekrar parse edilmemelidir.
+
+### 14.5 Bulguların Toplanması
+
+Her kural sıfır, bir veya birden fazla `Finding` nesnesi döndürebilir.
+
+Analiz motoru bütün kuralların bulgularını tek bir listede birleştirmelidir:
+
+```python
+list[Finding]
+```
+
+Örnek:
+
+```text
+LongFunctionRule -> 2 bulgu
+LongClassRule    -> 1 bulgu
+Toplam           -> 3 bulgu
+```
+
+Hiçbir kural bulgu üretmezse boş liste döndürülmelidir:
+
+```python
+[]
+```
+
+### 14.6 Bulgu Sırası
+
+İlk sürümde bulgular aşağıdaki sıraya göre korunmalıdır:
+
+1. Kuralların analiz motoruna verildiği sıra
+2. Her kuralın kendi içerisinde döndürdüğü bulgu sırası
+
+Analiz motoru ilk sürümde bulguları ayrıca sıralamayacaktır.
+
+Bu yaklaşım kuralların çalışma davranışını öngörülebilir ve test edilebilir
+tutar.
+
+### 14.7 Hata Davranışı
+
+Bir analiz kuralının beklenmeyen hata üretmesi sessizce yok
+sayılmamalıdır.
+
+İlk sürümde analiz motoru kural hatalarını gizlemeyecek ve oluşan exception
+çağıran katmana iletilecektir.
+
+Bir dosyadaki veya kuraldaki hatadan sonra diğer dosyaların analizine devam
+etme sorumluluğu ileride geliştirilecek üst seviye koordinasyon veya CLI
+katmanında ele alınacaktır.
+
+### 14.8 Sorumluluk Sınırları
+
+Analiz motoru aşağıdaki işlemleri yapmayacaktır:
+
+- Klasör taramak
+- Python dosyalarını bulmak
+- Kaynak dosyayı okumak
+- Kaynak kodu parse etmek
+- AST oluşturmak
+- Terminal çıktısı oluşturmak
+- JSON raporu oluşturmak
+- Exit code belirlemek
+- Dosya okuma hatalarını yönetmek
+- Syntax hatalarını yönetmek
+
+Bu sorumluluklar `FileScanner`, `SourceReader`, raporlama ve CLI
+bileşenlerinde ele alınacaktır.
+
+### 14.9 Kabul Kriterleri
+
+Analiz motoru aşağıdaki koşulları sağlamalıdır:
+
+1. `BaseRule` nesnelerinden oluşan bir iterable kabul eder.
+2. Kuralları değiştirilemez bir `tuple` içerisinde saklar.
+3. Boş kural listesiyle çalışabilir.
+4. Analiz için bir `SourceFile` nesnesi kabul eder.
+5. Her kayıtlı kuralı yalnızca bir kez çalıştırır.
+6. Her kurala aynı AST nesnesini gönderir.
+7. Her kurala gerçek kaynak dosya yolunu gönderir.
+8. Kaynak kodu tekrar parse etmez.
+9. Bir kuralın ürettiği bulguları döndürür.
+10. Birden fazla kuralın bulgularını ortak listede toplar.
+11. Bir kuralın birden fazla bulgusunu korur.
+12. Hiç bulgu bulunmadığında boş liste döndürür.
+13. Kuralların ve bulguların çalışma sırasını korur.
+14. Kural exception'larını sessizce gizlemez.
+
+### 14.10 Planlanan Test Senaryoları
+
+Analiz motoru aşağıdaki senaryolarla doğrulanacaktır:
+
+- Boş kural koleksiyonuyla analiz
+- Kuralların `tuple` olarak saklanması
+- Tek kuralın çalıştırılması
+- Birden fazla kuralın çalıştırılması
+- Her kuralın yalnızca bir kez çalıştırılması
+- AST nesnesinin kurala doğru aktarılması
+- Dosya yolunun kurala doğru aktarılması
+- Tek bulgunun döndürülmesi
+- Birden fazla bulgunun birleştirilmesi
+- Bulgu sırasının korunması
+- Hiç bulgu olmadığında boş liste döndürülmesi
+- Kural exception'ının gizlenmemesi
+
+## 15. Navigation
 
 - [Static Code Analyzer sayfasına dön](README.md)
 - [Teknik Tasarım](technical-design.md)
