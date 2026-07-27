@@ -510,7 +510,7 @@ Tamamlanan çalışmalar:
 - UTF-8 encoding hatalarının gizlenmeden iletilmesi sağlandı.
 - Kaynak dosyalarının yalnızca bir kez parse edilmesi sağlandı.
 - Kaynak kod okuyucu 11 test senaryosuyla doğrulandı.
-- Projenin toplam 71 testi başarılı şekilde çalışmaktadır.
+- Projenin toplam 90 testi başarılı şekilde çalışmaktadır.
 - `BaseTextRule` soyut kural arayüzü geliştirildi.
 - Metin tabanlı kuralların kaynak kod metni ve dosya yolu alması sağlandı.
 - `BaseTextRule` sınıfının public kural paketi üzerinden dışa aktarılması sağlandı.
@@ -521,6 +521,12 @@ Tamamlanan çalışmalar:
 - Farklı kural türlerinin bulgularının ortak listede birleştirilmesi sağlandı.
 - Kaynak dosyanın tekrar okunmaması ve tekrar parse edilmemesi doğrulandı.
 - Metin tabanlı kural altyapısı 12 test senaryosuyla doğrulandı.
+- `TodoFixmeRule` sınıfı geliştirildi.
+- Python yorum tokenlarının `tokenize` ile incelenmesi sağlandı.
+- Büyük-küçük harf duyarsız `TODO` ve `FIXME` tespiti eklendi.
+- String literal ve bağımsız kelime olmayan ifadelerin yok sayılması sağlandı.
+- Doğru satır ve sütun konumlarının bulgulara aktarılması sağlandı.
+- `TodoFixmeRule` 19 test senaryosuyla doğrulandı.
 
 Henüz tamamlanmayan çalışmalar:
 
@@ -1228,8 +1234,420 @@ Metin tabanlı kural altyapısı aşağıdaki senaryolarla doğrulanacaktır:
 - Kaynak kodun tekrar okunmaması
 - AST yapısının tekrar oluşturulmaması
 - Metin kuralı exception'ının gizlenmemesi
+## 16. TODO/FIXME Kuralı Gereksinimleri
 
-## 16. Navigation
+### 16.1 Amaç
+
+`TodoFixmeRule`, Python kaynak kodundaki yorum satırlarında bulunan `TODO` ve
+`FIXME` ifadelerini tespit edecektir.
+
+Kural, tamamlanmamış geliştirme işleri ve düzeltilmesi gereken kod bölümlerinin
+görünür hâle getirilmesini amaçlamaktadır.
+
+Kural kimliği:
+
+```text
+SA003
+```
+
+### 16.2 Kural Türü
+
+`TodoFixmeRule`, kaynak kod yorumlarına ihtiyaç duyduğu için
+`BaseTextRule` arayüzünü uygulayacaktır.
+
+Kural sözleşmesi:
+
+```python
+def check(
+    self,
+    source: str,
+    file_path: str,
+) -> list[Finding]:
+    ...
+```
+
+Kural dosya sisteminden kaynak dosya okumayacak ve kendisine verilen kaynak
+metni kullanacaktır.
+
+### 16.3 Tokenize Kullanımı
+
+Python AST yapısı yorum satırlarını korumadığı için bu kural AST üzerinden
+çalışmayacaktır.
+
+Kaynak kodun tamamında doğrudan regex taraması yapmak aşağıdaki gibi string
+değerlerinin yanlış bulgu üretmesine neden olabilir:
+
+```python
+message = "TODO: this is only text"
+```
+
+Bu nedenle yorum satırlarını ayırmak için Python standart kütüphanesindeki
+`tokenize` modülü kullanılacaktır.
+
+Yalnızca `COMMENT` token türleri analiz edilecektir.
+
+### 16.4 Desteklenen İfadeler
+
+Kural aşağıdaki ifadeleri büyük-küçük harf duyarsız şekilde tespit etmelidir:
+
+```text
+TODO
+FIXME
+```
+
+Geçerli örnekler:
+
+```python
+# TODO: add input validation
+# todo improve this function
+# FIXME: handle the error
+# fixme remove temporary behavior
+```
+
+Aşağıdaki değerler bulgu üretmemelidir:
+
+```python
+message = "TODO: this is not a comment"
+variable_todo = "value"
+# TODOLIST
+# PREFIXFIXME
+```
+
+İfadelerin bağımsız kelime olması gerekmektedir.
+
+### 16.5 Bulgu Üretimi
+
+Her tespit edilen ifade için ayrı bir `Finding` oluşturulmalıdır.
+
+`TODO` bulgusu:
+
+```text
+rule_id: SA003
+message: TODO comment found.
+severity: INFO
+```
+
+`FIXME` bulgusu:
+
+```text
+rule_id: SA003
+message: FIXME comment found.
+severity: WARNING
+```
+
+Bulgu aşağıdaki bilgileri içermelidir:
+
+- `SA003` kural kimliği
+- Gerçek kaynak dosya yolu
+- İfadenin bulunduğu satır numarası
+- İfadenin başladığı sütun numarası
+- İfadeye uygun mesaj
+- İfadeye uygun önem seviyesi
+
+Satır ve sütun numaraları kullanıcıya gösterilecek şekilde 1 tabanlı
+olmalıdır.
+
+### 16.6 Birden Fazla İfade
+
+Aynı dosyada birden fazla `TODO` veya `FIXME` bulunabilir.
+
+Her ifade ayrı bulgu üretmelidir:
+
+```python
+# TODO: add validation
+# FIXME: handle invalid data
+```
+
+Aynı yorum satırında birden fazla ifade varsa soldan sağa doğru ayrı bulgular
+üretilmelidir:
+
+```python
+# TODO: review this, FIXME: remove fallback
+```
+
+Bulgular kaynak kod içerisindeki doğal sıralarını korumalıdır.
+
+### 16.7 Boş ve Temiz Kaynak Kod
+
+Aşağıdaki durumlarda boş bulgu listesi döndürülmelidir:
+
+- Kaynak kodun boş olması
+- Kaynak kodda yorum bulunmaması
+- Yorumlarda `TODO` veya `FIXME` bulunmaması
+- İfadelerin yalnızca string literal içerisinde bulunması
+- İfadelerin bağımsız kelime olmaması
+
+### 16.8 Hata Davranışı
+
+Token oluşturma sırasında meydana gelen beklenmeyen hatalar sessizce
+gizlenmemelidir.
+
+Hata, diğer kural davranışlarıyla tutarlı şekilde çağıran katmana
+iletilmelidir.
+
+### 16.9 Sorumluluk Sınırları
+
+`TodoFixmeRule` aşağıdaki işlemleri yapmayacaktır:
+
+- Dosya veya klasör taramak
+- Kaynak dosyayı dosya sisteminden okumak
+- AST oluşturmak
+- Terminal çıktısı hazırlamak
+- JSON raporu hazırlamak
+- Exit code belirlemek
+- Diğer analiz kurallarını çalıştırmak
+
+### 16.10 Kabul Kriterleri
+
+Kural aşağıdaki koşulları sağlamalıdır:
+
+1. `BaseTextRule` arayüzünü uygulamalıdır.
+2. Kural kimliği `SA003` olmalıdır.
+3. Yalnızca Python yorum tokenları incelenmelidir.
+4. `TODO` ifadeleri büyük-küçük harf duyarsız bulunmalıdır.
+5. `FIXME` ifadeleri büyük-küçük harf duyarsız bulunmalıdır.
+6. String literal içerisindeki ifadeler yok sayılmalıdır.
+7. Bağımsız kelime olmayan ifadeler yok sayılmalıdır.
+8. Her ifade için ayrı bulgu oluşturulmalıdır.
+9. `TODO` bulguları `INFO` önem seviyesinde olmalıdır.
+10. `FIXME` bulguları `WARNING` önem seviyesinde olmalıdır.
+11. Gerçek dosya yolu bulguya aktarılmalıdır.
+12. Satır ve sütun numaraları doğru hesaplanmalıdır.
+13. Bulgular kaynak kod sırasını korumalıdır.
+14. Kaynak dosya kural tarafından tekrar okunmamalıdır.
+15. Beklenmeyen tokenization hataları gizlenmemelidir.
+
+### 16.11 Planlanan Test Senaryoları
+
+Kural aşağıdaki testlerle doğrulanacaktır:
+
+- Varsayılan kural metadata değerleri
+- `BaseTextRule` arayüzünün uygulanması
+- Boş kaynak kod
+- Yorum içermeyen kaynak kod
+- Büyük harfli `TODO`
+- Küçük harfli `todo`
+- Büyük harfli `FIXME`
+- Küçük harfli `fixme`
+- Aynı dosyada birden fazla ifade
+- Aynı yorumda birden fazla ifade
+- String literal içerisindeki ifadenin yok sayılması
+- Değişken adındaki ifadenin yok sayılması
+- Bağımsız kelime olmayan ifadenin yok sayılması
+- Gerçek dosya yolunun kullanılması
+- Doğru satır numarasının üretilmesi
+- Doğru sütun numarasının üretilmesi
+- Bulguların kaynak sırasını koruması
+- `TODO` önem seviyesinin `INFO` olması
+- `FIXME` önem seviyesinin `WARNING` olması
+## 16. TODO/FIXME Kuralı Gereksinimleri
+
+### 16.1 Amaç
+
+`TodoFixmeRule`, Python kaynak kodundaki yorum satırlarında bulunan `TODO` ve
+`FIXME` ifadelerini tespit edecektir.
+
+Kural, tamamlanmamış geliştirme işleri ve düzeltilmesi gereken kod bölümlerinin
+görünür hâle getirilmesini amaçlamaktadır.
+
+Kural kimliği:
+
+```text
+SA003
+```
+
+### 16.2 Kural Türü
+
+`TodoFixmeRule`, kaynak kod yorumlarına ihtiyaç duyduğu için
+`BaseTextRule` arayüzünü uygulayacaktır.
+
+Kural sözleşmesi:
+
+```python
+def check(
+    self,
+    source: str,
+    file_path: str,
+) -> list[Finding]:
+    ...
+```
+
+Kural dosya sisteminden kaynak dosya okumayacak ve kendisine verilen kaynak
+metni kullanacaktır.
+
+### 16.3 Tokenize Kullanımı
+
+Python AST yapısı yorum satırlarını korumadığı için bu kural AST üzerinden
+çalışmayacaktır.
+
+Kaynak kodun tamamında doğrudan regex taraması yapmak aşağıdaki gibi string
+değerlerinin yanlış bulgu üretmesine neden olabilir:
+
+```python
+message = "TODO: this is only text"
+```
+
+Bu nedenle yorum satırlarını ayırmak için Python standart kütüphanesindeki
+`tokenize` modülü kullanılacaktır.
+
+Yalnızca `COMMENT` token türleri analiz edilecektir.
+
+### 16.4 Desteklenen İfadeler
+
+Kural aşağıdaki ifadeleri büyük-küçük harf duyarsız şekilde tespit etmelidir:
+
+```text
+TODO
+FIXME
+```
+
+Geçerli örnekler:
+
+```python
+# TODO: add input validation
+# todo improve this function
+# FIXME: handle the error
+# fixme remove temporary behavior
+```
+
+Aşağıdaki değerler bulgu üretmemelidir:
+
+```python
+message = "TODO: this is not a comment"
+variable_todo = "value"
+# TODOLIST
+# PREFIXFIXME
+```
+
+İfadelerin bağımsız kelime olması gerekmektedir.
+
+### 16.5 Bulgu Üretimi
+
+Her tespit edilen ifade için ayrı bir `Finding` oluşturulmalıdır.
+
+`TODO` bulgusu:
+
+```text
+rule_id: SA003
+message: TODO comment found.
+severity: INFO
+```
+
+`FIXME` bulgusu:
+
+```text
+rule_id: SA003
+message: FIXME comment found.
+severity: WARNING
+```
+
+Bulgu aşağıdaki bilgileri içermelidir:
+
+- `SA003` kural kimliği
+- Gerçek kaynak dosya yolu
+- İfadenin bulunduğu satır numarası
+- İfadenin başladığı sütun numarası
+- İfadeye uygun mesaj
+- İfadeye uygun önem seviyesi
+
+Satır ve sütun numaraları kullanıcıya gösterilecek şekilde 1 tabanlı
+olmalıdır.
+
+### 16.6 Birden Fazla İfade
+
+Aynı dosyada birden fazla `TODO` veya `FIXME` bulunabilir.
+
+Her ifade ayrı bulgu üretmelidir:
+
+```python
+# TODO: add validation
+# FIXME: handle invalid data
+```
+
+Aynı yorum satırında birden fazla ifade varsa soldan sağa doğru ayrı bulgular
+üretilmelidir:
+
+```python
+# TODO: review this, FIXME: remove fallback
+```
+
+Bulgular kaynak kod içerisindeki doğal sıralarını korumalıdır.
+
+### 16.7 Boş ve Temiz Kaynak Kod
+
+Aşağıdaki durumlarda boş bulgu listesi döndürülmelidir:
+
+- Kaynak kodun boş olması
+- Kaynak kodda yorum bulunmaması
+- Yorumlarda `TODO` veya `FIXME` bulunmaması
+- İfadelerin yalnızca string literal içerisinde bulunması
+- İfadelerin bağımsız kelime olmaması
+
+### 16.8 Hata Davranışı
+
+Token oluşturma sırasında meydana gelen beklenmeyen hatalar sessizce
+gizlenmemelidir.
+
+Hata, diğer kural davranışlarıyla tutarlı şekilde çağıran katmana
+iletilmelidir.
+
+### 16.9 Sorumluluk Sınırları
+
+`TodoFixmeRule` aşağıdaki işlemleri yapmayacaktır:
+
+- Dosya veya klasör taramak
+- Kaynak dosyayı dosya sisteminden okumak
+- AST oluşturmak
+- Terminal çıktısı hazırlamak
+- JSON raporu hazırlamak
+- Exit code belirlemek
+- Diğer analiz kurallarını çalıştırmak
+
+### 16.10 Kabul Kriterleri
+
+Kural aşağıdaki koşulları sağlamalıdır:
+
+1. `BaseTextRule` arayüzünü uygulamalıdır.
+2. Kural kimliği `SA003` olmalıdır.
+3. Yalnızca Python yorum tokenları incelenmelidir.
+4. `TODO` ifadeleri büyük-küçük harf duyarsız bulunmalıdır.
+5. `FIXME` ifadeleri büyük-küçük harf duyarsız bulunmalıdır.
+6. String literal içerisindeki ifadeler yok sayılmalıdır.
+7. Bağımsız kelime olmayan ifadeler yok sayılmalıdır.
+8. Her ifade için ayrı bulgu oluşturulmalıdır.
+9. `TODO` bulguları `INFO` önem seviyesinde olmalıdır.
+10. `FIXME` bulguları `WARNING` önem seviyesinde olmalıdır.
+11. Gerçek dosya yolu bulguya aktarılmalıdır.
+12. Satır ve sütun numaraları doğru hesaplanmalıdır.
+13. Bulgular kaynak kod sırasını korumalıdır.
+14. Kaynak dosya kural tarafından tekrar okunmamalıdır.
+15. Beklenmeyen tokenization hataları gizlenmemelidir.
+
+### 16.11 Planlanan Test Senaryoları
+
+Kural aşağıdaki testlerle doğrulanacaktır:
+
+- Varsayılan kural metadata değerleri
+- `BaseTextRule` arayüzünün uygulanması
+- Boş kaynak kod
+- Yorum içermeyen kaynak kod
+- Büyük harfli `TODO`
+- Küçük harfli `todo`
+- Büyük harfli `FIXME`
+- Küçük harfli `fixme`
+- Aynı dosyada birden fazla ifade
+- Aynı yorumda birden fazla ifade
+- String literal içerisindeki ifadenin yok sayılması
+- Değişken adındaki ifadenin yok sayılması
+- Bağımsız kelime olmayan ifadenin yok sayılması
+- Gerçek dosya yolunun kullanılması
+- Doğru satır numarasının üretilmesi
+- Doğru sütun numarasının üretilmesi
+- Bulguların kaynak sırasını koruması
+- `TODO` önem seviyesinin `INFO` olması
+- `FIXME` önem seviyesinin `WARNING` olması
+
+## 17. Navigation
 
 - [Static Code Analyzer sayfasına dön](README.md)
 - [Teknik Tasarım](technical-design.md)

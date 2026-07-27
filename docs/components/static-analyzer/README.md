@@ -164,6 +164,7 @@ AST yapısına dönüştürür.
 
 `AnalysisEngine`, parse edilmiş bir `SourceFile` üzerinde kayıtlı analiz
 kurallarını çalıştırır.
+
 ### BaseTextRule
 
 `BaseTextRule`, AST içerisinde doğrudan korunmayan kaynak kod bilgilerinin
@@ -183,7 +184,41 @@ def check(
     file_path: str,
 ) -> list[Finding]:
     ...
+```### TodoFixmeRule
+
+`TodoFixmeRule`, Python yorum satırlarında bulunan `TODO` ve `FIXME`
+ifadelerini tespit eden metin tabanlı analiz kuralıdır.
+
+Kural kimliği:
+
+```text
+SA003
 ```
+
+Kural, Python standart kütüphanesindeki `tokenize` modülünü kullanır.
+Yalnızca `COMMENT` token türleri incelendiği için string literal içerisindeki
+`TODO` ve `FIXME` ifadeleri bulgu oluşturmaz.
+
+Örnek:
+
+```python
+source = """
+# TODO: add input validation
+value = 1
+# FIXME: remove temporary fallback
+"""
+
+rule = TodoFixmeRule()
+findings = rule.check(source, "example.py")
+```
+
+Kuralın önem seviyeleri:
+
+- `TODO`: `INFO`
+- `FIXME`: `WARNING`
+
+Her bağımsız ifade için ayrı bir `Finding` oluşturulur. Bulgular gerçek dosya
+yolunu, satır numarasını ve bir tabanlı sütun numarasını içerir.
 
 `AnalysisEngine`, kural türüne göre doğru girdiyi gönderir:
 
@@ -299,7 +334,6 @@ Kaynak kod okuyucu aşağıdaki davranışları destekler:
 ## Planlanan Kontroller
 
 - Boş `except` bloğu tespiti
-- `TODO` ve `FIXME` ifadelerinin tespiti
 - Fonksiyon ve sınıf isimlendirme kontrolü
 - Hardcoded parola, token veya anahtar tespiti
 
@@ -382,7 +416,6 @@ Tamamlanan çalışmalar:
 - Kaynak kodun AST yapısına dönüştürülmesi sağlandı.
 - Syntax ve encoding hatalarının gizlenmeden iletilmesi sağlandı.
 - Kaynak kod okuyucu 11 test senaryosuyla doğrulandı.
-- Projedeki toplam 71 test başarıyla çalıştırıldı.
 - `AnalysisEngine` sınıfı geliştirildi.
 - Birden fazla analiz kuralının aynı AST üzerinde çalıştırılması sağlandı.
 - Kural bulgularının ortak bir listede birleştirilmesi sağlandı.
@@ -392,6 +425,12 @@ Tamamlanan çalışmalar:
 - `AnalysisEngine` içerisinde AST ve metin tabanlı kural desteği birleştirildi.
 - Karma kural çalıştırma sırasının korunması sağlandı.
 - Metin tabanlı kural altyapısı 12 test senaryosuyla doğrulandı.
+- `TodoFixmeRule` metin tabanlı analiz kuralı geliştirildi.
+- Python yorumlarının `tokenize` ile güvenli biçimde incelenmesi sağlandı.
+- `TODO` bulguları `INFO`, `FIXME` bulguları `WARNING` olarak raporlandı.
+- String literal ve identifier içerisindeki ifadelerin yok sayılması sağlandı.
+- `TodoFixmeRule` 19 test senaryosuyla doğrulandı.
+- Projedeki toplam 90 test başarıyla çalıştırıldı.
 
 
 Henüz tamamlanmayan çalışmalar:
@@ -401,7 +440,7 @@ Henüz tamamlanmayan çalışmalar:
 - Exit code yönetimi
 - CI/CD entegrasyonu
 
-## Navigation
+## 17. Navigation
 
 - [Tüm bileşenlere dön](../README.md)
 - [Projenin ana sayfasına dön](../../../README.md)
