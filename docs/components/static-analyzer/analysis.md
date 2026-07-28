@@ -2612,8 +2612,250 @@ Bu işlemler sonraki katmanlarda ele alınacaktır.
 - Reader `UnicodeDecodeError` hatasının iletilmesi
 - Engine hatasının iletilmesi
 - Bulgu nesnelerinin değiştirilmemesi
+## 21. Default Analyzer Factory Gereksinimleri
 
-## 21. Navigation
+### 21.1 Amaç
+
+Default analyzer factory, statik analiz sisteminin varsayılan bileşenlerini
+tek bir noktada oluşturacaktır.
+
+Factory aşağıdaki bileşenlerin kurulmasını sağlayacaktır:
+
+- Varsayılan analiz kuralları
+- `FileScanner`
+- `SourceReader`
+- `AnalysisEngine`
+- `ProjectAnalyzer`
+
+Bu sayede CLI ve diğer istemci katmanları bütün bağımlılıkları manuel olarak
+oluşturmak zorunda kalmayacaktır.
+
+### 21.2 Genel Arayüz
+
+Factory modülü aşağıdaki fonksiyonları sağlamalıdır:
+
+```python
+def create_default_rules() -> tuple[AnalysisRule, ...]:
+    ...
+
+
+def create_default_analyzer() -> ProjectAnalyzer:
+    ...
+```
+
+`create_default_rules()`, varsayılan analiz kurallarını kararlı bir sırada
+döndürmelidir.
+
+`create_default_analyzer()`, bütün varsayılan bileşenleri birbirine bağlanmış
+bir `ProjectAnalyzer` nesnesi döndürmelidir.
+
+### 21.3 Varsayılan Kurallar
+
+Factory aşağıdaki kuralları oluşturmalıdır:
+
+1. `LongFunctionRule`
+2. `LongClassRule`
+3. `TodoFixmeRule`
+4. `EmptyExceptRule`
+5. `HardcodedSecretRule`
+6. `NamingConventionRule`
+
+Kural kimlikleri aşağıdaki sırada olmalıdır:
+
+```text
+SA001
+SA002
+SA003
+SA004
+SA005
+SA006
+```
+
+Bu sıra kararlı olmalı ve testlerle doğrulanmalıdır.
+
+### 21.4 Kural Nesnelerinin Yaşam Döngüsü
+
+Her `create_default_rules()` çağrısı yeni kural nesneleri üretmelidir.
+
+Örnek:
+
+```python
+first_rules = create_default_rules()
+second_rules = create_default_rules()
+
+assert first_rules is not second_rules
+assert first_rules[0] is not second_rules[0]
+```
+
+Factory global ve değiştirilebilir bir kural listesi paylaşmamalıdır.
+
+Bir istemcinin döndürülen koleksiyonu veya kural nesnelerini kullanması,
+sonraki factory çağrılarını etkilememelidir.
+
+### 21.5 Kural Koleksiyonu
+
+Varsayılan kurallar immutable bir tuple içerisinde döndürülmelidir:
+
+```python
+(
+    LongFunctionRule(),
+    LongClassRule(),
+    TodoFixmeRule(),
+    EmptyExceptRule(),
+    HardcodedSecretRule(),
+    NamingConventionRule(),
+)
+```
+
+Liste yerine tuple kullanılması, varsayılan kural sırasının istemci
+tarafından yanlışlıkla değiştirilmesini zorlaştıracaktır.
+
+### 21.6 Varsayılan Eşikler
+
+`LongFunctionRule` ve `LongClassRule` kendi varsayılan eşik değerleriyle
+oluşturulmalıdır.
+
+Factory bu sürümde özel threshold parametreleri almamalıdır.
+
+Özel eşik değerleri kullanmak isteyen istemciler kendi `AnalysisEngine`
+nesnelerini oluşturabilmelidir.
+
+### 21.7 ProjectAnalyzer Oluşturulması
+
+`create_default_analyzer()` aşağıdaki nesneleri oluşturmalıdır:
+
+```python
+scanner = FileScanner()
+reader = SourceReader()
+rules = create_default_rules()
+engine = AnalysisEngine(rules=rules)
+
+return ProjectAnalyzer(
+    scanner=scanner,
+    reader=reader,
+    engine=engine,
+)
+```
+
+Döndürülen `ProjectAnalyzer` aşağıdaki gerçek bileşenleri içermelidir:
+
+- `FileScanner`
+- `SourceReader`
+- `AnalysisEngine`
+
+Engine içerisinde altı varsayılan analiz kuralı bulunmalıdır.
+
+### 21.8 Bağımsız Analyzer Nesneleri
+
+Her `create_default_analyzer()` çağrısı bağımsız nesneler üretmelidir.
+
+İki ayrı çağrının aşağıdaki nesneleri paylaşmaması gerekir:
+
+- `ProjectAnalyzer`
+- `FileScanner`
+- `SourceReader`
+- `AnalysisEngine`
+- Analiz kuralı nesneleri
+
+Bu davranış, farklı analiz işlemlerinin birbirini etkilemesini önleyecektir.
+
+### 21.9 Uçtan Uca Davranış
+
+Factory tarafından oluşturulan analyzer, gerçek bir klasörü analiz
+edebilmelidir.
+
+Örneğin geçici bir Python dosyası:
+
+```python
+password = "admin123"
+
+def BadFunction():
+    pass
+```
+
+analiz edildiğinde en az aşağıdaki kural kimliklerini üretmelidir:
+
+```text
+SA005
+SA006
+```
+
+Bu test factory, scanner, reader, engine, project analyzer ve kuralların
+birlikte çalıştığını doğrulayacaktır.
+
+Uçtan uca test yalnızca küçük ve geçici bir proje üzerinde çalışmalıdır.
+
+### 21.10 Hata Davranışı
+
+Factory tarafından oluşturulan analyzer, alt bileşenlerin hata davranışını
+değiştirmemelidir.
+
+Örneğin var olmayan bir hedef analiz edildiğinde `FileNotFoundError`
+çağıran katmana iletilmelidir.
+
+Factory:
+
+- Exception yakalamamalıdır.
+- Hataları boş bulgu listesine çevirmemelidir.
+- Terminale hata mesajı yazmamalıdır.
+
+### 21.11 Sorumluluk Sınırları
+
+Default analyzer factory aşağıdaki işlemleri yapmamalıdır:
+
+- Hedef klasörü analiz etmek
+- Dosya okumak
+- AST oluşturmak
+- Terminal çıktısı üretmek
+- JSON çıktısı üretmek
+- Process exit code belirlemek
+- CLI argümanlarını parse etmek
+- Dependency veya CVE taraması yapmak
+- Global değiştirilebilir kural listesi saklamak
+- Kullanıcı yapılandırması okumak
+
+Factory yalnızca nesneleri oluşturmak ve birbirine bağlamakla sorumludur.
+
+### 21.12 Kabul Kriterleri
+
+1. `create_default_rules()` fonksiyonu bulunmalıdır.
+2. `create_default_analyzer()` fonksiyonu bulunmalıdır.
+3. Varsayılan kurallar tuple olarak döndürülmelidir.
+4. Tam olarak altı varsayılan kural bulunmalıdır.
+5. Kural kimlikleri `SA001` ile `SA006` arasında sıralanmalıdır.
+6. Bütün varsayılan kural sınıfları kullanılmalıdır.
+7. Her çağrı yeni kural nesneleri üretmelidir.
+8. `LongFunctionRule` varsayılan threshold ile oluşturulmalıdır.
+9. `LongClassRule` varsayılan threshold ile oluşturulmalıdır.
+10. Analyzer gerçek bir `FileScanner` içermelidir.
+11. Analyzer gerçek bir `SourceReader` içermelidir.
+12. Analyzer gerçek bir `AnalysisEngine` içermelidir.
+13. Engine altı varsayılan kuralı içermelidir.
+14. Her analyzer çağrısı bağımsız bileşenler üretmelidir.
+15. Oluşturulan analyzer küçük bir projeyi uçtan uca analiz edebilmelidir.
+16. Alt bileşenlerden gelen hatalar değiştirilmemelidir.
+17. Factory terminal çıktısı üretmemelidir.
+
+### 21.13 Planlanan Test Senaryoları
+
+- Varsayılan kuralların tuple olarak döndürülmesi
+- Tam olarak altı kural oluşturulması
+- Beklenen kural sınıflarının kullanılması
+- Kural kimliklerinin kararlı sırada olması
+- Her çağrıda yeni tuple oluşturulması
+- Her çağrıda yeni kural nesneleri oluşturulması
+- Long function varsayılan threshold değeri
+- Long class varsayılan threshold değeri
+- Gerçek `ProjectAnalyzer` oluşturulması
+- Gerçek `FileScanner` kullanılması
+- Gerçek `SourceReader` kullanılması
+- Gerçek `AnalysisEngine` kullanılması
+- Engine içerisinde varsayılan kuralların bulunması
+- Ayrı analyzer çağrılarının bağımsız olması
+- Geçici proje üzerinde uçtan uca analiz
+- Var olmayan hedef hatasının iletilmesi
+
+## 22. Navigation
 
 - [Static Code Analyzer sayfasına dön](README.md)
 - [Teknik Tasarım](technical-design.md)
