@@ -510,7 +510,7 @@ Tamamlanan çalışmalar:
 - UTF-8 encoding hatalarının gizlenmeden iletilmesi sağlandı.
 - Kaynak dosyalarının yalnızca bir kez parse edilmesi sağlandı.
 - Kaynak kod okuyucu 11 test senaryosuyla doğrulandı.
-- Projenin toplam 156 testi başarılı şekilde çalışmaktadır.
+- Projenin toplam 176 testi başarılı şekilde çalışmaktadır.
 - `BaseTextRule` soyut kural arayüzü geliştirildi.
 - Metin tabanlı kuralların kaynak kod metni ve dosya yolu alması sağlandı.
 - `BaseTextRule` sınıfının public kural paketi üzerinden dışa aktarılması sağlandı.
@@ -550,6 +550,17 @@ Tamamlanan çalışmalar:
 - Geçersiz fonksiyon ve sınıf isimleri için ayrı mesajlar üretilmesi sağlandı.
 - İsimlendirme bulgularının `INFO` önem seviyesinde üretilmesi sağlandı.
 - `NamingConventionRule` 25 test senaryosuyla doğrulandı.
+- `ProjectAnalyzer` sınıfı geliştirildi.
+- `FileScanner`, `SourceReader` ve `AnalysisEngine` bağımlılıklarının constructor üzerinden alınması sağlandı.
+- Scanner tarafından döndürülen bütün Python dosyalarının işlenmesi sağlandı.
+- Her dosyanın tam olarak bir kez okunması sağlandı.
+- Her `SourceFile` nesnesinin tam olarak bir kez analiz edilmesi sağlandı.
+- Farklı dosyalardan gelen bulguların birleştirilmesi sağlandı.
+- Bulguların dosya yolu, satır, sütun ve kural kimliğine göre sıralanması sağlandı.
+- `None` sütun numaralarının sıralama sırasında `0` olarak değerlendirilmesi sağlandı.
+- Scanner, reader ve engine hatalarının değiştirilmeden iletilmesi sağlandı.
+- Bulgu nesnelerinin değiştirilmeden döndürülmesi sağlandı.
+- `ProjectAnalyzer` 20 test senaryosuyla doğrulandı.
 
 Henüz tamamlanmayan çalışmalar:
 

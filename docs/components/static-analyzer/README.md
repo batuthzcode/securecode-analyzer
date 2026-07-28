@@ -433,6 +433,92 @@ Her bulgu aşağıdaki bilgileri içerir:
 
 Kural kaynak dosyayı tekrar okumaz, kodu yeniden parse etmez ve kendisine
 verilen AST nesnesini değiştirmez.
+### ProjectAnalyzer
+
+`ProjectAnalyzer`, hedef klasördeki bütün Python kaynak dosyalarının analiz
+edilmesini yöneten üst seviye koordinasyon bileşenidir.
+
+Aşağıdaki mevcut bileşenleri bir araya getirir:
+
+- `FileScanner`
+- `SourceReader`
+- `AnalysisEngine`
+
+Temel kullanım:
+
+```python
+from static_analyzer.analysis_engine import AnalysisEngine
+from static_analyzer.file_scanner import FileScanner
+from static_analyzer.project_analyzer import ProjectAnalyzer
+from static_analyzer.source_reader import SourceReader
+
+scanner = FileScanner()
+reader = SourceReader()
+engine = AnalysisEngine(rules=[])
+
+analyzer = ProjectAnalyzer(
+    scanner=scanner,
+    reader=reader,
+    engine=engine,
+)
+
+findings = analyzer.analyze("src")
+```
+
+Analiz işlemi aşağıdaki sırayla gerçekleşir:
+
+1. `FileScanner.scan()` hedef klasördeki Python dosyalarını keşfeder.
+2. Her dosya `SourceReader.read()` ile okunur ve AST nesnesine dönüştürülür.
+3. Her `SourceFile`, `AnalysisEngine.analyze()` metoduna verilir.
+4. Dosyalardan dönen bulgular tek listede birleştirilir.
+5. Bulgular kararlı bir sırada döndürülür.
+
+Bulgular aşağıdaki ölçütlere göre sıralanır:
+
+1. Dosya yolu
+2. Satır numarası
+3. Sütun numarası
+4. Kural kimliği
+
+Sütun numarası bulunmayan bulgular sıralama sırasında `0` olarak
+değerlendirilir.
+
+```python
+(
+    finding.file_path.casefold(),
+    finding.line_number,
+    finding.column_number or 0,
+    finding.rule_id,
+)
+```
+
+Hedef klasörde Python dosyası bulunmuyorsa boş liste döndürülür:
+
+```python
+[]
+```
+
+Bu durumda kaynak okuyucu ve analiz motoru çağrılmaz.
+
+`ProjectAnalyzer`, alt bileşenlerden gelen hataları gizlemez. Örneğin:
+
+- `FileNotFoundError`
+- `NotADirectoryError`
+- `SyntaxError`
+- `UnicodeDecodeError`
+- Analiz motorundan gelen beklenmeyen hatalar
+
+olduğu gibi çağıran katmana iletilir.
+
+Bileşen aşağıdaki işlemleri gerçekleştirmez:
+
+- Terminal çıktısı üretmek
+- JSON çıktısı oluşturmak
+- Process exit code belirlemek
+- Kaynak dosyaları değiştirmek
+- AST nesnelerini değiştirmek
+- Kendi içinde analiz kuralları oluşturmak
+- Dependency veya CVE analizi yapmak
 
 `AnalysisEngine`, kural türüne göre doğru girdiyi gönderir:
 
@@ -622,7 +708,6 @@ Tamamlanan çalışmalar:
 - Sembolik bağlantılı dizinlerin takip edilmesi engellendi.
 - Dosya yollarının sıralı `Path` nesneleri olarak döndürülmesi sağlandı.
 - Dosya tarayıcı 12 test senaryosuyla doğrulandı.
-- Projedeki toplam 36 test başarıyla çalıştırıldı.
 - `SourceFile` veri modeli geliştirildi.
 - `SourceReader` sınıfı geliştirildi.
 - Python kaynak dosyalarının UTF-8 olarak okunması sağlandı.
@@ -649,7 +734,6 @@ Tamamlanan çalışmalar:
 - Gerçek işlem veya `raise` içeren handler bloklarının yok sayılması sağlandı.
 - İç içe ve birden fazla boş handler desteği eklendi.
 - `EmptyExceptRule` 19 test senaryosuyla doğrulandı.
-- Projedeki toplam 156 test başarıyla çalıştırıldı.
 - `HardcodedSecretRule` AST tabanlı analiz kuralı geliştirildi.
 - Hassas değişken ve attribute isimlerinin tespit edilmesi sağlandı.
 - Normal, annotated ve birden fazla hedef içeren atamalar desteklendi.
@@ -665,7 +749,16 @@ Tamamlanan çalışmalar:
 - Python özel metotlarının isimlendirme kontrolü dışında tutulması sağlandı.
 - İsimlendirme bulgularının `INFO` önem seviyesinde üretilmesi sağlandı.
 - `NamingConventionRule` 25 test senaryosuyla doğrulandı.
-- Projedeki toplam 156 test başarıyla çalıştırıldı.
+- `ProjectAnalyzer` proje seviyesinde analiz koordinasyon bileşeni geliştirildi.
+- `FileScanner`, `SourceReader` ve `AnalysisEngine` bileşenleri birleştirildi.
+- Hedef klasördeki bütün Python dosyalarının işlenmesi sağlandı.
+- Her dosyanın yalnızca bir kez okunması ve analiz edilmesi sağlandı.
+- Farklı dosyalardan gelen bulguların tek listede birleştirilmesi sağlandı.
+- Bulguların dosya, satır, sütun ve kural kimliğine göre sıralanması sağlandı.
+- `None` sütun numaralarının güvenli biçimde sıralanması sağlandı.
+- Alt bileşenlerden gelen hataların değiştirilmeden iletilmesi sağlandı.
+- `ProjectAnalyzer` 20 test senaryosuyla doğrulandı.
+- Projedeki toplam 176 test başarıyla çalıştırıldı.
 
 
 Henüz tamamlanmayan çalışmalar:
