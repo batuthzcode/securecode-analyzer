@@ -267,6 +267,62 @@ Her bulgu aşağıdaki bilgileri içerir:
 - `WARNING` önem seviyesi
 
 İç içe ve birden fazla boş exception handler ayrı bulgular olarak raporlanır.
+### HardcodedSecretRule
+
+`HardcodedSecretRule`, hassas isimli değişkenlere doğrudan atanmış string
+literal değerlerini tespit eden AST tabanlı analiz kuralıdır.
+
+Kural kimliği:
+
+```text
+SA005
+```
+
+Bulgu üreten örnekler:
+
+```python
+password = "admin123"
+database_password = "secret-value"
+api_key = "abc123"
+client_secret: str = "client-secret-value"
+config.password = "admin123"
+```
+
+Kural aşağıdaki hassas isimleri ve bunları içeren `snake_case` hedefleri
+büyük-küçük harf duyarsız olarak kontrol eder:
+
+- `password`
+- `passwd`
+- `pwd`
+- `secret`
+- `token`
+- `api_key`
+- `apikey`
+- `access_token`
+- `auth_token`
+- `client_secret`
+- `private_key`
+
+Yalnızca boş olmayan string literal değerleri raporlanır. Çalışma anında
+alınan veya fonksiyonlar tarafından döndürülen değerler bulgu üretmez:
+
+```python
+api_key = os.getenv("API_KEY")
+secret = load_secret()
+password = None
+token = ""
+```
+
+Her bulgu aşağıdaki bilgileri içerir:
+
+- `SA005` kural kimliği
+- `Possible hardcoded secret found.` mesajı
+- Gerçek dosya yolu
+- Hassas atama hedefinin satır ve sütun konumu
+- `WARNING` önem seviyesi
+
+Gerçek secret değeri bulgu mesajına eklenmez. Bu kural kesinleşmiş bir
+güvenlik açığı yerine incelenmesi gereken şüpheli bir durumu bildirir.
 
 `AnalysisEngine`, kural türüne göre doğru girdiyi gönderir:
 
@@ -483,7 +539,15 @@ Tamamlanan çalışmalar:
 - Gerçek işlem veya `raise` içeren handler bloklarının yok sayılması sağlandı.
 - İç içe ve birden fazla boş handler desteği eklendi.
 - `EmptyExceptRule` 19 test senaryosuyla doğrulandı.
-- Projedeki toplam 109 test başarıyla çalıştırıldı.
+- Projedeki toplam 131 test başarıyla çalıştırıldı.
+- `HardcodedSecretRule` AST tabanlı analiz kuralı geliştirildi.
+- Hassas değişken ve attribute isimlerinin tespit edilmesi sağlandı.
+- Normal, annotated ve birden fazla hedef içeren atamalar desteklendi.
+- Yalnızca boş olmayan string literal değerlerinin raporlanması sağlandı.
+- Ortam değişkeni ve fonksiyon çağrılarının yok sayılması sağlandı.
+- Secret değerlerinin bulgu mesajında gösterilmemesi sağlandı.
+- `HardcodedSecretRule` 22 test senaryosuyla doğrulandı.
+- Projedeki toplam 131 test başarıyla çalıştırıldı.
 
 
 Henüz tamamlanmayan çalışmalar:

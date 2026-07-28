@@ -510,7 +510,7 @@ Tamamlanan çalışmalar:
 - UTF-8 encoding hatalarının gizlenmeden iletilmesi sağlandı.
 - Kaynak dosyalarının yalnızca bir kez parse edilmesi sağlandı.
 - Kaynak kod okuyucu 11 test senaryosuyla doğrulandı.
-- Projenin toplam 109 testi başarılı şekilde çalışmaktadır.
+- Projenin toplam 131 testi başarılı şekilde çalışmaktadır.
 - `BaseTextRule` soyut kural arayüzü geliştirildi.
 - Metin tabanlı kuralların kaynak kod metni ve dosya yolu alması sağlandı.
 - `BaseTextRule` sınıfının public kural paketi üzerinden dışa aktarılması sağlandı.
@@ -534,6 +534,13 @@ Tamamlanan çalışmalar:
 - Gerçek işlem ve `raise` içeren handler bloklarının yok sayılması sağlandı.
 - İç içe handler yapılarının kaynak sırasıyla raporlanması sağlandı.
 - `EmptyExceptRule` 19 test senaryosuyla doğrulandı.
+- `HardcodedSecretRule` sınıfı geliştirildi.
+- Hassas değişken isimlerinin büyük-küçük harf duyarsız incelenmesi sağlandı.
+- Normal, annotated ve attribute atamalarının desteklenmesi sağlandı.
+- Birden fazla hassas atama hedefi için ayrı bulgular üretilmesi sağlandı.
+- Boş string, ortam değişkeni, fonksiyon çağrısı ve string olmayan değerlerin yok sayılması sağlandı.
+- Gerçek secret değerlerinin bulgu mesajında gösterilmemesi sağlandı.
+- `HardcodedSecretRule` 22 test senaryosuyla doğrulandı.
 
 Henüz tamamlanmayan çalışmalar:
 
