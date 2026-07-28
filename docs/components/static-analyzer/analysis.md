@@ -1646,8 +1646,248 @@ Kural aşağıdaki testlerle doğrulanacaktır:
 - Bulguların kaynak sırasını koruması
 - `TODO` önem seviyesinin `INFO` olması
 - `FIXME` önem seviyesinin `WARNING` olması
+## 17. Boş Except Kuralı Gereksinimleri
 
-## 17. Navigation
+### 17.1 Amaç
+
+`EmptyExceptRule`, Python kaynak kodunda yalnızca `pass` ifadesi içeren
+`except` bloklarını tespit edecektir.
+
+Boş exception handler blokları hataların sessizce gizlenmesine ve uygulamadaki
+problemlerin fark edilmemesine neden olabilir.
+
+Kural kimliği:
+
+```text
+SA004
+```
+
+### 17.2 Kural Türü
+
+`EmptyExceptRule`, Python kodunun yapısal özelliklerini analiz ettiği için
+`BaseRule` AST kural arayüzünü uygulayacaktır.
+
+Kural sözleşmesi:
+
+```python
+def check(
+    self,
+    tree: ast.AST,
+    file_path: str,
+) -> list[Finding]:
+    ...
+```
+
+Kural kaynak kodu tekrar parse etmeyecek ve kendisine verilen mevcut AST
+nesnesini kullanacaktır.
+
+### 17.3 Tespit Edilecek Yapılar
+
+Aşağıdaki handler boş kabul edilmelidir:
+
+```python
+try:
+    risky_operation()
+except Exception:
+    pass
+```
+
+Bare except kullanımı da aynı şekilde tespit edilmelidir:
+
+```python
+try:
+    risky_operation()
+except:
+    pass
+```
+
+Bir handler içerisinde yalnızca bir veya birden fazla `pass` ifadesi
+bulunuyorsa handler boş kabul edilmelidir:
+
+```python
+try:
+    risky_operation()
+except Exception:
+    pass
+    pass
+```
+
+### 17.4 Bulgu Üretmemesi Gereken Yapılar
+
+Aşağıdaki handler blokları boş kabul edilmemelidir:
+
+```python
+try:
+    risky_operation()
+except Exception as error:
+    logger.exception(error)
+```
+
+```python
+try:
+    risky_operation()
+except Exception:
+    raise
+```
+
+```python
+try:
+    risky_operation()
+except Exception:
+    recover()
+    pass
+```
+
+Bir handler içerisinde `pass` dışında en az bir gerçek işlem varsa bulgu
+oluşturulmamalıdır.
+
+### 17.5 Bulgu Bilgileri
+
+Her boş exception handler için bir `Finding` oluşturulmalıdır.
+
+Bulgu özellikleri:
+
+```text
+rule_id: SA004
+message: Empty except block found.
+severity: WARNING
+```
+
+Bulgu aşağıdaki bilgileri içermelidir:
+
+- `SA004` kural kimliği
+- Gerçek kaynak dosya yolu
+- `except` ifadesinin bulunduğu satır numarası
+- Uygun sütun numarası
+- Açıklayıcı mesaj
+- `WARNING` önem seviyesi
+
+AST içerisindeki satır ve sütun bilgileri kullanılmalıdır.
+
+Kullanıcıya gösterilen sütun numarası bir tabanlı olmalıdır.
+
+### 17.6 Birden Fazla Handler
+
+Aynı kaynak dosyada birden fazla boş exception handler bulunabilir.
+
+Her boş handler için ayrı bir bulgu oluşturulmalıdır:
+
+```python
+try:
+    first_operation()
+except ValueError:
+    pass
+
+try:
+    second_operation()
+except RuntimeError:
+    pass
+```
+
+Bulgular kaynak kod içerisindeki doğal sıralarını korumalıdır.
+
+### 17.7 İç İçe Yapılar
+
+İç içe fonksiyon, sınıf veya exception bloklarında bulunan boş handler
+yapıları ayrı ayrı tespit edilmelidir.
+
+Örnek:
+
+```python
+def process() -> None:
+    try:
+        first_operation()
+    except ValueError:
+        pass
+
+    class Handler:
+        def run(self) -> None:
+            try:
+                second_operation()
+            except RuntimeError:
+                pass
+```
+
+Bu kaynak kod iki ayrı bulgu üretmelidir.
+
+### 17.8 Try-Star Desteği
+
+Python `except*` yapıları AST içerisinde `ExceptHandler` düğümleriyle temsil
+edildiğinde aynı boş handler kontrolü uygulanmalıdır.
+
+Örnek:
+
+```python
+try:
+    raise ExceptionGroup("errors", [ValueError()])
+except* ValueError:
+    pass
+```
+
+### 17.9 Hata Davranışı
+
+Kural kendisine verilen AST nesnesini değiştirmemelidir.
+
+Analiz sırasında meydana gelen beklenmeyen exception'lar sessizce
+gizlenmemeli ve çağıran katmana iletilmelidir.
+
+### 17.10 Sorumluluk Sınırları
+
+`EmptyExceptRule` aşağıdaki işlemleri yapmayacaktır:
+
+- Dosya veya klasör taramak
+- Kaynak dosyayı okumak
+- Kaynak kodu parse etmek
+- Terminal çıktısı hazırlamak
+- JSON raporu hazırlamak
+- Exit code belirlemek
+- Diğer analiz kurallarını çalıştırmak
+
+### 17.11 Kabul Kriterleri
+
+Kural aşağıdaki koşulları sağlamalıdır:
+
+1. `BaseRule` arayüzünü uygulamalıdır.
+2. Kural kimliği `SA004` olmalıdır.
+3. Yalnızca `pass` içeren exception handler bloklarını tespit etmelidir.
+4. Bare except bloklarını desteklemelidir.
+5. Belirli exception türlerini yakalayan handler bloklarını desteklemelidir.
+6. Birden fazla `pass` içeren handler bloklarını boş kabul etmelidir.
+7. Gerçek işlem içeren handler bloklarını yok saymalıdır.
+8. `raise` içeren handler bloklarını yok saymalıdır.
+9. Her boş handler için ayrı bulgu oluşturmalıdır.
+10. İç içe handler bloklarını tespit etmelidir.
+11. Bulgular kaynak kod sırasını korumalıdır.
+12. Gerçek dosya yolunu bulguya aktarmalıdır.
+13. Doğru satır ve sütun konumunu üretmelidir.
+14. Bulgular `WARNING` önem seviyesinde olmalıdır.
+15. Mevcut AST nesnesini kullanmalı ve kaynak kodu tekrar parse etmemelidir.
+
+### 17.12 Planlanan Test Senaryoları
+
+Kural aşağıdaki testlerle doğrulanacaktır:
+
+- Varsayılan metadata değerleri
+- `BaseRule` arayüzünün uygulanması
+- Boş AST kaynağında bulgu oluşmaması
+- Yalnızca `pass` içeren typed except
+- Yalnızca `pass` içeren bare except
+- Birden fazla `pass` içeren handler
+- Loglama işlemi içeren handler
+- Yeniden exception fırlatan handler
+- Gerçek işlem ve `pass` içeren handler
+- Birden fazla boş handler
+- İç içe boş handler
+- Gerçek dosya yolunun kullanılması
+- Doğru satır numarası
+- Bir tabanlı sütun numarası
+- `SA004` kural kimliği
+- Doğru mesaj
+- `WARNING` önem seviyesi
+- Bulguların kaynak sırasını koruması
+- Mevcut AST nesnesinin değiştirilmemesi
+
+## 18. Navigation
 
 - [Static Code Analyzer sayfasına dön](README.md)
 - [Teknik Tasarım](technical-design.md)
