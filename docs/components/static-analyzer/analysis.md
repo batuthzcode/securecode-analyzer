@@ -510,7 +510,7 @@ Tamamlanan çalışmalar:
 - UTF-8 encoding hatalarının gizlenmeden iletilmesi sağlandı.
 - Kaynak dosyalarının yalnızca bir kez parse edilmesi sağlandı.
 - Kaynak kod okuyucu 11 test senaryosuyla doğrulandı.
-- Projenin toplam 131 testi başarılı şekilde çalışmaktadır.
+- Projenin toplam 156 testi başarılı şekilde çalışmaktadır.
 - `BaseTextRule` soyut kural arayüzü geliştirildi.
 - Metin tabanlı kuralların kaynak kod metni ve dosya yolu alması sağlandı.
 - `BaseTextRule` sınıfının public kural paketi üzerinden dışa aktarılması sağlandı.
@@ -541,6 +541,15 @@ Tamamlanan çalışmalar:
 - Boş string, ortam değişkeni, fonksiyon çağrısı ve string olmayan değerlerin yok sayılması sağlandı.
 - Gerçek secret değerlerinin bulgu mesajında gösterilmemesi sağlandı.
 - `HardcodedSecretRule` 22 test senaryosuyla doğrulandı.
+- `NamingConventionRule` sınıfı geliştirildi.
+- Fonksiyon ve metot isimlerinin `snake_case` biçiminde doğrulanması sağlandı.
+- Sınıf isimlerinin `PascalCase` biçiminde doğrulanması sağlandı.
+- Normal ve asenkron fonksiyonların kontrol edilmesi sağlandı.
+- Sınıf metotlarının ve iç içe tanımların kontrol edilmesi sağlandı.
+- Python dunder metotlarının isimlendirme kontrolü dışında tutulması sağlandı.
+- Geçersiz fonksiyon ve sınıf isimleri için ayrı mesajlar üretilmesi sağlandı.
+- İsimlendirme bulgularının `INFO` önem seviyesinde üretilmesi sağlandı.
+- `NamingConventionRule` 25 test senaryosuyla doğrulandı.
 
 Henüz tamamlanmayan çalışmalar:
 

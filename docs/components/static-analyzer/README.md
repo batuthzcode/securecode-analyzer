@@ -323,6 +323,116 @@ Her bulgu aşağıdaki bilgileri içerir:
 
 Gerçek secret değeri bulgu mesajına eklenmez. Bu kural kesinleşmiş bir
 güvenlik açığı yerine incelenmesi gereken şüpheli bir durumu bildirir.
+### NamingConventionRule
+
+`NamingConventionRule`, Python kaynak kodundaki fonksiyon, metot ve sınıf
+isimlerini AST üzerinden kontrol eden isimlendirme kuralıdır.
+
+Kural kimliği:
+
+```text
+SA006
+```
+
+Fonksiyon ve metot isimleri `snake_case` biçiminde olmalıdır:
+
+```python
+def calculate_total() -> int:
+    return 0
+
+
+async def fetch_user_data() -> None:
+    pass
+
+
+def _internal_helper() -> None:
+    pass
+```
+
+Aşağıdaki isimler bulgu üretir:
+
+```python
+def CalculateTotal() -> int:
+    return 0
+
+
+def calculateTotal() -> int:
+    return 0
+
+
+async def FetchUserData() -> None:
+    pass
+```
+
+Geçersiz fonksiyon ve metot isimleri için üretilen mesaj:
+
+```text
+Function name should use snake_case.
+```
+
+`__init__` ve `__str__` gibi çift alt çizgiyle başlayıp biten Python özel
+metotları kontrol dışında tutulur:
+
+```python
+class Example:
+    def __init__(self) -> None:
+        pass
+
+    def __str__(self) -> str:
+        return "Example"
+```
+
+Sınıf isimleri `PascalCase` biçiminde olmalıdır:
+
+```python
+class UserService:
+    pass
+
+
+class HTTPClient:
+    pass
+
+
+class _InternalHandler:
+    pass
+```
+
+Aşağıdaki sınıf isimleri bulgu üretir:
+
+```python
+class user_service:
+    pass
+
+
+class userService:
+    pass
+```
+
+Geçersiz sınıf isimleri için üretilen mesaj:
+
+```text
+Class name should use PascalCase.
+```
+
+Kural aşağıdaki yapıların tamamını kontrol eder:
+
+- Modül seviyesindeki fonksiyonlar
+- Normal ve asenkron fonksiyonlar
+- Sınıf metotları
+- İç içe fonksiyonlar
+- İç içe sınıflar
+
+Her bulgu aşağıdaki bilgileri içerir:
+
+- `SA006` kural kimliği
+- Gerçek kaynak dosya yolu
+- Tanımın satır numarası
+- Bir tabanlı sütun numarası
+- Fonksiyon veya sınıfa uygun mesaj
+- `INFO` önem seviyesi
+
+Kural kaynak dosyayı tekrar okumaz, kodu yeniden parse etmez ve kendisine
+verilen AST nesnesini değiştirmez.
 
 `AnalysisEngine`, kural türüne göre doğru girdiyi gönderir:
 
@@ -539,7 +649,7 @@ Tamamlanan çalışmalar:
 - Gerçek işlem veya `raise` içeren handler bloklarının yok sayılması sağlandı.
 - İç içe ve birden fazla boş handler desteği eklendi.
 - `EmptyExceptRule` 19 test senaryosuyla doğrulandı.
-- Projedeki toplam 131 test başarıyla çalıştırıldı.
+- Projedeki toplam 156 test başarıyla çalıştırıldı.
 - `HardcodedSecretRule` AST tabanlı analiz kuralı geliştirildi.
 - Hassas değişken ve attribute isimlerinin tespit edilmesi sağlandı.
 - Normal, annotated ve birden fazla hedef içeren atamalar desteklendi.
@@ -547,7 +657,15 @@ Tamamlanan çalışmalar:
 - Ortam değişkeni ve fonksiyon çağrılarının yok sayılması sağlandı.
 - Secret değerlerinin bulgu mesajında gösterilmemesi sağlandı.
 - `HardcodedSecretRule` 22 test senaryosuyla doğrulandı.
-- Projedeki toplam 131 test başarıyla çalıştırıldı.
+- `NamingConventionRule` AST tabanlı analiz kuralı geliştirildi.
+- Fonksiyon ve metot isimlerinin `snake_case` biçiminde kontrol edilmesi sağlandı.
+- Sınıf isimlerinin `PascalCase` biçiminde kontrol edilmesi sağlandı.
+- Normal ve asenkron fonksiyonların desteklenmesi sağlandı.
+- Sınıf metotlarının ve iç içe tanımların kontrol edilmesi sağlandı.
+- Python özel metotlarının isimlendirme kontrolü dışında tutulması sağlandı.
+- İsimlendirme bulgularının `INFO` önem seviyesinde üretilmesi sağlandı.
+- `NamingConventionRule` 25 test senaryosuyla doğrulandı.
+- Projedeki toplam 156 test başarıyla çalıştırıldı.
 
 
 Henüz tamamlanmayan çalışmalar:
