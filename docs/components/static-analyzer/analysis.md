@@ -510,7 +510,7 @@ Tamamlanan çalışmalar:
 - UTF-8 encoding hatalarının gizlenmeden iletilmesi sağlandı.
 - Kaynak dosyalarının yalnızca bir kez parse edilmesi sağlandı.
 - Kaynak kod okuyucu 11 test senaryosuyla doğrulandı.
-- Projenin toplam 90 testi başarılı şekilde çalışmaktadır.
+- Projenin toplam 109 testi başarılı şekilde çalışmaktadır.
 - `BaseTextRule` soyut kural arayüzü geliştirildi.
 - Metin tabanlı kuralların kaynak kod metni ve dosya yolu alması sağlandı.
 - `BaseTextRule` sınıfının public kural paketi üzerinden dışa aktarılması sağlandı.
@@ -527,6 +527,13 @@ Tamamlanan çalışmalar:
 - String literal ve bağımsız kelime olmayan ifadelerin yok sayılması sağlandı.
 - Doğru satır ve sütun konumlarının bulgulara aktarılması sağlandı.
 - `TodoFixmeRule` 19 test senaryosuyla doğrulandı.
+- `EmptyExceptRule` sınıfı geliştirildi.
+- AST içerisindeki `ExceptHandler` düğümlerinin incelenmesi sağlandı.
+- Yalnızca `pass` ifadelerinden oluşan handler bloklarının tespiti eklendi.
+- Bare, typed ve `except*` handler yapıları desteklendi.
+- Gerçek işlem ve `raise` içeren handler bloklarının yok sayılması sağlandı.
+- İç içe handler yapılarının kaynak sırasıyla raporlanması sağlandı.
+- `EmptyExceptRule` 19 test senaryosuyla doğrulandı.
 
 Henüz tamamlanmayan çalışmalar:
 

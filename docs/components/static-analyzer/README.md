@@ -219,6 +219,54 @@ Kuralın önem seviyeleri:
 
 Her bağımsız ifade için ayrı bir `Finding` oluşturulur. Bulgular gerçek dosya
 yolunu, satır numarasını ve bir tabanlı sütun numarasını içerir.
+### EmptyExceptRule
+
+`EmptyExceptRule`, yalnızca `pass` ifadelerinden oluşan Python exception
+handler bloklarını tespit eden AST tabanlı analiz kuralıdır.
+
+Kural kimliği:
+
+```text
+SA004
+```
+
+Kural, mevcut AST yapısındaki `ast.ExceptHandler` düğümlerini inceler:
+
+```python
+try:
+    risky_operation()
+except Exception:
+    pass
+```
+
+Bare except blokları da desteklenir:
+
+```python
+try:
+    risky_operation()
+except:
+    pass
+```
+
+Bir handler içerisinde `pass` dışında gerçek bir işlem bulunuyorsa bulgu
+oluşturulmaz:
+
+```python
+try:
+    risky_operation()
+except Exception as error:
+    logger.exception(error)
+```
+
+Her bulgu aşağıdaki bilgileri içerir:
+
+- `SA004` kural kimliği
+- `Empty except block found.` mesajı
+- Gerçek dosya yolu
+- `except` satır ve sütun konumu
+- `WARNING` önem seviyesi
+
+İç içe ve birden fazla boş exception handler ayrı bulgular olarak raporlanır.
 
 `AnalysisEngine`, kural türüne göre doğru girdiyi gönderir:
 
@@ -333,7 +381,6 @@ Kaynak kod okuyucu aşağıdaki davranışları destekler:
 
 ## Planlanan Kontroller
 
-- Boş `except` bloğu tespiti
 - Fonksiyon ve sınıf isimlendirme kontrolü
 - Hardcoded parola, token veya anahtar tespiti
 
@@ -430,7 +477,13 @@ Tamamlanan çalışmalar:
 - `TODO` bulguları `INFO`, `FIXME` bulguları `WARNING` olarak raporlandı.
 - String literal ve identifier içerisindeki ifadelerin yok sayılması sağlandı.
 - `TodoFixmeRule` 19 test senaryosuyla doğrulandı.
-- Projedeki toplam 90 test başarıyla çalıştırıldı.
+- `EmptyExceptRule` AST tabanlı analiz kuralı geliştirildi.
+- Yalnızca `pass` içeren exception handler bloklarının tespiti sağlandı.
+- Typed, bare ve `except*` handler desteği eklendi.
+- Gerçek işlem veya `raise` içeren handler bloklarının yok sayılması sağlandı.
+- İç içe ve birden fazla boş handler desteği eklendi.
+- `EmptyExceptRule` 19 test senaryosuyla doğrulandı.
+- Projedeki toplam 109 test başarıyla çalıştırıldı.
 
 
 Henüz tamamlanmayan çalışmalar:
