@@ -499,6 +499,95 @@ Hedef klasörde Python dosyası bulunmuyorsa boş liste döndürülür:
 ```
 
 Bu durumda kaynak okuyucu ve analiz motoru çağrılmaz.
+### Default Analyzer Factory
+
+Default analyzer factory, statik analiz sisteminin varsayılan bileşenlerini
+tek bir noktada oluşturur.
+
+Factory modülü iki public fonksiyon sağlar:
+
+```python
+from static_analyzer.default_factory import (
+    create_default_analyzer,
+    create_default_rules,
+)
+```
+
+#### Varsayılan kurallar
+
+`create_default_rules()` aşağıdaki altı kuralı immutable bir tuple içinde
+döndürür:
+
+```python
+rules = create_default_rules()
+```
+
+Kural sırası:
+
+```text
+SA001 - LongFunctionRule
+SA002 - LongClassRule
+SA003 - TodoFixmeRule
+SA004 - EmptyExceptRule
+SA005 - HardcodedSecretRule
+SA006 - NamingConventionRule
+```
+
+Her çağrı yeni bir tuple ve yeni kural nesneleri üretir:
+
+```python
+first_rules = create_default_rules()
+second_rules = create_default_rules()
+
+assert first_rules is not second_rules
+assert first_rules[0] is not second_rules[0]
+```
+
+`LongFunctionRule` ve `LongClassRule` kendi varsayılan eşik değerleriyle
+oluşturulur.
+
+#### Varsayılan analyzer
+
+`create_default_analyzer()` aşağıdaki gerçek bileşenleri birbirine bağlar:
+
+- `FileScanner`
+- `SourceReader`
+- `AnalysisEngine`
+- `ProjectAnalyzer`
+- Altı varsayılan analiz kuralı
+
+Temel kullanım:
+
+```python
+from static_analyzer.default_factory import create_default_analyzer
+
+analyzer = create_default_analyzer()
+findings = analyzer.analyze("src")
+```
+
+Her çağrı bağımsız analyzer bileşenleri üretir:
+
+```python
+first_analyzer = create_default_analyzer()
+second_analyzer = create_default_analyzer()
+
+assert first_analyzer is not second_analyzer
+assert first_analyzer.engine is not second_analyzer.engine
+```
+
+Factory yalnızca nesneleri oluşturur ve birbirine bağlar. Aşağıdaki işlemleri
+gerçekleştirmez:
+
+- Hedef klasörü doğrudan analiz etmek
+- Dosya okumak
+- AST oluşturmak
+- Terminal veya JSON çıktısı üretmek
+- Process exit code belirlemek
+- CLI argümanlarını parse etmek
+- Dependency veya CVE taraması yapmak
+
+Factory tarafından oluşturulan analyzer, alt bileşenlerden gelen hataları
+değiştirmeden çağıran katmana iletir.
 
 `ProjectAnalyzer`, alt bileşenlerden gelen hataları gizlemez. Örneğin:
 
@@ -758,7 +847,16 @@ Tamamlanan çalışmalar:
 - `None` sütun numaralarının güvenli biçimde sıralanması sağlandı.
 - Alt bileşenlerden gelen hataların değiştirilmeden iletilmesi sağlandı.
 - `ProjectAnalyzer` 20 test senaryosuyla doğrulandı.
-- Projedeki toplam 176 test başarıyla çalıştırıldı.
+- Varsayılan analiz bileşenlerini oluşturan factory geliştirildi.
+- `create_default_rules()` fonksiyonu eklendi.
+- `create_default_analyzer()` fonksiyonu eklendi.
+- `SA001` ile `SA006` arasındaki altı kuralın kararlı sırada oluşturulması sağlandı.
+- Varsayılan kuralların immutable tuple olarak döndürülmesi sağlandı.
+- Her factory çağrısında bağımsız kural ve analyzer nesneleri oluşturulması sağlandı.
+- `FileScanner`, `SourceReader`, `AnalysisEngine` ve `ProjectAnalyzer` bileşenlerinin otomatik bağlanması sağlandı.
+- Factory tarafından oluşturulan analyzer uçtan uca test edildi.
+- Default analyzer factory 16 test senaryosuyla doğrulandı.
+- Projedeki toplam 192 test başarıyla çalıştırıldı.
 
 
 Henüz tamamlanmayan çalışmalar:

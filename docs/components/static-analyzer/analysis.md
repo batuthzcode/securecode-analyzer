@@ -510,7 +510,7 @@ Tamamlanan çalışmalar:
 - UTF-8 encoding hatalarının gizlenmeden iletilmesi sağlandı.
 - Kaynak dosyalarının yalnızca bir kez parse edilmesi sağlandı.
 - Kaynak kod okuyucu 11 test senaryosuyla doğrulandı.
-- Projenin toplam 176 testi başarılı şekilde çalışmaktadır.
+- Projenin toplam 192 testi başarılı şekilde çalışmaktadır.
 - `BaseTextRule` soyut kural arayüzü geliştirildi.
 - Metin tabanlı kuralların kaynak kod metni ve dosya yolu alması sağlandı.
 - `BaseTextRule` sınıfının public kural paketi üzerinden dışa aktarılması sağlandı.
@@ -561,6 +561,17 @@ Tamamlanan çalışmalar:
 - Scanner, reader ve engine hatalarının değiştirilmeden iletilmesi sağlandı.
 - Bulgu nesnelerinin değiştirilmeden döndürülmesi sağlandı.
 - `ProjectAnalyzer` 20 test senaryosuyla doğrulandı.
+- `create_default_rules()` fonksiyonu geliştirildi.
+- `create_default_analyzer()` fonksiyonu geliştirildi.
+- Altı varsayılan analiz kuralının `SA001` ile `SA006` arasında kararlı sırada oluşturulması sağlandı.
+- Varsayılan kuralların immutable tuple olarak döndürülmesi sağlandı.
+- Her factory çağrısında yeni kural nesneleri oluşturulması sağlandı.
+- `LongFunctionRule` ve `LongClassRule` sınıflarının varsayılan eşiklerle oluşturulması sağlandı.
+- Gerçek `FileScanner`, `SourceReader`, `AnalysisEngine` ve `ProjectAnalyzer` bileşenlerinin birbirine bağlanması sağlandı.
+- Her analyzer çağrısında bağımsız bileşenler oluşturulması sağlandı.
+- Factory tarafından oluşturulan analyzer geçici bir proje üzerinde uçtan uca doğrulandı.
+- Var olmayan hedef hatasının değiştirilmeden iletilmesi sağlandı.
+- Default analyzer factory 16 test senaryosuyla doğrulandı.
 
 Henüz tamamlanmayan çalışmalar:
 
