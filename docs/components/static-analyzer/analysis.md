@@ -2104,8 +2104,266 @@ Kural:
 - Bulguların kaynak sırası
 - Secret değerinin mesajda bulunmaması
 - AST nesnesinin değiştirilmemesi
+## 19. İsimlendirme Kuralı Gereksinimleri
 
-## 19. Navigation
+### 19.1 Amaç
+
+`NamingConventionRule`, Python kaynak kodundaki fonksiyon, metot ve sınıf
+adlarının belirlenen isimlendirme kurallarına uygunluğunu kontrol edecektir.
+
+Kural kimliği:
+
+```text
+SA006
+```
+
+İlk sürümde aşağıdaki kurallar uygulanacaktır:
+
+- Fonksiyon ve metot adları `snake_case` olmalıdır.
+- Sınıf adları `PascalCase` olmalıdır.
+
+### 19.2 Kural Türü
+
+Kural, fonksiyon ve sınıf tanımlarını yapısal olarak inceleyeceği için
+`BaseRule` AST arayüzünü uygulayacaktır:
+
+```python
+def check(
+    self,
+    tree: ast.AST,
+    file_path: str,
+) -> list[Finding]:
+    ...
+```
+
+Kural kaynak dosyayı okumayacak ve kaynak kodu tekrar parse etmeyecektir.
+
+### 19.3 Fonksiyon İsimlendirmesi
+
+Normal ve asenkron fonksiyon adları `snake_case` biçiminde olmalıdır.
+
+Geçerli örnekler:
+
+```python
+def calculate_total() -> int:
+    return 0
+
+
+async def fetch_user_data() -> None:
+    pass
+
+
+def _internal_helper() -> None:
+    pass
+```
+
+Geçersiz örnekler:
+
+```python
+def CalculateTotal() -> int:
+    return 0
+
+
+def calculateTotal() -> int:
+    return 0
+
+
+async def FetchUserData() -> None:
+    pass
+```
+
+Fonksiyon adları:
+
+- Küçük harfle başlamalıdır.
+- Küçük harf, rakam ve alt çizgi içerebilir.
+- Gizli yardımcı fonksiyonlar için bir veya daha fazla başlangıç alt çizgisi
+  kullanılabilir.
+
+### 19.4 Özel Metotlar
+
+Aşağıdaki gibi çift alt çizgiyle başlayıp biten özel metotlar kontrol dışında
+tutulmalıdır:
+
+```python
+def __init__(self) -> None:
+    pass
+
+
+def __str__(self) -> str:
+    return "Example"
+```
+
+Bu metotlar isimlendirme bulgusu üretmemelidir.
+
+### 19.5 Sınıf İsimlendirmesi
+
+Sınıf adları `PascalCase` biçiminde olmalıdır.
+
+Geçerli örnekler:
+
+```python
+class UserService:
+    pass
+
+
+class HTTPClient:
+    pass
+
+
+class _InternalHandler:
+    pass
+```
+
+Geçersiz örnekler:
+
+```python
+class user_service:
+    pass
+
+
+class userService:
+    pass
+
+
+class userhandler:
+    pass
+```
+
+Sınıf adları:
+
+- İsteğe bağlı başlangıç alt çizgilerinden sonra büyük harfle başlamalıdır.
+- Harf ve rakam içerebilir.
+- Kelimeler arasında alt çizgi kullanılmamalıdır.
+
+### 19.6 İç İçe Yapılar
+
+Kural aşağıdaki yapıların tamamını kontrol etmelidir:
+
+- Modül seviyesindeki fonksiyonlar
+- Sınıf metotları
+- İç içe fonksiyonlar
+- İç içe sınıflar
+- Asenkron fonksiyonlar ve metotlar
+
+Her uygunsuz tanım ayrı bulgu üretmelidir.
+
+### 19.7 Bulgu Bilgileri
+
+Geçersiz fonksiyon veya metot adı için:
+
+```text
+rule_id: SA006
+message: Function name should use snake_case.
+severity: INFO
+```
+
+Geçersiz sınıf adı için:
+
+```text
+rule_id: SA006
+message: Class name should use PascalCase.
+severity: INFO
+```
+
+Her bulgu aşağıdaki bilgileri içermelidir:
+
+- `SA006` kural kimliği
+- Gerçek kaynak dosya yolu
+- Tanımın bulunduğu satır numarası
+- Bir tabanlı bildirim sütunu
+- Uygun mesaj
+- `INFO` önem seviyesi
+
+### 19.8 Sıralama
+
+Bir dosyada birden fazla isimlendirme problemi bulunabilir.
+
+Bulgular kaynak kod içerisindeki doğal sıralarını korumalıdır:
+
+```python
+def BadFunction():
+    pass
+
+
+class bad_class:
+    pass
+```
+
+Bu örnekte fonksiyon bulgusu sınıf bulgusundan önce dönmelidir.
+
+### 19.9 Kapsam Dışındaki İsimler
+
+İlk sürümde aşağıdaki isimler kontrol edilmeyecektir:
+
+- Değişken adları
+- Parametre adları
+- Modül adları
+- Paket adları
+- Sabit isimleri
+- Import alias isimleri
+
+Bunlar ileride ayrı kurallarla ele alınabilir.
+
+### 19.10 Hata ve Sorumluluk Sınırları
+
+Kural:
+
+- Kaynak dosyayı okumamalıdır.
+- Kaynak kodu tekrar parse etmemelidir.
+- Verilen AST nesnesini değiştirmemelidir.
+- Terminal veya JSON çıktısı oluşturmamalıdır.
+- Exit code belirlememelidir.
+- Beklenmeyen exception'ları gizlememelidir.
+
+### 19.11 Kabul Kriterleri
+
+1. `BaseRule` arayüzünü uygulamalıdır.
+2. Kural kimliği `SA006` olmalıdır.
+3. Normal fonksiyonları kontrol etmelidir.
+4. Asenkron fonksiyonları kontrol etmelidir.
+5. Sınıf metotlarını kontrol etmelidir.
+6. İç içe fonksiyon ve sınıfları kontrol etmelidir.
+7. Geçerli `snake_case` fonksiyon adlarını kabul etmelidir.
+8. Geçersiz fonksiyon adlarını raporlamalıdır.
+9. Dunder metotları yok saymalıdır.
+10. Geçerli `PascalCase` sınıf adlarını kabul etmelidir.
+11. Geçersiz sınıf adlarını raporlamalıdır.
+12. Her uygunsuz tanım için ayrı bulgu üretmelidir.
+13. Bulgular kaynak kod sırasını korumalıdır.
+14. Gerçek dosya yolunu bulguya aktarmalıdır.
+15. Doğru satır ve sütun konumunu üretmelidir.
+16. Bulgular `INFO` önem seviyesinde olmalıdır.
+17. Verilen AST nesnesini değiştirmemelidir.
+
+### 19.12 Planlanan Test Senaryoları
+
+- Varsayılan metadata değerleri
+- `BaseRule` arayüzünün uygulanması
+- Boş kaynak kod
+- Geçerli snake case fonksiyon
+- Başlangıç alt çizgili fonksiyon
+- Geçersiz PascalCase fonksiyon
+- Geçersiz camelCase fonksiyon
+- Geçerli asenkron fonksiyon
+- Geçersiz asenkron fonksiyon
+- Dunder metodun yok sayılması
+- Geçerli PascalCase sınıf
+- Başlangıç alt çizgili sınıf
+- Geçersiz snake case sınıf
+- Geçersiz camelCase sınıf
+- Sınıf metodunun kontrol edilmesi
+- İç içe fonksiyonların kontrol edilmesi
+- İç içe sınıfların kontrol edilmesi
+- Birden fazla bulgu
+- Gerçek dosya yolu
+- Satır ve sütun konumu
+- Fonksiyon bulgu mesajı
+- Sınıf bulgu mesajı
+- `INFO` önem seviyesi
+- Kaynak sırası
+- AST nesnesinin değiştirilmemesi
+
+## 20. Navigation
 
 - [Static Code Analyzer sayfasına dön](README.md)
 - [Teknik Tasarım](technical-design.md)
