@@ -2371,8 +2371,238 @@ Kural:
 - `INFO` önem seviyesi
 - Kaynak sırası
 - AST nesnesinin değiştirilmemesi
+## 20. Project Analyzer Gereksinimleri
 
-## 20. Navigation
+### 20.1 Amaç
+
+`ProjectAnalyzer`, hedef klasörde bulunan Python kaynak dosyalarının analiz
+edilmesini yöneten üst seviye koordinasyon bileşeni olacaktır.
+
+Bu bileşen aşağıdaki mevcut sınıfları bir araya getirecektir:
+
+- `FileScanner`
+- `SourceReader`
+- `AnalysisEngine`
+
+Temel işlem sırası:
+
+1. Hedef klasördeki Python dosyalarını keşfetmek
+2. Her dosyayı okumak ve AST nesnesine dönüştürmek
+3. Kayıtlı analiz kurallarını çalıştırmak
+4. Bütün bulguları tek listede birleştirmek
+5. Bulguları kararlı bir sırada döndürmek
+
+### 20.2 Genel Arayüz
+
+Sınıf aşağıdaki temel arayüzü sağlamalıdır:
+
+```python
+class ProjectAnalyzer:
+    def analyze(
+        self,
+        target: str | Path,
+    ) -> list[Finding]:
+        ...
+```
+
+`target`, analiz edilecek klasörün yolu olacaktır.
+
+Metot yalnızca bulgu listesini döndürecektir. Terminal çıktısı, JSON çıktısı
+ve process exit code işlemleri bu sınıfın sorumluluğunda olmayacaktır.
+
+### 20.3 Bağımlılıklar
+
+`ProjectAnalyzer` aşağıdaki bağımlılıkları constructor üzerinden almalıdır:
+
+```python
+def __init__(
+    self,
+    scanner: FileScanner,
+    reader: SourceReader,
+    engine: AnalysisEngine,
+) -> None:
+    ...
+```
+
+Bu yaklaşım:
+
+- Bileşenlerin birbirinden bağımsız test edilmesini
+- Testlerde sahte veya izleme amaçlı bağımlılıklar kullanılmasını
+- Farklı analiz motorlarının kullanılabilmesini
+- Varsayılan kural seçiminin bu sınıftan ayrılmasını
+
+sağlayacaktır.
+
+`ProjectAnalyzer` kendi içinde analiz kuralları oluşturmamalıdır. Hangi
+kuralların çalıştırılacağı `AnalysisEngine` tarafından belirlenmelidir.
+
+### 20.4 Dosya Keşfi
+
+Hedef klasör ilk olarak `FileScanner.scan()` metoduna verilmelidir:
+
+```python
+python_files = scanner.scan(target)
+```
+
+`ProjectAnalyzer`:
+
+- Klasörü kendisi dolaşmamalıdır.
+- `os.walk()` çağırmamalıdır.
+- Hariç tutulan klasörleri tekrar değerlendirmemelidir.
+- Dosya uzantılarını tekrar filtrelememelidir.
+
+Dosya keşfiyle ilgili bütün sorumluluk `FileScanner` sınıfında kalmalıdır.
+
+### 20.5 Kaynak Dosyaların Okunması
+
+Scanner tarafından döndürülen her dosya tam olarak bir kez
+`SourceReader.read()` metoduna verilmelidir:
+
+```python
+source_file = reader.read(file_path)
+```
+
+`ProjectAnalyzer`:
+
+- Dosyayı doğrudan açmamalıdır.
+- Kaynak kodu kendisi okumamalıdır.
+- `ast.parse()` çağırmamalıdır.
+- Aynı dosyayı birden fazla kez okumamalıdır.
+
+### 20.6 Analiz Motorunun Çalıştırılması
+
+Her `SourceFile` nesnesi tam olarak bir kez `AnalysisEngine.analyze()` metoduna
+verilmelidir:
+
+```python
+file_findings = engine.analyze(source_file)
+```
+
+Her dosyadan dönen bulgular proje bulgu listesine eklenmelidir.
+
+Bir dosya için hiç bulgu bulunmaması diğer dosyaların analiz edilmesini
+engellememelidir.
+
+### 20.7 Boş Klasör Davranışı
+
+Hedef klasörde Python dosyası bulunmadığında:
+
+```python
+[]
+```
+
+döndürülmelidir.
+
+Bu durumda:
+
+- `SourceReader.read()` çağrılmamalıdır.
+- `AnalysisEngine.analyze()` çağrılmamalıdır.
+- Hata üretilmemelidir.
+
+### 20.8 Bulgu Sıralaması
+
+Sonuçlar kararlı ve öngörülebilir bir sırada döndürülmelidir.
+
+Sıralama ölçütleri:
+
+1. Dosya yolu
+2. Satır numarası
+3. Sütun numarası
+4. Kural kimliği
+
+Sütun numarası `None` olan bulgular sıralama sırasında `0` değerine sahipmiş
+gibi değerlendirilmelidir.
+
+Örnek sıralama anahtarı:
+
+```python
+(
+    finding.file_path.casefold(),
+    finding.line_number,
+    finding.column_number or 0,
+    finding.rule_id,
+)
+```
+
+Bu sayede analiz motorundaki kural kayıt sırası sonuçların doğal dosya ve
+satır sırasını bozmamalıdır.
+
+### 20.9 Hata Davranışı
+
+Alt bileşenlerden gelen hatalar gizlenmemelidir.
+
+Örnekler:
+
+- Var olmayan hedef için `FileNotFoundError`
+- Dosya olmayan hedef için `NotADirectoryError`
+- Geçersiz Python kaynak kodu için `SyntaxError`
+- Geçersiz UTF-8 içeriği için `UnicodeDecodeError`
+
+`ProjectAnalyzer` bu hataları yakalayıp boş bulgu listesine çevirmemelidir.
+
+Beklenmeyen exception'lar da sessizce yok sayılmamalıdır.
+
+### 20.10 Sorumluluk Sınırları
+
+`ProjectAnalyzer` aşağıdaki işlemleri yapmamalıdır:
+
+- Terminale çıktı yazmak
+- JSON oluşturmak
+- Process exit code belirlemek
+- Dosya içeriğini değiştirmek
+- AST nesnelerini değiştirmek
+- Analiz kurallarını kendi içinde oluşturmak
+- Exception'ları sessizce gizlemek
+- Güvenlik açığı taraması yapmak
+- Dependency veya CVE analizi yapmak
+
+Bu işlemler sonraki katmanlarda ele alınacaktır.
+
+### 20.11 Kabul Kriterleri
+
+1. Hedef yol olarak `str` kabul etmelidir.
+2. Hedef yol olarak `Path` kabul etmelidir.
+3. `FileScanner` bağımlılığını constructor üzerinden almalıdır.
+4. `SourceReader` bağımlılığını constructor üzerinden almalıdır.
+5. `AnalysisEngine` bağımlılığını constructor üzerinden almalıdır.
+6. Scanner tarafından döndürülen her dosyayı işlemelidir.
+7. Her dosyayı tam olarak bir kez okumalıdır.
+8. Her `SourceFile` nesnesini tam olarak bir kez analiz etmelidir.
+9. Bütün dosyaların bulgularını birleştirmelidir.
+10. Python dosyası olmayan klasör için boş liste döndürmelidir.
+11. Bulguları kararlı biçimde sıralamalıdır.
+12. `None` sütun numaralarını sıralayabilmelidir.
+13. Aynı konumdaki bulguları kural kimliğine göre sıralamalıdır.
+14. Scanner hatalarını değiştirmeden iletmelidir.
+15. Reader hatalarını değiştirmeden iletmelidir.
+16. Engine hatalarını değiştirmeden iletmelidir.
+17. Terminal çıktısı üretmemelidir.
+18. Kendisine verilen bulguları değiştirmemelidir.
+
+### 20.12 Planlanan Test Senaryoları
+
+- Constructor bağımlılıklarının saklanması
+- String hedef yolunun kabul edilmesi
+- `Path` hedef yolunun kabul edilmesi
+- Boş klasör için boş liste
+- Tek Python dosyasının analiz edilmesi
+- Birden fazla Python dosyasının analiz edilmesi
+- Her dosyanın bir kez okunması
+- Her kaynak dosyanın bir kez analiz edilmesi
+- Farklı dosyalardaki bulguların birleştirilmesi
+- Dosya yoluna göre sıralama
+- Satır numarasına göre sıralama
+- Sütun numarasına göre sıralama
+- `None` sütun numarasının desteklenmesi
+- Aynı konumdaki bulguların kural kimliğine göre sıralanması
+- Scanner `FileNotFoundError` hatasının iletilmesi
+- Scanner `NotADirectoryError` hatasının iletilmesi
+- Reader `SyntaxError` hatasının iletilmesi
+- Reader `UnicodeDecodeError` hatasının iletilmesi
+- Engine hatasının iletilmesi
+- Bulgu nesnelerinin değiştirilmemesi
+
+## 21. Navigation
 
 - [Static Code Analyzer sayfasına dön](README.md)
 - [Teknik Tasarım](technical-design.md)
