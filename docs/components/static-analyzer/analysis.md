@@ -1893,8 +1893,212 @@ Kural aşağıdaki testlerle doğrulanacaktır:
 - `WARNING` önem seviyesi
 - Bulguların kaynak sırasını koruması
 - Mevcut AST nesnesinin değiştirilmemesi
+## 18. Hardcoded Secret Kuralı Gereksinimleri
 
-## 18. Navigation
+### 18.1 Amaç
+
+`HardcodedSecretRule`, hassas bilgi ifade eden değişkenlere doğrudan atanmış
+string literal değerlerini tespit edecektir.
+
+Kural kimliği:
+
+```text
+SA005
+```
+
+Bu kural kesin bir güvenlik açığı doğrulaması değil, inceleme gerektiren
+şüpheli bir bulgu üretir.
+
+### 18.2 Kural Türü
+
+Kural, değişken adı ile atanan değerin yapısal ilişkisini inceleyeceği için
+`BaseRule` AST arayüzünü uygulayacaktır:
+
+```python
+def check(
+    self,
+    tree: ast.AST,
+    file_path: str,
+) -> list[Finding]:
+    ...
+```
+
+Kural kaynak dosyayı okumayacak ve kaynak kodu tekrar parse etmeyecektir.
+
+### 18.3 Hassas Değişken Adları
+
+İlk sürümde aşağıdaki isimler ve bunları içeren snake_case değişken adları
+şüpheli kabul edilmelidir:
+
+```text
+password
+passwd
+pwd
+secret
+token
+api_key
+apikey
+access_token
+auth_token
+client_secret
+private_key
+```
+
+Bulgu üretmesi gereken örnekler:
+
+```python
+password = "admin123"
+database_password = "secret-value"
+api_key = "abc123"
+github_token = "token-value"
+client_secret: str = "client-secret-value"
+```
+
+Değişken adı kontrolü büyük-küçük harf duyarsız olmalıdır.
+
+### 18.4 Desteklenen Atamalar
+
+Kural aşağıdaki AST atamalarını desteklemelidir:
+
+```python
+password = "admin123"
+```
+
+```python
+api_key: str = "abc123"
+```
+
+Attribute atamaları da desteklenmelidir:
+
+```python
+config.password = "admin123"
+```
+
+Birden fazla hedefe yapılan atamalarda bütün hassas hedefler
+değerlendirilmelidir:
+
+```python
+password = backup_password = "admin123"
+```
+
+### 18.5 Bulgu Üretmemesi Gereken Değerler
+
+Yalnızca doğrudan yazılmış, boş olmayan string literal değerleri
+raporlanmalıdır.
+
+Aşağıdaki örnekler bulgu üretmemelidir:
+
+```python
+password = ""
+token = "   "
+api_key = os.getenv("API_KEY")
+secret = load_secret()
+password = None
+token = 12345
+```
+
+Değişken adında hassas ifade bulunmuyorsa string değer bulgu üretmemelidir:
+
+```python
+username = "admin"
+message = "secret"
+```
+
+String içerisinde hassas kelime bulunması tek başına yeterli değildir.
+
+### 18.6 Bulgu Bilgileri
+
+Her şüpheli atama için bir `Finding` oluşturulmalıdır:
+
+```text
+rule_id: SA005
+message: Possible hardcoded secret found.
+severity: WARNING
+```
+
+Bulgu aşağıdaki bilgileri içermelidir:
+
+- `SA005` kural kimliği
+- Gerçek dosya yolu
+- Hassas değişkenin satır numarası
+- Bir tabanlı sütun numarası
+- Açıklayıcı mesaj
+- `WARNING` önem seviyesi
+
+Bulgu mesajına gerçek secret değeri eklenmemelidir.
+
+### 18.7 Sıralama ve Tekrarlanan Bulgular
+
+Bir dosyada birden fazla hardcoded secret bulunabilir.
+
+Her hassas hedef için ayrı bulgu oluşturulmalıdır ve bulgular kaynak kod
+sırasını korumalıdır.
+
+```python
+password = "first"
+api_key = "second"
+client_secret = "third"
+```
+
+Aynı AST hedefi için tekrar eden bulgu üretilmemelidir.
+
+### 18.8 Hata ve Sorumluluk Sınırları
+
+Kural:
+
+- Kaynak dosyayı okumamalıdır.
+- Kaynak kodu tekrar parse etmemelidir.
+- Verilen AST nesnesini değiştirmemelidir.
+- Secret değerlerini terminale veya bulgu mesajına yazmamalıdır.
+- Terminal veya JSON raporu üretmemelidir.
+- Exit code belirlememelidir.
+- Beklenmeyen exception'ları gizlememelidir.
+
+### 18.9 Kabul Kriterleri
+
+1. `BaseRule` arayüzünü uygulamalıdır.
+2. Kural kimliği `SA005` olmalıdır.
+3. Hassas değişken adlarını büyük-küçük harf duyarsız tespit etmelidir.
+4. Normal atamaları desteklemelidir.
+5. Type annotation içeren atamaları desteklemelidir.
+6. Attribute atamalarını desteklemelidir.
+7. Birden fazla atama hedefini desteklemelidir.
+8. Yalnızca boş olmayan string literal değerlerini raporlamalıdır.
+9. `os.getenv()` ve fonksiyon çağrılarını yok saymalıdır.
+10. Hassas olmayan değişkenleri yok saymalıdır.
+11. Gerçek secret değerini bulgu mesajına eklememelidir.
+12. Gerçek dosya yolunu bulguya aktarmalıdır.
+13. Doğru satır ve sütun konumunu üretmelidir.
+14. Bulgular `WARNING` önem seviyesinde olmalıdır.
+15. Bulgular kaynak kod sırasını korumalıdır.
+16. Verilen AST nesnesini değiştirmemelidir.
+
+### 18.10 Planlanan Test Senaryoları
+
+- Varsayılan metadata değerleri
+- `BaseRule` arayüzünün uygulanması
+- Boş kaynak kod
+- Normal password ataması
+- API key ataması
+- Büyük-küçük harf duyarsız değişken adı
+- Snake case içerisinde hassas ifade
+- Type annotation içeren atama
+- Attribute ataması
+- Birden fazla atama hedefi
+- Boş string değerinin yok sayılması
+- Yalnızca boşluk içeren değerin yok sayılması
+- `os.getenv()` kullanımının yok sayılması
+- Fonksiyon çağrısının yok sayılması
+- Sayısal ve `None` değerlerinin yok sayılması
+- Hassas olmayan değişken adının yok sayılması
+- Gerçek dosya yolunun aktarılması
+- Satır ve sütun konumu
+- Beklenen mesaj ve önem seviyesi
+- Bulguların kaynak sırası
+- Secret değerinin mesajda bulunmaması
+- AST nesnesinin değiştirilmemesi
+
+## 19. Navigation
 
 - [Static Code Analyzer sayfasına dön](README.md)
 - [Teknik Tasarım](technical-design.md)
