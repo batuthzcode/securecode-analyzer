@@ -510,7 +510,7 @@ Tamamlanan çalışmalar:
 - UTF-8 encoding hatalarının gizlenmeden iletilmesi sağlandı.
 - Kaynak dosyalarının yalnızca bir kez parse edilmesi sağlandı.
 - Kaynak kod okuyucu 11 test senaryosuyla doğrulandı.
-- Projenin toplam 192 testi başarılı şekilde çalışmaktadır.
+- Projenin toplam 212 testi başarılı şekilde çalışmaktadır.
 - `BaseTextRule` soyut kural arayüzü geliştirildi.
 - Metin tabanlı kuralların kaynak kod metni ve dosya yolu alması sağlandı.
 - `BaseTextRule` sınıfının public kural paketi üzerinden dışa aktarılması sağlandı.
@@ -572,6 +572,18 @@ Tamamlanan çalışmalar:
 - Factory tarafından oluşturulan analyzer geçici bir proje üzerinde uçtan uca doğrulandı.
 - Var olmayan hedef hatasının değiştirilmeden iletilmesi sağlandı.
 - Default analyzer factory 16 test senaryosuyla doğrulandı.
+- `CliArguments` immutable veri sınıfı geliştirildi.
+- `CliArguments` sınıfında `slots` kullanılması sağlandı.
+- `build_parser()` fonksiyonu geliştirildi.
+- Her parser çağrısında bağımsız `ArgumentParser` oluşturulması sağlandı.
+- `parse_arguments()` fonksiyonu geliştirildi.
+- Zorunlu hedef yol positional argümanı eklendi.
+- Hedef yolun `Path` nesnesine dönüştürülmesi sağlandı.
+- Varsayılan `text` çıktı formatı eklendi.
+- Açık `text` ve `json` format seçenekleri desteklendi.
+- Geçersiz format, eksik hedef ve bilinmeyen argümanlar için standart `argparse` davranışı korundu.
+- `--help` ve `-h` seçenekleri doğrulandı.
+- CLI foundation 20 test senaryosuyla doğrulandı.
 
 Henüz tamamlanmayan çalışmalar:
 

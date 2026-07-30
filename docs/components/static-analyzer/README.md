@@ -512,6 +512,140 @@ from static_analyzer.default_factory import (
     create_default_rules,
 )
 ```
+### CLI Foundation
+
+CLI foundation, SecureCode Analyzer komut satırı arayüzünün argüman
+ayrıştırma katmanını sağlar.
+
+Modül:
+
+```text
+src/static_analyzer/cli.py
+```
+
+Public bileşenler:
+
+```python
+from static_analyzer.cli import (
+    CliArguments,
+    build_parser,
+    parse_arguments,
+)
+```
+
+#### CliArguments
+
+`CliArguments`, doğrulanmış komut satırı seçeneklerini temsil eden immutable
+bir veri sınıfıdır:
+
+```python
+@dataclass(frozen=True, slots=True)
+class CliArguments:
+    target: Path
+    output_format: str
+```
+
+Alanlar:
+
+- `target`: Analiz edilecek hedef klasörün `Path` karşılığı
+- `output_format`: `text` veya `json`
+
+#### Hedef yol
+
+CLI bir zorunlu positional hedef yol kabul eder:
+
+```powershell
+securecode-analyzer src
+securecode-analyzer .
+securecode-analyzer C:\projects\example
+```
+
+Parser hedef yolun varlığını veya klasör olup olmadığını kontrol etmez.
+Bu kontroller analiz sırasında `FileScanner` tarafından gerçekleştirilir.
+
+#### Output formatı
+
+Varsayılan çıktı formatı:
+
+```text
+text
+```
+
+JSON formatı açıkça seçilebilir:
+
+```powershell
+securecode-analyzer src --format json
+```
+
+Desteklenen değerler:
+
+```text
+text
+json
+```
+
+Geçersiz bir format standart `argparse` kullanım hatası üretir:
+
+```powershell
+securecode-analyzer src --format xml
+```
+
+#### Parser oluşturma
+
+Her `build_parser()` çağrısı yeni bir `ArgumentParser` nesnesi üretir:
+
+```python
+first_parser = build_parser()
+second_parser = build_parser()
+
+assert first_parser is not second_parser
+```
+
+Program adı:
+
+```text
+securecode-analyzer
+```
+
+Program açıklaması:
+
+```text
+Analyze Python source code for quality and security findings.
+```
+
+#### Argüman ayrıştırma
+
+Argümanlar doğrudan bir liste üzerinden ayrıştırılabilir:
+
+```python
+arguments = parse_arguments(
+    ["src", "--format", "json"]
+)
+
+assert arguments.target == Path("src")
+assert arguments.output_format == "json"
+```
+
+`argv=None` kullanıldığında mevcut process argümanları ayrıştırılır.
+
+#### Yardım çıktısı
+
+Standart yardım seçenekleri desteklenir:
+
+```powershell
+securecode-analyzer --help
+securecode-analyzer -h
+```
+
+CLI foundation şu aşamada:
+
+- Analyzer oluşturmaz
+- Dosya analizi çalıştırmaz
+- Terminal bulgu çıktısı üretmez
+- JSON çıktısı oluşturmaz
+- Exit code politikası belirlemez
+
+Bu sorumluluklar sonraki CLI bileşenlerinde ele alınacaktır.
 
 #### Varsayılan kurallar
 
@@ -856,7 +990,17 @@ Tamamlanan çalışmalar:
 - `FileScanner`, `SourceReader`, `AnalysisEngine` ve `ProjectAnalyzer` bileşenlerinin otomatik bağlanması sağlandı.
 - Factory tarafından oluşturulan analyzer uçtan uca test edildi.
 - Default analyzer factory 16 test senaryosuyla doğrulandı.
-- Projedeki toplam 192 test başarıyla çalıştırıldı.
+- CLI argüman ayrıştırma temeli geliştirildi.
+- Immutable ve slots kullanan `CliArguments` veri modeli eklendi.
+- Yeni parser oluşturan `build_parser()` fonksiyonu eklendi.
+- Doğrulanmış CLI verisi oluşturan `parse_arguments()` fonksiyonu eklendi.
+- Zorunlu hedef klasör argümanı desteklendi.
+- Hedef yolun `Path` nesnesine dönüştürülmesi sağlandı.
+- `text` ve `json` çıktı formatları desteklendi.
+- Varsayılan çıktı formatı `text` olarak belirlendi.
+- Standart `argparse` yardım ve kullanım hatası davranışları korundu.
+- CLI foundation 20 test senaryosuyla doğrulandı.
+- Projedeki toplam 212 test başarıyla çalıştırıldı.
 
 
 Henüz tamamlanmayan çalışmalar:
