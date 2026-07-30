@@ -2865,8 +2865,279 @@ Factory yalnızca nesneleri oluşturmak ve birbirine bağlamakla sorumludur.
 - Ayrı analyzer çağrılarının bağımsız olması
 - Geçici proje üzerinde uçtan uca analiz
 - Var olmayan hedef hatasının iletilmesi
+## 22. CLI Foundation Gereksinimleri
 
-## 22. Navigation
+### 22.1 Amaç
+
+CLI foundation, statik analiz aracının komut satırından kullanılabilmesi için
+gerekli argüman ayrıştırma katmanını sağlayacaktır.
+
+Bu aşamada CLI yalnızca kullanıcı seçeneklerini okuyup doğrulanmış bir veri
+nesnesine dönüştürecektir.
+
+Dosya analizi, terminal çıktısı, JSON çıktısı ve exit code davranışı sonraki
+bileşenlerde ele alınacaktır.
+
+### 22.2 Modül
+
+CLI temeli aşağıdaki modülde bulunmalıdır:
+
+```text
+src/static_analyzer/cli.py
+```
+
+Modül aşağıdaki public bileşenleri sağlamalıdır:
+
+```python
+@dataclass(frozen=True, slots=True)
+class CliArguments:
+    target: Path
+    output_format: str
+
+
+def build_parser() -> argparse.ArgumentParser:
+    ...
+
+
+def parse_arguments(
+    argv: Sequence[str] | None = None,
+) -> CliArguments:
+    ...
+```
+
+### 22.3 CLI Arguments Veri Modeli
+
+`CliArguments`, doğrulanmış komut satırı seçeneklerini temsil etmelidir.
+
+```python
+@dataclass(frozen=True, slots=True)
+class CliArguments:
+    target: Path
+    output_format: str
+```
+
+Özellikler:
+
+- `frozen=True` kullanılarak sonradan değiştirilmemelidir.
+- `slots=True` kullanılmalıdır.
+- `target`, `Path` nesnesi olmalıdır.
+- `output_format`, `text` veya `json` olmalıdır.
+
+### 22.4 Hedef Yol Argümanı
+
+CLI bir zorunlu positional hedef yol kabul etmelidir:
+
+```powershell
+securecode-analyzer src
+```
+
+Örnekler:
+
+```powershell
+securecode-analyzer .
+securecode-analyzer src
+securecode-analyzer C:\projects\example
+```
+
+Parser hedef yolun varlığını kontrol etmemelidir.
+
+Hedefin:
+
+- Var olup olmadığı
+- Klasör olup olmadığı
+- Okunabilir olup olmadığı
+
+`FileScanner` ve alt bileşenler tarafından kontrol edilmelidir.
+
+CLI parser yalnızca değeri `Path` nesnesine dönüştürmelidir.
+
+### 22.5 Output Format Seçeneği
+
+CLI aşağıdaki opsiyonel argümanı desteklemelidir:
+
+```powershell
+securecode-analyzer src --format json
+```
+
+Desteklenen değerler:
+
+```text
+text
+json
+```
+
+Varsayılan değer:
+
+```text
+text
+```
+
+Kısa seçenek bu sürümde gerekli değildir.
+
+Geçersiz bir değer:
+
+```powershell
+securecode-analyzer src --format xml
+```
+
+standart `argparse` kullanım hatası üretmelidir.
+
+### 22.6 Parser Bilgileri
+
+Parser aşağıdaki program adını kullanmalıdır:
+
+```text
+securecode-analyzer
+```
+
+Açıklama:
+
+```text
+Analyze Python source code for quality and security findings.
+```
+
+Parser standart yardım seçeneklerini sağlamalıdır:
+
+```powershell
+securecode-analyzer --help
+securecode-analyzer -h
+```
+
+Yardım çıktısı en az aşağıdaki bilgileri içermelidir:
+
+- Program adı
+- Hedef yol argümanı
+- `--format` seçeneği
+- `text` ve `json` formatları
+- Program açıklaması
+
+### 22.7 Argument Parsing
+
+`parse_arguments()` kendisine verilen argüman dizisini parse etmelidir:
+
+```python
+arguments = parse_arguments(
+    ["src", "--format", "json"]
+)
+```
+
+Beklenen sonuç:
+
+```python
+CliArguments(
+    target=Path("src"),
+    output_format="json",
+)
+```
+
+`argv=None` verildiğinde standart process argümanları kullanılmalıdır.
+
+Testlerde process argümanlarından bağımsız çalışabilmek için açık bir argüman
+listesi verilebilmelidir.
+
+### 22.8 Parser Nesnesinin Yaşam Döngüsü
+
+Her `build_parser()` çağrısı yeni bir `ArgumentParser` nesnesi oluşturmalıdır:
+
+```python
+first_parser = build_parser()
+second_parser = build_parser()
+
+assert first_parser is not second_parser
+```
+
+Global ve değiştirilebilir bir parser nesnesi saklanmamalıdır.
+
+### 22.9 Standart Argparse Hataları
+
+Aşağıdaki durumlarda standart `argparse` davranışı korunmalıdır:
+
+- Hedef argümanın verilmemesi
+- Geçersiz output formatı verilmesi
+- Bilinmeyen argüman kullanılması
+- Bir seçeneğin eksik değerle verilmesi
+
+Bu durumlarda parser:
+
+```text
+SystemExit: 2
+```
+
+üretmelidir.
+
+Yardım istendiğinde:
+
+```text
+SystemExit: 0
+```
+
+üretilmelidir.
+
+CLI foundation bu hataları yakalayıp değiştirmemelidir.
+
+### 22.10 Sorumluluk Sınırları
+
+CLI foundation aşağıdaki işlemleri yapmamalıdır:
+
+- `ProjectAnalyzer` oluşturmak
+- Hedef klasörü analiz etmek
+- Dosya okumak
+- AST oluşturmak
+- Bulguları terminale yazmak
+- JSON çıktısı oluşturmak
+- Process exit code politikasını belirlemek
+- Exception'ları özel mesajlara dönüştürmek
+- Dependency veya CVE taraması yapmak
+- Kullanıcı yapılandırması okumak
+
+Bu bileşen yalnızca argüman tanımlama, ayrıştırma ve doğrulanmış CLI verisi
+oluşturma sorumluluğuna sahip olmalıdır.
+
+### 22.11 Kabul Kriterleri
+
+1. `CliArguments` veri sınıfı bulunmalıdır.
+2. `CliArguments` immutable olmalıdır.
+3. `CliArguments` slots kullanmalıdır.
+4. `build_parser()` fonksiyonu bulunmalıdır.
+5. `parse_arguments()` fonksiyonu bulunmalıdır.
+6. Her parser çağrısı yeni bir nesne üretmelidir.
+7. Program adı `securecode-analyzer` olmalıdır.
+8. Parser açıklaması doğru olmalıdır.
+9. Zorunlu hedef yol argümanı desteklenmelidir.
+10. Hedef yol `Path` nesnesine dönüştürülmelidir.
+11. Varsayılan format `text` olmalıdır.
+12. `json` formatı kabul edilmelidir.
+13. Geçersiz format reddedilmelidir.
+14. Eksik hedef argümanı reddedilmelidir.
+15. Bilinmeyen argüman reddedilmelidir.
+16. Yardım seçeneği desteklenmelidir.
+17. Parser hedef yolun varlığını kontrol etmemelidir.
+18. CLI foundation analiz veya çıktı üretmemelidir.
+
+### 22.12 Planlanan Test Senaryoları
+
+- `CliArguments` alanlarının doğrulanması
+- `CliArguments` nesnesinin immutable olması
+- `CliArguments` sınıfının slots kullanması
+- Parser nesnesinin oluşturulması
+- Her çağrıda yeni parser oluşturulması
+- Program adının doğrulanması
+- Parser açıklamasının doğrulanması
+- String hedef yolunun parse edilmesi
+- Göreceli hedef yolun `Path` nesnesine dönüştürülmesi
+- Mutlak hedef yolun `Path` nesnesine dönüştürülmesi
+- Varsayılan `text` formatı
+- Açık `text` formatı
+- `json` formatı
+- Argüman sırasının desteklenmesi
+- Var olmayan hedef yolun parser tarafından kabul edilmesi
+- Eksik hedef argümanı
+- Geçersiz output formatı
+- Bilinmeyen argüman
+- Yardım seçeneği
+- Yardım çıktısının içeriği
+
+## 23. Navigation
 
 - [Static Code Analyzer sayfasına dön](README.md)
 - [Teknik Tasarım](technical-design.md)
