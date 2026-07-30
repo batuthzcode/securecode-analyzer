@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable
-from typing import Any
 
 from static_analyzer.models import Finding
 
@@ -16,7 +15,7 @@ def format_findings_json(
 
     finding_items = tuple(findings)
 
-    payload: dict[str, Any] = {
+    payload = {
         "findings": [
             finding.to_dict()
             for finding in finding_items
