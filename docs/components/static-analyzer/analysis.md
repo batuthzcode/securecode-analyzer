@@ -3148,8 +3148,265 @@ oluşturma sorumluluğuna sahip olmalıdır.
 - Bilinmeyen argüman
 - Yardım seçeneği
 - Yardım çıktısının içeriği
+## 23. Text Formatter Gereksinimleri
 
-## 23. Navigation
+### 23.1 Amaç
+
+Text formatter, statik analiz bulgularını kullanıcı tarafından kolayca
+okunabilen terminal metnine dönüştürecektir.
+
+Formatter yalnızca metin oluşturacaktır. Terminale doğrudan yazmayacak,
+analiz çalıştırmayacak ve process exit code belirlemeyecektir.
+
+### 23.2 Modül Yapısı
+
+Formatter aşağıdaki modülde bulunmalıdır:
+
+```text
+src/static_analyzer/formatters/text.py
+```
+
+Formatter paketi aşağıdaki dosyayı da içermelidir:
+
+```text
+src/static_analyzer/formatters/__init__.py
+```
+
+Public fonksiyon:
+
+```python
+def format_findings_text(
+    findings: Iterable[Finding],
+) -> str:
+    ...
+```
+
+Fonksiyon liste, tuple ve generator gibi iterable bulgu koleksiyonlarını
+desteklemelidir.
+
+### 23.3 Tek Bulgu Formatı
+
+Her bulgu aşağıdaki biçimde gösterilmelidir:
+
+```text
+[WARNING] SA005 src/example.py:1:1 - Possible hardcoded secret found.
+```
+
+Genel biçim:
+
+```text
+[SEVERITY] RULE_ID FILE_PATH:LINE:COLUMN - MESSAGE
+```
+
+Alanlar:
+
+- Önem seviyesi büyük harfle yazılmalıdır.
+- Kural kimliği olduğu gibi kullanılmalıdır.
+- Dosya yolu olduğu gibi kullanılmalıdır.
+- Satır numarası gösterilmelidir.
+- Sütun numarası varsa gösterilmelidir.
+- Bulgu mesajı olduğu gibi kullanılmalıdır.
+
+### 23.4 Sütun Numarası Olmayan Bulgular
+
+`column_number` değeri `None` olduğunda konum yalnızca dosya yolu ve satır
+numarasını içermelidir:
+
+```text
+[INFO] SA003 src/example.py:8 - TODO comment found.
+```
+
+Aşağıdaki gibi bir değer üretilmemelidir:
+
+```text
+src/example.py:8:None
+```
+
+### 23.5 Önem Seviyesi
+
+Severity değerleri terminal metninde büyük harfle gösterilmelidir:
+
+```text
+INFO
+WARNING
+ERROR
+```
+
+Formatter doğrudan `Severity` enum değerini değiştirmemeli veya yeni bir
+severity politikası belirlememelidir.
+
+### 23.6 Birden Fazla Bulgu
+
+Birden fazla bulgu ayrı satırlarda gösterilmelidir:
+
+```text
+[WARNING] SA005 src/config.py:1:1 - Possible hardcoded secret found.
+[INFO] SA006 src/config.py:3:1 - Function name should use snake_case.
+
+2 findings found.
+```
+
+Bulgu satırları ile özet satırı arasında bir boş satır bulunmalıdır.
+
+Formatter kendisine verilen bulguların sırasını korumalıdır. Bulguları yeniden
+sıralamamalıdır.
+
+Dosya ve kaynak sıralaması `ProjectAnalyzer` sorumluluğunda kalmalıdır.
+
+### 23.7 Tekil Özet
+
+Tam olarak bir bulgu bulunduğunda özet satırı tekil olmalıdır:
+
+```text
+1 finding found.
+```
+
+Tam çıktı örneği:
+
+```text
+[WARNING] SA005 src/config.py:1:1 - Possible hardcoded secret found.
+
+1 finding found.
+```
+
+### 23.8 Çoğul Özet
+
+Birden fazla bulgu bulunduğunda özet satırı çoğul olmalıdır:
+
+```text
+2 findings found.
+```
+
+Bulgu sayısı dinamik olarak gerçek koleksiyon uzunluğundan hesaplanmalıdır.
+
+### 23.9 Boş Bulgu Koleksiyonu
+
+Bulgu bulunmadığında yalnızca aşağıdaki metin döndürülmelidir:
+
+```text
+No findings found.
+```
+
+Boş koleksiyon için:
+
+- Boş string döndürülmemelidir.
+- Özet öncesinde boş satır oluşturulmamalıdır.
+- Sahte bir bulgu satırı oluşturulmamalıdır.
+
+### 23.10 Yeni Satır Davranışı
+
+Bulgu satırları `\n` karakteriyle birleştirilmelidir.
+
+Döndürülen metnin sonunda fazladan yeni satır bulunmamalıdır.
+
+Örnek:
+
+```python
+result = format_findings_text(findings)
+
+assert not result.endswith("\n")
+```
+
+Terminale yazılırken gerekli son satır karakteri CLI runner veya `print()`
+tarafından eklenecektir.
+
+### 23.11 Iterable Desteği
+
+Fonksiyon aşağıdaki koleksiyonları desteklemelidir:
+
+- Liste
+- Tuple
+- Generator
+- Diğer tek kullanımlık iterable nesneleri
+
+Generator birden fazla kez tüketilmemelidir.
+
+Formatter, bulgu sayısını hesaplayabilmek ve içeriği oluşturabilmek için
+iterable değerini bir kez tuple'a dönüştürebilir:
+
+```python
+finding_items = tuple(findings)
+```
+
+### 23.12 Bulgu Nesnelerinin Korunması
+
+Formatter:
+
+- Bulgu nesnelerini değiştirmemelidir.
+- Bulgu mesajlarını değiştirmemelidir.
+- Dosya yollarını normalize etmemelidir.
+- Satır veya sütun numaralarını değiştirmemelidir.
+- Severity değerlerini değiştirmemelidir.
+- Bulguları yeniden sıralamamalıdır.
+
+Formatter yalnızca yeni bir string üretmelidir.
+
+### 23.13 Sorumluluk Sınırları
+
+Text formatter aşağıdaki işlemleri yapmamalıdır:
+
+- Terminale doğrudan yazmak
+- `print()` çağırmak
+- Dosya analizi çalıştırmak
+- `ProjectAnalyzer` oluşturmak
+- CLI argümanlarını parse etmek
+- JSON çıktısı oluşturmak
+- Dosyaya rapor yazmak
+- Process exit code belirlemek
+- Bulguları filtrelemek
+- Bulguları sıralamak
+- Hataları gizlemek
+- Dependency veya CVE taraması yapmak
+
+### 23.14 Kabul Kriterleri
+
+1. `format_findings_text()` fonksiyonu bulunmalıdır.
+2. Fonksiyon `Iterable[Finding]` kabul etmelidir.
+3. Boş koleksiyon için `No findings found.` döndürmelidir.
+4. Tek bulgu doğru biçimde gösterilmelidir.
+5. Birden fazla bulgu ayrı satırlarda gösterilmelidir.
+6. Severity büyük harfle gösterilmelidir.
+7. Kural kimliği gösterilmelidir.
+8. Dosya yolu gösterilmelidir.
+9. Satır numarası gösterilmelidir.
+10. Sütun numarası varsa gösterilmelidir.
+11. `None` sütun numarası metne eklenmemelidir.
+12. Bulgu mesajı gösterilmelidir.
+13. Tek bulgu için tekil özet kullanılmalıdır.
+14. Birden fazla bulgu için çoğul özet kullanılmalıdır.
+15. Bulguların giriş sırası korunmalıdır.
+16. Generator girdisi desteklenmelidir.
+17. Döndürülen metnin sonunda yeni satır bulunmamalıdır.
+18. Bulgu nesneleri değiştirilmemelidir.
+19. Formatter terminal çıktısı üretmemelidir.
+20. Formatter JSON veya exit code politikası belirlememelidir.
+
+### 23.15 Planlanan Test Senaryoları
+
+- Boş liste
+- Boş tuple
+- Tek bulgu
+- Birden fazla bulgu
+- `INFO` severity gösterimi
+- `WARNING` severity gösterimi
+- `ERROR` severity gösterimi
+- Kural kimliğinin gösterilmesi
+- Dosya yolunun gösterilmesi
+- Satır numarasının gösterilmesi
+- Sütun numarasının gösterilmesi
+- `None` sütun numarasının desteklenmesi
+- Bulgu mesajının gösterilmesi
+- Tekil özet
+- Çoğul özet
+- Bulgular arasında yeni satır kullanılması
+- Özet öncesinde boş satır bulunması
+- Giriş sırasının korunması
+- Generator desteği
+- Sonunda yeni satır bulunmaması
+- Bulgu nesnelerinin değiştirilmemesi
+- Terminal çıktısı üretilmemesi
+
+## 24. Navigation
 
 - [Static Code Analyzer sayfasına dön](README.md)
 - [Teknik Tasarım](technical-design.md)
