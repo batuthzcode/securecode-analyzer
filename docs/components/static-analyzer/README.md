@@ -638,6 +638,132 @@ Text formatter:
 - JSON çıktısı üretmez
 - Exit code politikası belirlemez
 - Bulgu nesnelerini değiştirmez
+### JSON Formatter
+
+JSON formatter, statik analiz bulgularını makineler ve diğer uygulamalar
+tarafından işlenebilecek JSON metnine dönüştürür.
+
+Modül:
+
+```text
+src/static_analyzer/formatters/json.py
+```
+
+Public fonksiyon:
+
+```python
+from static_analyzer.formatters import format_findings_json
+```
+
+Temel kullanım:
+
+```python
+json_text = format_findings_json(findings)
+```
+
+Üretilen JSON belgesinin üst seviye yapısı:
+
+```json
+{
+  "findings": [],
+  "summary": {
+    "total": 0
+  }
+}
+```
+
+Her bulgu aşağıdaki public alanları içerir:
+
+```json
+{
+  "rule_id": "SA005",
+  "message": "Possible hardcoded secret found.",
+  "file_path": "src/example.py",
+  "line_number": 1,
+  "severity": "warning",
+  "column_number": 1
+}
+```
+
+Bulgu verileri mevcut `Finding.to_dict()` metodu üzerinden oluşturulur.
+
+Severity değerleri küçük harfli string olarak gösterilir:
+
+```text
+info
+warning
+error
+```
+
+Sütun numarası bulunmayan bulgularda alan kaldırılmaz ve JSON `null`
+değeri kullanılır:
+
+```json
+{
+  "column_number": null
+}
+```
+
+Birden fazla bulgu `findings` listesinde ayrı nesneler olarak bulunur.
+`summary.total` gerçek bulgu sayısını içerir.
+
+```json
+{
+  "findings": [
+    {
+      "rule_id": "SA005",
+      "message": "Possible hardcoded secret found.",
+      "file_path": "src/config.py",
+      "line_number": 1,
+      "severity": "warning",
+      "column_number": 1
+    },
+    {
+      "rule_id": "SA006",
+      "message": "Function name should use snake_case.",
+      "file_path": "src/config.py",
+      "line_number": 3,
+      "severity": "info",
+      "column_number": 1
+    }
+  ],
+  "summary": {
+    "total": 2
+  }
+}
+```
+
+JSON iki boşluk girinti kullanılarak okunabilir biçimde oluşturulur.
+
+Türkçe ve diğer Unicode karakterler doğrudan korunur:
+
+```json
+{
+  "message": "Güvenlik yapılandırması kontrol edilmeli."
+}
+```
+
+Formatter aşağıdaki iterable türlerini destekler:
+
+- Liste
+- Tuple
+- Generator
+- Diğer iterable bulgu koleksiyonları
+
+Generator girdileri yalnızca bir kez tüketilir.
+
+JSON formatter:
+
+- Bulguların giriş sırasını korur
+- Bulguları sıralamaz veya filtrelemez
+- Bulgu nesnelerini değiştirmez
+- Dosya yollarını normalize etmez
+- Terminale doğrudan yazmaz
+- Dosyaya rapor kaydetmez
+- Analiz çalıştırmaz
+- Exit code politikası belirlemez
+
+Döndürülen JSON string sonunda fazladan yeni satır bulunmaz.
 
 #### CliArguments
 
@@ -1117,7 +1243,19 @@ Tamamlanan çalışmalar:
 - Formatter çıktısının sonunda fazladan yeni satır bulunmaması sağlandı.
 - Bulgu nesnelerinin değiştirilmemesi doğrulandı.
 - Text formatter 22 test senaryosuyla doğrulandı.
-- Projedeki toplam 234 test başarıyla çalıştırıldı.
+- Bulguları makine tarafından okunabilir JSON metnine dönüştüren JSON formatter geliştirildi.
+- `format_findings_json()` public fonksiyonu eklendi.
+- Üst seviye `findings` ve `summary` alanları oluşturuldu.
+- `summary.total` alanının gerçek bulgu sayısını içermesi sağlandı.
+- Bulgu verilerinin `Finding.to_dict()` üzerinden oluşturulması sağlandı.
+- Severity değerlerinin küçük harfli string olarak gösterilmesi sağlandı.
+- Eksik sütun numaralarının JSON `null` olarak gösterilmesi sağlandı.
+- İki boşluk girintili okunabilir JSON çıktısı eklendi.
+- Unicode karakterlerin korunması sağlandı.
+- Liste, tuple ve generator girdileri desteklendi.
+- Bulguların giriş sırasının korunması sağlandı.
+- JSON formatter 25 test senaryosuyla doğrulandı.
+- Projedeki toplam 259 test başarıyla çalıştırıldı.
 
 
 Henüz tamamlanmayan çalışmalar:

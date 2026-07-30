@@ -510,7 +510,7 @@ Tamamlanan çalışmalar:
 - UTF-8 encoding hatalarının gizlenmeden iletilmesi sağlandı.
 - Kaynak dosyalarının yalnızca bir kez parse edilmesi sağlandı.
 - Kaynak kod okuyucu 11 test senaryosuyla doğrulandı.
-- Projenin toplam 234 testi başarılı şekilde çalışmaktadır.
+- Projenin toplam 259 testi başarılı şekilde çalışmaktadır.
 - `BaseTextRule` soyut kural arayüzü geliştirildi.
 - Metin tabanlı kuralların kaynak kod metni ve dosya yolu alması sağlandı.
 - `BaseTextRule` sınıfının public kural paketi üzerinden dışa aktarılması sağlandı.
@@ -598,6 +598,22 @@ Tamamlanan çalışmalar:
 - Formatter'ın terminal çıktısı üretmemesi sağlandı.
 - Bulgu nesnelerinin değiştirilmemesi sağlandı.
 - Text formatter 22 test senaryosuyla doğrulandı.
+- `format_findings_json()` fonksiyonu geliştirildi.
+- JSON formatter'ın formatter paketinin public arayüzüne eklenmesi sağlandı.
+- Üst seviye `findings` ve `summary` alanlarının oluşturulması sağlandı.
+- `summary.total` alanının gerçek bulgu sayısını içermesi sağlandı.
+- Bulgu alanlarının `Finding.to_dict()` üzerinden serialize edilmesi sağlandı.
+- Severity değerlerinin küçük harfli string olarak gösterilmesi sağlandı.
+- `None` sütun numaralarının JSON `null` olarak korunması sağlandı.
+- JSON çıktısında iki boşluk girinti kullanılması sağlandı.
+- Unicode karakterlerin ASCII escape değerlerine dönüştürülmeden korunması sağlandı.
+- Liste, tuple ve generator girdilerinin desteklenmesi sağlandı.
+- Generator girdilerinin yalnızca bir kez tüketilmesi sağlandı.
+- Bulguların giriş sırasının korunması sağlandı.
+- JSON çıktısının sonunda fazladan yeni satır bulunmaması sağlandı.
+- Formatter'ın terminal çıktısı üretmemesi sağlandı.
+- Bulgu nesnelerinin değiştirilmemesi sağlandı.
+- JSON formatter 25 test senaryosuyla doğrulandı.
 
 Henüz tamamlanmayan çalışmalar:
 
