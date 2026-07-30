@@ -19,3 +19,5 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+[project.scripts]
+securecode-analyzer = "static_analyzer.runner:main"
