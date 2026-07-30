@@ -3774,8 +3774,425 @@ JSON formatter aşağıdaki işlemleri yapmamalıdır:
 - Sonunda yeni satır bulunmaması
 - Bulgu nesnelerinin değiştirilmemesi
 - Terminal çıktısı üretilmemesi
+## 25. CLI Runner Gereksinimleri
 
-## 25. Navigation
+### 25.1 Amaç
+
+CLI runner, SecureCode Analyzer uygulamasının mevcut komut satırı
+bileşenlerini tek bir çalışma akışında birleştirecektir.
+
+Runner aşağıdaki bileşenleri kullanacaktır:
+
+- `parse_arguments()`
+- `create_default_analyzer()`
+- `format_findings_text()`
+- `format_findings_json()`
+
+Temel işlem sırası:
+
+1. Komut satırı argümanlarını ayrıştırmak
+2. Varsayılan analyzer nesnesini oluşturmak
+3. Kullanıcının verdiği hedef klasörü analiz etmek
+4. Seçilen formata göre bulguları biçimlendirmek
+5. Oluşturulan raporu standart çıktıya yazmak
+6. Sonuca uygun process exit code döndürmek
+
+### 25.2 Modül Yapısı
+
+CLI runner aşağıdaki modülde bulunmalıdır:
+
+```text
+src/static_analyzer/runner.py
+```
+
+Public fonksiyonlar:
+
+```python
+def run_cli(
+    argv: Sequence[str] | None = None,
+    *,
+    analyzer_factory: Callable[[], ProjectAnalyzer] | None = None,
+    stdout: TextIO | None = None,
+) -> int:
+    ...
+
+
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    analyzer_factory: Callable[[], ProjectAnalyzer] | None = None,
+    stdout: TextIO | None = None,
+    stderr: TextIO | None = None,
+) -> int:
+    ...
+```
+
+`run_cli()` normal analiz akışını yönetecektir.
+
+`main()` uygulama giriş noktası olacak ve kullanıcıya gösterilecek operasyonel
+hataları yönetecektir.
+
+### 25.3 Argümanların Ayrıştırılması
+
+`run_cli()` kendisine verilen `argv` değerini doğrudan `parse_arguments()`
+fonksiyonuna vermelidir:
+
+```python
+arguments = parse_arguments(argv)
+```
+
+`argv=None` olduğunda mevcut process argümanları kullanılmalıdır.
+
+Runner kendi `ArgumentParser` nesnesini oluşturmamalı ve CLI seçeneklerini
+tekrar tanımlamamalıdır.
+
+### 25.4 Analyzer Oluşturulması
+
+Varsayılan durumda analyzer aşağıdaki factory üzerinden oluşturulmalıdır:
+
+```python
+analyzer = create_default_analyzer()
+```
+
+Testlerde bağımsız bileşen kullanılabilmesi için isteğe bağlı bir
+`analyzer_factory` bağımlılığı desteklenmelidir.
+
+```python
+analyzer = factory()
+```
+
+`analyzer_factory=None` olduğunda `create_default_analyzer()` kullanılmalıdır.
+
+Factory her çalışma sırasında tam olarak bir kez çağrılmalıdır.
+
+### 25.5 Hedefin Analiz Edilmesi
+
+Doğrulanmış hedef yol analyzer'a verilmelidir:
+
+```python
+findings = analyzer.analyze(arguments.target)
+```
+
+Runner:
+
+- Hedef yolu değiştirmemelidir.
+- Hedef yolun varlığını kendisi kontrol etmemelidir.
+- Dosyaları doğrudan taramamalıdır.
+- Bulguları yeniden sıralamamalıdır.
+- Bulguları filtrelememelidir.
+
+Bu sorumluluklar alt analiz bileşenlerinde kalmalıdır.
+
+### 25.6 Text Çıktı Davranışı
+
+`output_format` değeri `text` olduğunda:
+
+```python
+output = format_findings_text(findings)
+```
+
+kullanılmalıdır.
+
+Bu davranış hem varsayılan format hem de açıkça seçilen `text` formatı için
+geçerli olmalıdır:
+
+```powershell
+securecode-analyzer src
+securecode-analyzer src --format text
+```
+
+Runner text formatter davranışını tekrar uygulamamalıdır.
+
+### 25.7 JSON Çıktı Davranışı
+
+`output_format` değeri `json` olduğunda:
+
+```python
+output = format_findings_json(findings)
+```
+
+kullanılmalıdır.
+
+Örnek:
+
+```powershell
+securecode-analyzer src --format json
+```
+
+Runner JSON verisini kendisi oluşturmamalı ve formatter çıktısını
+değiştirmemelidir.
+
+### 25.8 Standart Çıktı
+
+Başarılı analiz raporu standart çıktıya yazılmalıdır.
+
+Varsayılan durumda:
+
+```python
+sys.stdout
+```
+
+kullanılmalıdır.
+
+Testlerde `io.StringIO` gibi farklı bir text stream verilebilmelidir.
+
+Formatter çıktılarının sonunda yeni satır bulunmadığı için runner tam olarak
+bir yeni satır eklemelidir:
+
+```python
+stdout.write(output)
+stdout.write("\n")
+```
+
+Başarılı çalışma sırasında standart hata çıktısına veri yazılmamalıdır.
+
+### 25.9 Başarılı Exit Code
+
+Hiç bulgu bulunmadığında exit code:
+
+```text
+0
+```
+
+olmalıdır.
+
+Bu davranış hem text hem JSON çıktısı için geçerlidir.
+
+Örnek text çıktı:
+
+```text
+No findings found.
+```
+
+Örnek JSON özet:
+
+```json
+{
+  "summary": {
+    "total": 0
+  }
+}
+```
+
+### 25.10 Bulgu Bulunduğunda Exit Code
+
+Bir veya daha fazla bulgu bulunduğunda exit code:
+
+```text
+1
+```
+
+olmalıdır.
+
+Severity değeri bu sürümde exit code politikasını değiştirmemelidir.
+
+Aşağıdaki severity değerlerinin tamamı bulgu varsa `1` sonucuna katkıda
+bulunur:
+
+- `INFO`
+- `WARNING`
+- `ERROR`
+
+Runner bulguları severity değerine göre filtrelememelidir.
+
+### 25.11 Operasyonel Hatalar
+
+`main()` aşağıdaki beklenen operasyonel hataları kullanıcıya uygun şekilde
+yönetmelidir:
+
+- `FileNotFoundError`
+- `NotADirectoryError`
+- `SyntaxError`
+- `UnicodeDecodeError`
+
+Bu hatalarda standart hata çıktısına şu biçimde mesaj yazılmalıdır:
+
+```text
+Error: <exception message>
+```
+
+Mesajın sonunda tam olarak bir yeni satır bulunmalıdır.
+
+Bu durumlarda exit code:
+
+```text
+2
+```
+
+olmalıdır.
+
+Standart çıktıya analiz raporu yazılmamalıdır.
+
+### 25.12 Beklenmeyen Hatalar
+
+Beklenmeyen exception türleri sessizce gizlenmemelidir.
+
+Örneğin:
+
+```python
+RuntimeError
+```
+
+otomatik olarak boş sonuca veya exit code `2` değerine dönüştürülmemelidir.
+
+Beklenmeyen hatalar çağıran katmana iletilmelidir. Bu davranış programlama
+hatalarının görünür kalmasını sağlar.
+
+### 25.13 Argparse Davranışı
+
+Standart `argparse` davranışı korunmalıdır.
+
+Aşağıdaki durumlarda oluşan `SystemExit` yakalanmamalıdır:
+
+- Eksik hedef argümanı
+- Geçersiz format
+- Bilinmeyen argüman
+- Eksik seçenek değeri
+- Yardım seçeneği
+
+Kullanım hataları:
+
+```text
+SystemExit: 2
+```
+
+Yardım isteği:
+
+```text
+SystemExit: 0
+```
+
+üretmeye devam etmelidir.
+
+### 25.14 Main Fonksiyonu
+
+`main()` uygulamanın public giriş noktası olmalıdır.
+
+Normal durumda:
+
+```python
+return run_cli(...)
+```
+
+davranışını kullanmalıdır.
+
+Beklenen operasyonel hataları yakalayıp standart hata çıktısına yazmalı ve
+`2` döndürmelidir.
+
+`main()` doğrudan `SystemExit` oluşturmamalıdır. Console script katmanı
+döndürülen integer değeri process exit code olarak kullanacaktır.
+
+### 25.15 Console Script
+
+`pyproject.toml` içerisinde aşağıdaki console script tanımlanmalıdır:
+
+```toml
+[project.scripts]
+securecode-analyzer = "static_analyzer.runner:main"
+```
+
+Editable kurulum sonrasında aşağıdaki komutlar çalışmalıdır:
+
+```powershell
+securecode-analyzer --help
+securecode-analyzer src
+securecode-analyzer src --format json
+```
+
+Windows sanal ortamında executable aşağıdaki biçimde de çağrılabilir:
+
+```powershell
+.\.venv\Scripts\securecode-analyzer.exe --help
+```
+
+### 25.16 Çıktıların Korunması
+
+Runner:
+
+- Formatter çıktısını değiştirmemelidir.
+- Bulguları değiştirmemelidir.
+- Bulguları yeniden sıralamamalıdır.
+- Dosya yollarını normalize etmemelidir.
+- Mesajları değiştirmemelidir.
+- JSON belgesine ek alan eklememelidir.
+- Text özetini tekrar oluşturmamalıdır.
+
+Runner yalnızca bileşenleri koordine etmelidir.
+
+### 25.17 Sorumluluk Sınırları
+
+CLI runner aşağıdaki işlemleri yapmamalıdır:
+
+- Kendi analiz kurallarını oluşturmak
+- Dosya sistemini doğrudan dolaşmak
+- Kaynak dosyaları doğrudan okumak
+- AST oluşturmak
+- Bulguları sıralamak
+- Bulguları filtrelemek
+- Text formatını tekrar uygulamak
+- JSON formatını tekrar uygulamak
+- Dosyaya rapor yazmak
+- Dependency veya CVE taraması yapmak
+- Kullanıcı yapılandırması okumak
+- Beklenmeyen exception'ları gizlemek
+
+### 25.18 Kabul Kriterleri
+
+1. `run_cli()` fonksiyonu bulunmalıdır.
+2. `main()` fonksiyonu bulunmalıdır.
+3. `argv` değeri `parse_arguments()` fonksiyonuna iletilmelidir.
+4. Varsayılan analyzer factory kullanılmalıdır.
+5. Test analyzer factory bağımlılığı desteklenmelidir.
+6. Analyzer factory tam olarak bir kez çağrılmalıdır.
+7. Doğrulanmış hedef yol analyzer'a verilmelidir.
+8. Varsayılan format için text formatter kullanılmalıdır.
+9. Açık `text` formatı için text formatter kullanılmalıdır.
+10. `json` formatı için JSON formatter kullanılmalıdır.
+11. Çıktı standart çıktıya yazılmalıdır.
+12. Çıktının sonuna tam olarak bir yeni satır eklenmelidir.
+13. Bulgusuz sonuç exit code `0` üretmelidir.
+14. Bulgulu sonuç exit code `1` üretmelidir.
+15. Severity değerleri exit code politikasını değiştirmemelidir.
+16. Beklenen operasyonel hatalar standart hataya yazılmalıdır.
+17. Beklenen operasyonel hatalar exit code `2` üretmelidir.
+18. Beklenmeyen exception'lar iletilmelidir.
+19. Standart `argparse` `SystemExit` davranışı korunmalıdır.
+20. Console script tanımlanmalıdır.
+21. Bulgular ve formatter çıktıları değiştirilmemelidir.
+
+### 25.19 Planlanan Test Senaryoları
+
+- Varsayılan text formatının kullanılması
+- Açık text formatının kullanılması
+- JSON formatının kullanılması
+- Argüman listesinin parser'a iletilmesi
+- Analyzer factory'nin bir kez çağrılması
+- Hedef `Path` nesnesinin analyzer'a iletilmesi
+- Analyzer'ın bir kez çağrılması
+- Bulgusuz text çıktısı
+- Bulgulu text çıktısı
+- Bulgusuz JSON çıktısı
+- Bulgulu JSON çıktısı
+- Standart çıktıya tam bir yeni satır eklenmesi
+- Bulgusuz sonuç için exit code `0`
+- Bulgulu sonuç için exit code `1`
+- `INFO` bulgusu için exit code `1`
+- `WARNING` bulgusu için exit code `1`
+- `ERROR` bulgusu için exit code `1`
+- `FileNotFoundError` yönetimi
+- `NotADirectoryError` yönetimi
+- `SyntaxError` yönetimi
+- `UnicodeDecodeError` yönetimi
+- Operasyonel hata sırasında stdout'un boş kalması
+- Operasyonel hata mesajının stderr'e yazılması
+- Operasyonel hata için exit code `2`
+- Beklenmeyen `RuntimeError` hatasının iletilmesi
+- Eksik hedef için standart argparse davranışı
+- Yardım seçeneği için standart argparse davranışı
+- Bulguların değiştirilmemesi
+- Console script yapılandırması
+
+## 26. Navigation
 
 - [Static Code Analyzer sayfasına dön](README.md)
 - [Teknik Tasarım](technical-design.md)
