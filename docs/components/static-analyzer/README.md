@@ -532,6 +532,112 @@ from static_analyzer.cli import (
     parse_arguments,
 )
 ```
+### Text Formatter
+
+Text formatter, statik analiz bulgularını kullanıcı tarafından okunabilir
+terminal metnine dönüştürür.
+
+Modül yapısı:
+
+```text
+src/static_analyzer/formatters/__init__.py
+src/static_analyzer/formatters/text.py
+```
+
+Public fonksiyon:
+
+```python
+from static_analyzer.formatters import format_findings_text
+```
+
+Temel kullanım:
+
+```python
+text = format_findings_text(findings)
+```
+
+Her bulgu aşağıdaki biçimde gösterilir:
+
+```text
+[SEVERITY] RULE_ID FILE_PATH:LINE:COLUMN - MESSAGE
+```
+
+Örnek:
+
+```text
+[WARNING] SA005 src/example.py:1:1 - Possible hardcoded secret found.
+```
+
+Sütun numarası bulunmayan bulgularda yalnızca dosya yolu ve satır numarası
+gösterilir:
+
+```text
+[INFO] SA003 src/example.py:8 - TODO comment found.
+```
+
+`None` değeri terminal metnine yazılmaz.
+
+Birden fazla bulgu ayrı satırlarda gösterilir:
+
+```text
+[WARNING] SA005 src/config.py:1:1 - Possible hardcoded secret found.
+[INFO] SA006 src/config.py:3:1 - Function name should use snake_case.
+
+2 findings found.
+```
+
+Bulgu satırları ile özet arasında bir boş satır bulunur.
+
+Tek bulgu için tekil özet kullanılır:
+
+```text
+1 finding found.
+```
+
+Birden fazla bulgu için çoğul özet kullanılır:
+
+```text
+3 findings found.
+```
+
+Bulgu bulunmadığında yalnızca şu metin döndürülür:
+
+```text
+No findings found.
+```
+
+Formatter aşağıdaki iterable türlerini destekler:
+
+- Liste
+- Tuple
+- Generator
+- Diğer iterable bulgu koleksiyonları
+
+Generator girdileri güvenli biçimde yalnızca bir kez tüketilir.
+
+Formatter kendisine verilen bulguların sırasını korur. Bulguları filtrelemez
+veya yeniden sıralamaz. Dosya ve kaynak sıralaması `ProjectAnalyzer`
+sorumluluğunda kalır.
+
+Severity değerleri büyük harfle gösterilir:
+
+```text
+INFO
+WARNING
+ERROR
+```
+
+Döndürülen string sonunda fazladan yeni satır bulunmaz.
+
+Text formatter:
+
+- Terminale doğrudan yazmaz
+- `print()` çağırmaz
+- Analiz çalıştırmaz
+- CLI argümanlarını parse etmez
+- JSON çıktısı üretmez
+- Exit code politikası belirlemez
+- Bulgu nesnelerini değiştirmez
 
 #### CliArguments
 
@@ -1000,7 +1106,18 @@ Tamamlanan çalışmalar:
 - Varsayılan çıktı formatı `text` olarak belirlendi.
 - Standart `argparse` yardım ve kullanım hatası davranışları korundu.
 - CLI foundation 20 test senaryosuyla doğrulandı.
-- Projedeki toplam 212 test başarıyla çalıştırıldı.
+- Bulguları okunabilir terminal metnine dönüştüren text formatter geliştirildi.
+- `format_findings_text()` public fonksiyonu eklendi.
+- Severity, kural kimliği, dosya yolu, satır, sütun ve mesaj bilgilerinin gösterilmesi sağlandı.
+- Sütun numarası bulunmayan bulguların desteklenmesi sağlandı.
+- Tekil ve çoğul bulgu özetleri eklendi.
+- Boş bulgu koleksiyonu için `No findings found.` çıktısı eklendi.
+- Liste, tuple ve generator girdileri desteklendi.
+- Bulguların giriş sırasının korunması sağlandı.
+- Formatter çıktısının sonunda fazladan yeni satır bulunmaması sağlandı.
+- Bulgu nesnelerinin değiştirilmemesi doğrulandı.
+- Text formatter 22 test senaryosuyla doğrulandı.
+- Projedeki toplam 234 test başarıyla çalıştırıldı.
 
 
 Henüz tamamlanmayan çalışmalar:

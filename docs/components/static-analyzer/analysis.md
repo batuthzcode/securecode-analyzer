@@ -510,7 +510,7 @@ Tamamlanan çalışmalar:
 - UTF-8 encoding hatalarının gizlenmeden iletilmesi sağlandı.
 - Kaynak dosyalarının yalnızca bir kez parse edilmesi sağlandı.
 - Kaynak kod okuyucu 11 test senaryosuyla doğrulandı.
-- Projenin toplam 212 testi başarılı şekilde çalışmaktadır.
+- Projenin toplam 234 testi başarılı şekilde çalışmaktadır.
 - `BaseTextRule` soyut kural arayüzü geliştirildi.
 - Metin tabanlı kuralların kaynak kod metni ve dosya yolu alması sağlandı.
 - `BaseTextRule` sınıfının public kural paketi üzerinden dışa aktarılması sağlandı.
@@ -584,6 +584,20 @@ Tamamlanan çalışmalar:
 - Geçersiz format, eksik hedef ve bilinmeyen argümanlar için standart `argparse` davranışı korundu.
 - `--help` ve `-h` seçenekleri doğrulandı.
 - CLI foundation 20 test senaryosuyla doğrulandı.
+- `formatters` Python paketi oluşturuldu.
+- `format_findings_text()` fonksiyonu geliştirildi.
+- Bulgu severity değerlerinin büyük harfle gösterilmesi sağlandı.
+- Kural kimliği, dosya yolu, satır, sütun ve mesaj alanlarının metne dönüştürülmesi sağlandı.
+- `None` sütun numaralarının çıktıdan çıkarılması sağlandı.
+- Tek bulgu için tekil, birden fazla bulgu için çoğul özet oluşturulması sağlandı.
+- Boş bulgu koleksiyonu için standart mesaj oluşturulması sağlandı.
+- Liste, tuple ve generator girdilerinin desteklenmesi sağlandı.
+- Generator girdilerinin yalnızca bir kez tüketilmesi sağlandı.
+- Bulguların giriş sırasının korunması sağlandı.
+- Döndürülen metnin sonunda fazladan yeni satır bulunmaması sağlandı.
+- Formatter'ın terminal çıktısı üretmemesi sağlandı.
+- Bulgu nesnelerinin değiştirilmemesi sağlandı.
+- Text formatter 22 test senaryosuyla doğrulandı.
 
 Henüz tamamlanmayan çalışmalar:
 
