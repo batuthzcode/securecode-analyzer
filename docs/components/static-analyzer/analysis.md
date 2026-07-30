@@ -3419,8 +3419,347 @@ Text formatter aşağıdaki işlemleri yapmamalıdır:
 - Sonunda yeni satır bulunmaması
 - Bulgu nesnelerinin değiştirilmemesi
 - Terminal çıktısı üretilmemesi
+## 24. JSON Formatter Gereksinimleri
 
-## 24. Navigation
+### 24.1 Amaç
+
+JSON formatter, statik analiz bulgularını makineler ve diğer uygulamalar
+tarafından işlenebilecek JSON metnine dönüştürecektir.
+
+Formatter yalnızca JSON string oluşturacaktır. Terminale yazmayacak, analiz
+çalıştırmayacak, dosyaya rapor kaydetmeyecek ve process exit code
+belirlemeyecektir.
+
+### 24.2 Modül Yapısı
+
+JSON formatter aşağıdaki modülde bulunmalıdır:
+
+```text
+src/static_analyzer/formatters/json.py
+```
+
+Formatter paketinin public arayüzü aşağıdaki dosya üzerinden sunulmalıdır:
+
+```text
+src/static_analyzer/formatters/__init__.py
+```
+
+Public fonksiyon:
+
+```python
+def format_findings_json(
+    findings: Iterable[Finding],
+) -> str:
+    ...
+```
+
+Fonksiyon liste, tuple, generator ve diğer iterable bulgu koleksiyonlarını
+desteklemelidir.
+
+### 24.3 JSON Belge Yapısı
+
+Formatter aşağıdaki üst seviye yapıyı üretmelidir:
+
+```json
+{
+  "findings": [],
+  "summary": {
+    "total": 0
+  }
+}
+```
+
+Üst seviye alanlar:
+
+- `findings`: Bulgu nesnelerinin JSON listesi
+- `summary`: Sonuçla ilgili özet bilgileri içeren nesne
+
+`summary.total`, gerçek bulgu sayısını içermelidir.
+
+### 24.4 Bulgu Alanları
+
+Her bulgu aşağıdaki alanları içermelidir:
+
+```json
+{
+  "rule_id": "SA005",
+  "message": "Possible hardcoded secret found.",
+  "file_path": "src/example.py",
+  "line_number": 1,
+  "severity": "warning",
+  "column_number": 1
+}
+```
+
+Alanlar:
+
+- `rule_id`
+- `message`
+- `file_path`
+- `line_number`
+- `severity`
+- `column_number`
+
+Alan isimleri `Finding.to_dict()` tarafından üretilen public alanlarla aynı
+olmalıdır.
+
+Formatter kendi alternatif bulgu veri modelini oluşturmamalıdır.
+
+### 24.5 Severity Gösterimi
+
+Severity değerleri enum nesnesi olarak değil, küçük harfli string olarak
+gösterilmelidir:
+
+```text
+info
+warning
+error
+```
+
+Örnek:
+
+```json
+{
+  "severity": "warning"
+}
+```
+
+Bu dönüşüm mevcut `Finding.to_dict()` davranışı üzerinden sağlanmalıdır.
+
+### 24.6 Sütun Numarası Olmayan Bulgular
+
+`column_number` değeri bulunmayan bulgular JSON içerisinde açıkça `null`
+olarak gösterilmelidir:
+
+```json
+{
+  "column_number": null
+}
+```
+
+Alan JSON nesnesinden çıkarılmamalıdır.
+
+Bu davranış, bütün bulgu nesnelerinin aynı şemaya sahip olmasını sağlar.
+
+### 24.7 Birden Fazla Bulgu
+
+Birden fazla bulgu `findings` listesinde ayrı nesneler olarak bulunmalıdır:
+
+```json
+{
+  "findings": [
+    {
+      "rule_id": "SA005",
+      "message": "Possible hardcoded secret found.",
+      "file_path": "src/config.py",
+      "line_number": 1,
+      "severity": "warning",
+      "column_number": 1
+    },
+    {
+      "rule_id": "SA006",
+      "message": "Function name should use snake_case.",
+      "file_path": "src/config.py",
+      "line_number": 3,
+      "severity": "info",
+      "column_number": 1
+    }
+  ],
+  "summary": {
+    "total": 2
+  }
+}
+```
+
+Formatter kendisine verilen bulguların sırasını korumalıdır.
+
+Bulgular yeniden sıralanmamalı veya filtrelenmemelidir.
+
+### 24.8 Boş Bulgu Koleksiyonu
+
+Bulgu bulunmadığında aşağıdaki geçerli JSON belgesi döndürülmelidir:
+
+```json
+{
+  "findings": [],
+  "summary": {
+    "total": 0
+  }
+}
+```
+
+Boş string veya `null` döndürülmemelidir.
+
+### 24.9 JSON Biçimlendirmesi
+
+JSON çıktısı okunabilir biçimde iki boşluk girintiyle oluşturulmalıdır:
+
+```python
+json.dumps(
+    payload,
+    indent=2,
+    ensure_ascii=False,
+)
+```
+
+Çıktı:
+
+- Geçerli JSON olmalıdır.
+- İki boşluk girinti kullanmalıdır.
+- Unicode karakterleri gereksiz biçimde ASCII escape değerlerine
+  dönüştürmemelidir.
+- Sonunda fazladan yeni satır içermemelidir.
+
+### 24.10 Unicode Desteği
+
+Türkçe ve diğer Unicode karakterler doğrudan korunmalıdır.
+
+Örnek mesaj:
+
+```text
+Güvenlik yapılandırması kontrol edilmeli.
+```
+
+JSON çıktısında aşağıdaki gibi okunabilir olmalıdır:
+
+```json
+{
+  "message": "Güvenlik yapılandırması kontrol edilmeli."
+}
+```
+
+Aşağıdaki gibi gereksiz Unicode escape değerleri kullanılmamalıdır:
+
+```text
+G\u00fcvenlik
+```
+
+### 24.11 Iterable Desteği
+
+Fonksiyon aşağıdaki girdileri desteklemelidir:
+
+- Liste
+- Tuple
+- Generator
+- Diğer tek kullanımlık iterable nesneleri
+
+Generator birden fazla kez tüketilmemelidir.
+
+Formatter, bulguları ve toplam sayıyı oluşturmak için iterable değerini bir
+kez tuple'a dönüştürebilir:
+
+```python
+finding_items = tuple(findings)
+```
+
+### 24.12 Bulgu Nesnelerinin Korunması
+
+JSON formatter:
+
+- Bulgu nesnelerini değiştirmemelidir.
+- Mesajları değiştirmemelidir.
+- Dosya yollarını normalize etmemelidir.
+- Satır veya sütun numaralarını değiştirmemelidir.
+- Severity değerlerini değiştirmemelidir.
+- Bulguları yeniden sıralamamalıdır.
+
+Formatter yalnızca yeni bir JSON string üretmelidir.
+
+### 24.13 Terminal Davranışı
+
+Formatter terminale doğrudan hiçbir çıktı yazmamalıdır.
+
+Aşağıdaki fonksiyonlar kullanılmamalıdır:
+
+```python
+print()
+sys.stdout.write()
+sys.stderr.write()
+```
+
+Terminale yazma sorumluluğu CLI runner katmanında kalmalıdır.
+
+### 24.14 Hata Davranışı
+
+Formatter, beklenmeyen serialization hatalarını sessizce gizlememelidir.
+
+Hatalar:
+
+- Boş JSON belgesine çevrilmemelidir.
+- Terminale özel mesaj olarak yazılmamalıdır.
+- Sahte bulgu verisiyle değiştirilmemelidir.
+
+Normal `Finding` nesneleri her zaman JSON-serializable veri üretmelidir.
+
+### 24.15 Sorumluluk Sınırları
+
+JSON formatter aşağıdaki işlemleri yapmamalıdır:
+
+- Terminale doğrudan yazmak
+- Dosyaya rapor yazmak
+- Kaynak kod analizi çalıştırmak
+- `ProjectAnalyzer` oluşturmak
+- CLI argümanlarını parse etmek
+- Text çıktısı oluşturmak
+- Exit code politikası belirlemek
+- Bulguları filtrelemek
+- Bulguları sıralamak
+- Dosya yollarını değiştirmek
+- Dependency veya CVE taraması yapmak
+
+### 24.16 Kabul Kriterleri
+
+1. `format_findings_json()` fonksiyonu bulunmalıdır.
+2. Fonksiyon `Iterable[Finding]` kabul etmelidir.
+3. Geçerli JSON string döndürmelidir.
+4. Üst seviyede `findings` alanı bulunmalıdır.
+5. Üst seviyede `summary` alanı bulunmalıdır.
+6. `summary.total` gerçek bulgu sayısını içermelidir.
+7. Boş koleksiyon geçerli JSON üretmelidir.
+8. Her bulgu bütün public alanları içermelidir.
+9. Severity küçük harfli string olmalıdır.
+10. `None` sütun numarası JSON `null` olarak gösterilmelidir.
+11. Birden fazla bulgunun giriş sırası korunmalıdır.
+12. Liste girdisi desteklenmelidir.
+13. Tuple girdisi desteklenmelidir.
+14. Generator girdisi desteklenmelidir.
+15. Generator yalnızca bir kez tüketilmelidir.
+16. JSON iki boşluk girinti kullanmalıdır.
+17. Unicode karakterler korunmalıdır.
+18. Döndürülen string sonunda yeni satır bulunmamalıdır.
+19. Bulgu nesneleri değiştirilmemelidir.
+20. Formatter terminal çıktısı üretmemelidir.
+21. Formatter text çıktı veya exit code politikası belirlememelidir.
+
+### 24.17 Planlanan Test Senaryoları
+
+- Boş liste
+- Boş tuple
+- Geçerli JSON oluşturulması
+- Üst seviye `findings` alanı
+- Üst seviye `summary` alanı
+- Boş koleksiyon için toplam sıfır
+- Tek bulgu
+- Birden fazla bulgu
+- Kural kimliği alanı
+- Mesaj alanı
+- Dosya yolu alanı
+- Satır numarası alanı
+- Sütun numarası alanı
+- `None` sütun numarasının `null` olması
+- `INFO` severity değeri
+- `WARNING` severity değeri
+- `ERROR` severity değeri
+- Gerçek toplam bulgu sayısı
+- Giriş sırasının korunması
+- Generator desteği
+- Unicode karakterlerin korunması
+- İki boşluk girinti
+- Sonunda yeni satır bulunmaması
+- Bulgu nesnelerinin değiştirilmemesi
+- Terminal çıktısı üretilmemesi
+
+## 25. Navigation
 
 - [Static Code Analyzer sayfasına dön](README.md)
 - [Teknik Tasarım](technical-design.md)
