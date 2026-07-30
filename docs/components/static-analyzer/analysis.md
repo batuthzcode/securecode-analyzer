@@ -4213,8 +4213,367 @@ CLI runner aşağıdaki işlemleri yapmamalıdır:
 - Yardım seçeneği için standart argparse davranışı
 - Bulguların değiştirilmemesi
 - Console script yapılandırması
+## 26. Self-Analysis Validation Gereksinimleri
 
-## 26. Navigation
+### 26.1 Amaç
+
+Self-analysis validation aşaması, SecureCode Analyzer uygulamasının kendi
+kaynak kodunu analiz ederek gerçek bir proje üzerinde doğrulanmasını
+sağlayacaktır.
+
+Analiz hedefi:
+
+```text
+src
+```
+
+Bu aşamada:
+
+- CLI gerçek console script üzerinden çalıştırılmalıdır.
+- Text ve JSON çıktıları ayrı ayrı doğrulanmalıdır.
+- İki formatın aynı bulgu sayısını temsil ettiği doğrulanmalıdır.
+- Her bulgu incelenmeli ve sınıflandırılmalıdır.
+- Gerçek problemler mümkünse düzeltilmelidir.
+- Yanlış pozitifler belgelenmeli veya kural geliştirmesiyle azaltılmalıdır.
+- Sonuçlar tekrar üretilebilir bir self-analysis raporunda açıklanmalıdır.
+
+### 26.2 Analiz Kapsamı
+
+Self-analysis aşağıdaki kaynak klasörü üzerinde çalıştırılmalıdır:
+
+```powershell
+securecode-analyzer src
+```
+
+Analiz kapsamına şunlar dahil edilmemelidir:
+
+- `.venv`
+- `.git`
+- Python cache klasörleri
+- Test fixture çıktıları
+- Geçici rapor dosyaları
+- Üçüncü taraf bağımlılıklar
+
+Bu aşamanın temel hedefi projenin kendi uygulama kaynak kodudur.
+
+### 26.3 Console Script Kullanımı
+
+Analiz, public console script üzerinden çalıştırılmalıdır:
+
+```powershell
+.\.venv\Scripts\securecode-analyzer.exe src
+```
+
+JSON çıktısı:
+
+```powershell
+.\.venv\Scripts\securecode-analyzer.exe `
+    src `
+    --format json
+```
+
+Bu doğrulama yalnızca Python fonksiyonlarını doğrudan çağırmamalıdır.
+Paketleme, CLI parsing, analyzer factory, proje analizi, formatter ve exit
+code akışının tamamı çalıştırılmalıdır.
+
+### 26.4 Text Çıktı Doğrulaması
+
+Text çıktısı aşağıdaki bilgileri içermelidir:
+
+- Severity
+- Rule ID
+- Dosya yolu
+- Satır numarası
+- Varsa sütun numarası
+- Bulgu mesajı
+- Toplam bulgu özeti
+
+Bulgu yoksa:
+
+```text
+No findings found.
+```
+
+çıktısı üretilmelidir.
+
+Bulgu varsa son özet gerçek bulgu sayısıyla eşleşmelidir.
+
+### 26.5 JSON Çıktı Doğrulaması
+
+JSON çıktısı geçerli JSON olmalıdır.
+
+Üst seviye yapı:
+
+```json
+{
+  "findings": [],
+  "summary": {
+    "total": 0
+  }
+}
+```
+
+Aşağıdaki şartlar doğrulanmalıdır:
+
+- `findings` bir liste olmalıdır.
+- `summary` bir nesne olmalıdır.
+- `summary.total`, `findings` listesinin uzunluğuyla eşleşmelidir.
+- Her bulgu bütün public alanları içermelidir.
+- Severity değerleri küçük harfli string olmalıdır.
+- Eksik sütun numaraları JSON `null` olarak gösterilmelidir.
+
+### 26.6 Formatlar Arası Tutarlılık
+
+Text ve JSON analizleri aynı hedef ve aynı kaynak kod üzerinde
+çalıştırılmalıdır.
+
+Aşağıdaki değerler tutarlı olmalıdır:
+
+- Toplam bulgu sayısı
+- Rule ID değerleri
+- Dosya yolları
+- Satır numaraları
+- Severity değerleri
+- Bulgu mesajları
+
+Formatter farkları dışında iki çıktı aynı analiz sonucunu temsil etmelidir.
+
+### 26.7 Exit Code Doğrulaması
+
+Self-analysis sonucunda exit code ayrıca kaydedilmelidir.
+
+Bulgu yoksa:
+
+```text
+0
+```
+
+Bir veya daha fazla bulgu varsa:
+
+```text
+1
+```
+
+Operasyonel hata varsa:
+
+```text
+2
+```
+
+Bulgu bulunan normal bir analiz, operasyonel hata olarak değerlendirilmemelidir.
+
+### 26.8 Bulgu Sınıflandırması
+
+Her self-analysis bulgusu aşağıdaki kategorilerden biriyle
+sınıflandırılmalıdır:
+
+#### Geçerli Bulgu
+
+Kuralın gerçek bir kalite veya güvenlik problemini doğru biçimde tespit
+ettiği durumdur.
+
+Mümkünse kaynak kod düzeltilmeli ve bulgu kaldırılmalıdır.
+
+#### Yanlış Pozitif
+
+Kuralın güvenli veya kabul edilebilir kodu problem olarak işaretlediği
+durumdur.
+
+Yanlış pozitif için:
+
+- Bulgunun neden yanlış olduğu açıklanmalıdır.
+- Kural davranışının geliştirilip geliştirilemeyeceği değerlendirilmelidir.
+- Kural değiştirilecekse yeni regression testi eklenmelidir.
+
+#### Kabul Edilen Bulgu
+
+Bulgu teknik olarak geçerli olmakla birlikte mevcut proje kapsamı içinde
+bilinçli olarak kabul edilen durumdur.
+
+Kabul nedeni raporda açıkça belirtilmelidir.
+
+### 26.9 Kural Bazlı İnceleme
+
+Self-analysis aşağıdaki mevcut kuralları kapsamalıdır:
+
+```text
+SA001 - Long Function
+SA002 - Long Class
+SA003 - TODO/FIXME Comment
+SA004 - Empty Except
+SA005 - Hardcoded Secret
+SA006 - Naming Convention
+```
+
+Her kural için aşağıdaki bilgiler kaydedilmelidir:
+
+- Bulgu sayısı
+- Etkilenen dosyalar
+- Sınıflandırma
+- Uygulanan düzeltme
+- Kalan bulgu varsa gerekçesi
+
+Bir kuralın hiç bulgu üretmemesi de raporda belirtilebilir.
+
+### 26.10 Gerçek Problemlerin Düzeltilmesi
+
+Geçerli bir bulgu düzeltildiğinde:
+
+- Değişiklik mümkün olan en küçük kapsamda yapılmalıdır.
+- Mevcut davranış korunmalıdır.
+- İlgili testler tekrar çalıştırılmalıdır.
+- Gerekirse yeni regression testi eklenmelidir.
+- Self-analysis yeniden çalıştırılmalıdır.
+
+Bir bulguyu yalnızca gizlemek amacıyla kural devre dışı bırakılmamalıdır.
+
+### 26.11 Yanlış Pozitiflerin Düzeltilmesi
+
+Bir kural yanlış pozitif üretiyorsa kural değişikliği şu şartları
+sağlamalıdır:
+
+- Gerçek pozitif algılama davranışı korunmalıdır.
+- Yanlış pozitif için ayrı test eklenmelidir.
+- Mevcut kural testleri geçmeye devam etmelidir.
+- Kural kimliği değiştirilmemelidir.
+- Bulgu veri modeli değiştirilmemelidir.
+- Gereksiz dosya veya isim istisnaları eklenmemelidir.
+
+Sadece belirli bir proje dosyasını atlayan özel durumlar oluşturulmamalıdır.
+
+### 26.12 Self-Analysis Raporu
+
+Sonuçlar aşağıdaki dosyada belgelenmelidir:
+
+```text
+docs/components/static-analyzer/self-analysis.md
+```
+
+Rapor en az şu bölümleri içermelidir:
+
+- Amaç
+- Kullanılan komutlar
+- Analiz hedefi
+- Başlangıç bulgu sayısı
+- Kural bazlı sonuçlar
+- Bulgu sınıflandırmaları
+- Uygulanan düzeltmeler
+- Son analiz sonucu
+- Text ve JSON tutarlılığı
+- Exit code doğrulaması
+- Test sonucu
+- Bilinen sınırlamalar
+
+Rapor, analiz sonucunu olduğundan daha iyi göstermek için bulguları
+gizlememelidir.
+
+### 26.13 Oluşturulan Rapor Dosyaları
+
+Geçici text ve JSON çıktıları analiz sırasında oluşturulabilir.
+
+Örnek:
+
+```text
+self-analysis-text.txt
+self-analysis.json
+```
+
+Bu geçici dosyalar doğrudan proje kökünde bırakılmamalıdır.
+
+Kalıcı olarak commit edilmeleri gerekmiyorsa doğrulama sonrasında
+silinmelidir.
+
+Kalıcı rapor olarak Markdown self-analysis belgesi kullanılmalıdır.
+
+### 26.14 Test Doğrulaması
+
+Self-analysis değişikliklerinden sonra aşağıdaki kontroller yapılmalıdır:
+
+```powershell
+.\.venv\Scripts\python.exe -m compileall -q src tests
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+Bütün mevcut testler geçmelidir.
+
+Kural davranışı değiştirildiyse ilgili kural testleri ayrıca
+çalıştırılmalıdır.
+
+### 26.15 Git Sorumlulukları
+
+Self-analysis geliştirmesi ayrı branch üzerinde tutulmalıdır:
+
+```text
+feature/self-analysis
+```
+
+Bulgu düzeltmeleri ve dokümantasyon anlaşılır commit'lere ayrılmalıdır.
+
+Önerilen commit yapısı:
+
+```text
+docs(static-analyzer): define self-analysis requirements
+fix(static-analyzer): resolve self-analysis findings
+docs(static-analyzer): document self-analysis results
+```
+
+Düzeltilecek bulgu yoksa ikinci commit gerekli değildir.
+
+### 26.16 Sorumluluk Sınırları
+
+Self-analysis aşaması:
+
+- Yeni dependency scanner geliştirmemelidir.
+- CVE taraması uygulamamalıdır.
+- Yeni web uygulaması oluşturmamalıdır.
+- Bulguları manuel olarak analiz sonucundan çıkarmamalıdır.
+- Exit code politikasını gereksiz biçimde değiştirmemelidir.
+- Mevcut kural kimliklerini değiştirmemelidir.
+- Testleri kaldırarak sonuçları geçerli göstermemelidir.
+- Kural eşiklerini yalnızca self-analysis temiz görünsün diye
+  yükseltmemelidir.
+
+### 26.17 Kabul Kriterleri
+
+1. Self-analysis ayrı branch üzerinde yürütülmelidir.
+2. Gerçek console script kullanılmalıdır.
+3. `src` klasörü text formatında analiz edilmelidir.
+4. `src` klasörü JSON formatında analiz edilmelidir.
+5. Text çıktısı doğrulanmalıdır.
+6. JSON çıktısının geçerli olduğu doğrulanmalıdır.
+7. JSON toplamı gerçek bulgu sayısıyla eşleşmelidir.
+8. Text ve JSON bulgu sayıları eşleşmelidir.
+9. Exit code kaydedilmelidir.
+10. Her bulgu sınıflandırılmalıdır.
+11. Gerçek problemler mümkünse düzeltilmelidir.
+12. Yanlış pozitif düzeltmeleri regression testi içermelidir.
+13. Bütün proje testleri geçmelidir.
+14. Self-analysis yeniden çalıştırılmalıdır.
+15. Sonuçlar `self-analysis.md` dosyasında belgelenmelidir.
+16. Geçici rapor dosyaları proje kökünde bırakılmamalıdır.
+17. Bilinen sınırlamalar açıkça belirtilmelidir.
+
+### 26.18 Planlanan Doğrulamalar
+
+- Console script executable kontrolü
+- Text self-analysis çalıştırması
+- Text exit code kontrolü
+- JSON self-analysis çalıştırması
+- JSON exit code kontrolü
+- JSON parse doğrulaması
+- Toplam bulgu sayısı doğrulaması
+- Text ve JSON toplamlarının karşılaştırılması
+- Rule ID bazlı bulgu sayılarının çıkarılması
+- Severity bazlı bulgu sayılarının çıkarılması
+- Dosya bazlı bulgu sayılarının çıkarılması
+- Her bulgunun manuel olarak incelenmesi
+- Gerçek bulguların düzeltilmesi
+- Yanlış pozitifler için regression testi
+- Tam test paketinin çalıştırılması
+- Son self-analysis çalıştırması
+- Self-analysis raporunun hazırlanması
+
+## 27. Navigation
 
 - [Static Code Analyzer sayfasına dön](README.md)
 - [Teknik Tasarım](technical-design.md)
