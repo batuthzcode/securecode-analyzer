@@ -510,7 +510,7 @@ Tamamlanan çalışmalar:
 - UTF-8 encoding hatalarının gizlenmeden iletilmesi sağlandı.
 - Kaynak dosyalarının yalnızca bir kez parse edilmesi sağlandı.
 - Kaynak kod okuyucu 11 test senaryosuyla doğrulandı.
-- Projenin toplam 259 testi başarılı şekilde çalışmaktadır.
+- Projenin toplam 288 testi başarılı şekilde çalışmaktadır.
 - `BaseTextRule` soyut kural arayüzü geliştirildi.
 - Metin tabanlı kuralların kaynak kod metni ve dosya yolu alması sağlandı.
 - `BaseTextRule` sınıfının public kural paketi üzerinden dışa aktarılması sağlandı.
@@ -614,6 +614,28 @@ Tamamlanan çalışmalar:
 - Formatter'ın terminal çıktısı üretmemesi sağlandı.
 - Bulgu nesnelerinin değiştirilmemesi sağlandı.
 - JSON formatter 25 test senaryosuyla doğrulandı.
+- `runner.py` modülü oluşturuldu.
+- `run_cli()` fonksiyonu geliştirildi.
+- `main()` uygulama giriş noktası geliştirildi.
+- CLI argümanlarının mevcut `parse_arguments()` fonksiyonuna iletilmesi sağlandı.
+- Varsayılan analyzer factory kullanımının desteklenmesi sağlandı.
+- Testlerde analyzer factory bağımlılığının değiştirilebilmesi sağlandı.
+- Analyzer factory'nin bir çalışma sırasında bir kez çağrılması sağlandı.
+- Parse edilen hedef yolun analyzer'a iletilmesi sağlandı.
+- Varsayılan ve açık `text` formatının desteklenmesi sağlandı.
+- `json` çıktı formatının desteklenmesi sağlandı.
+- Formatter çıktısının standart çıktıya yazılması sağlandı.
+- Çıktının sonuna tam olarak bir yeni satır eklenmesi sağlandı.
+- Bulgusuz analiz için exit code `0` döndürülmesi sağlandı.
+- Bulgulu analiz için exit code `1` döndürülmesi sağlandı.
+- Severity seviyelerinden bağımsız bulgu exit code politikası oluşturuldu.
+- Beklenen operasyonel hatalar için exit code `2` döndürülmesi sağlandı.
+- Operasyonel hata mesajlarının standart hata çıktısına yazılması sağlandı.
+- Operasyonel hata sırasında standart çıktının boş kalması sağlandı.
+- Beklenmeyen exception türlerinin çağıran katmana iletilmesi sağlandı.
+- Standart argparse `SystemExit` davranışının korunması sağlandı.
+- `securecode-analyzer` console script yapılandırması eklendi.
+- CLI runner 29 test senaryosuyla doğrulandı.
 
 Henüz tamamlanmayan çalışmalar:
 

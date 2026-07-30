@@ -764,6 +764,205 @@ JSON formatter:
 - Exit code politikası belirlemez
 
 Döndürülen JSON string sonunda fazladan yeni satır bulunmaz.
+### CLI Runner
+
+CLI runner, SecureCode Analyzer uygulamasının komut satırı çalışma akışını
+koordine eder.
+
+Modül:
+
+```text
+src/static_analyzer/runner.py
+```
+
+Public fonksiyonlar:
+
+```python
+from static_analyzer.runner import main, run_cli
+```
+
+`run_cli()` aşağıdaki işlem sırasını uygular:
+
+1. CLI argümanlarını ayrıştırır.
+2. Varsayılan analyzer nesnesini oluşturur.
+3. Hedef klasörü analiz eder.
+4. Bulguları seçilen çıktı formatına dönüştürür.
+5. Raporu standart çıktıya yazar.
+6. Analiz sonucuna uygun exit code döndürür.
+
+Temel kullanım:
+
+```python
+exit_code = run_cli(["src"])
+```
+
+JSON formatı:
+
+```python
+exit_code = run_cli(
+    [
+        "src",
+        "--format",
+        "json",
+    ]
+)
+```
+
+Runner mevcut bileşenleri kullanır:
+
+```python
+parse_arguments()
+create_default_analyzer()
+format_findings_text()
+format_findings_json()
+```
+
+Runner kendi parser, analyzer veya formatter uygulamasını oluşturmaz.
+
+#### Text Çıktısı
+
+Varsayılan çıktı formatı `text` değeridir:
+
+```powershell
+securecode-analyzer src
+```
+
+Açıkça da seçilebilir:
+
+```powershell
+securecode-analyzer src --format text
+```
+
+Örnek bulgusuz çıktı:
+
+```text
+No findings found.
+```
+
+Örnek bulgulu çıktı:
+
+```text
+[WARNING] SA005 src/example.py:1:1 - Possible hardcoded secret found.
+
+1 finding found.
+```
+
+#### JSON Çıktısı
+
+JSON çıktısı aşağıdaki komutla seçilir:
+
+```powershell
+securecode-analyzer src --format json
+```
+
+Örnek bulgusuz çıktı:
+
+```json
+{
+  "findings": [],
+  "summary": {
+    "total": 0
+  }
+}
+```
+
+Runner formatter tarafından döndürülen çıktının sonuna tam olarak bir yeni
+satır ekler.
+
+Başarılı analiz çıktısı standart çıktıya yazılır.
+
+#### Exit Code Politikası
+
+Bulgusuz analiz:
+
+```text
+0
+```
+
+Bir veya daha fazla bulgu:
+
+```text
+1
+```
+
+Beklenen operasyonel hata:
+
+```text
+2
+```
+
+Bu sürümde bütün severity seviyeleri bulgu exit code değerini üretir:
+
+```text
+INFO
+WARNING
+ERROR
+```
+
+Bir bulgu yalnızca `INFO` seviyesinde olsa bile exit code `1` olur.
+
+#### Operasyonel Hatalar
+
+`main()` aşağıdaki beklenen hataları yönetir:
+
+- `FileNotFoundError`
+- `NotADirectoryError`
+- `SyntaxError`
+- `UnicodeDecodeError`
+
+Bu hatalar standart hata çıktısına aşağıdaki formatta yazılır:
+
+```text
+Error: <exception message>
+```
+
+Operasyonel hata durumunda:
+
+- Standart çıktıya analiz raporu yazılmaz.
+- Standart hata çıktısına hata mesajı yazılır.
+- Exit code `2` döndürülür.
+
+Beklenmeyen exception türleri gizlenmez ve çağıran katmana iletilir.
+
+Standart `argparse` davranışı korunur. Eksik argümanlar ve geçersiz
+seçenekler `SystemExit(2)`, yardım seçeneği ise `SystemExit(0)` üretir.
+
+#### Console Script
+
+Proje aşağıdaki console script girişini içerir:
+
+```toml
+[project.scripts]
+securecode-analyzer = "static_analyzer.runner:main"
+```
+
+Editable kurulumdan sonra yardım komutu:
+
+```powershell
+.\.venv\Scripts\securecode-analyzer.exe --help
+```
+
+Analiz komutları:
+
+```powershell
+.\.venv\Scripts\securecode-analyzer.exe src
+
+.\.venv\Scripts\securecode-analyzer.exe `
+    src `
+    --format json
+```
+
+CLI runner:
+
+- Bulguları değiştirmez
+- Bulguları sıralamaz veya filtrelemez
+- Dosya yollarını normalize etmez
+- Text formatını tekrar uygulamaz
+- JSON formatını tekrar uygulamaz
+- Kaynak dosyaları doğrudan okumaz
+- Dosya sistemini doğrudan taramaz
+- AST oluşturmaz
+- Dependency veya CVE taraması yapmaz
 
 #### CliArguments
 
@@ -1255,7 +1454,7 @@ Tamamlanan çalışmalar:
 - Liste, tuple ve generator girdileri desteklendi.
 - Bulguların giriş sırasının korunması sağlandı.
 - JSON formatter 25 test senaryosuyla doğrulandı.
-- Projedeki toplam 259 test başarıyla çalıştırıldı.
+- Projedeki toplam 288 test başarıyla çalıştırıldı.
 
 
 Henüz tamamlanmayan çalışmalar:
