@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Iterable, Iterator
 
 from static_analyzer.models import Finding, Severity
 from static_analyzer.rules.base import BaseRule
@@ -41,57 +42,88 @@ class HardcodedSecretRule(BaseRule):
     ) -> list[Finding]:
         """Return findings for possible hardcoded secret assignments."""
 
-        targets: list[ast.expr] = []
+        sensitive_targets = self._find_sensitive_targets(tree)
+        unique_targets = self._deduplicate_targets(
+            sensitive_targets
+        )
 
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Assign):
-                if not self._is_non_empty_string(node.value):
-                    continue
-
-                targets.extend(node.targets)
-
-            elif isinstance(node, ast.AnnAssign):
-                if not self._is_non_empty_string(node.value):
-                    continue
-
-                targets.append(node.target)
-
-        sensitive_targets = [
-            target
-            for target in targets
-            if self._is_sensitive_target(target)
+        return [
+            self._create_finding(target, file_path)
+            for target in unique_targets
         ]
 
-        sensitive_targets.sort(
+    @classmethod
+    def _find_sensitive_targets(
+        cls,
+        tree: ast.AST,
+    ) -> list[ast.expr]:
+        """Return sensitive assignment targets in source order."""
+
+        sensitive_targets = (
+            target
+            for target in cls._iter_assignment_targets(tree)
+            if cls._is_sensitive_target(target)
+        )
+
+        return sorted(
+            sensitive_targets,
             key=lambda target: (
                 target.lineno,
                 target.col_offset,
-            )
+            ),
         )
 
-        findings: list[Finding] = []
+    @classmethod
+    def _iter_assignment_targets(
+        cls,
+        tree: ast.AST,
+    ) -> Iterator[ast.expr]:
+        """Yield targets assigned a non-empty string literal."""
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                if cls._is_non_empty_string(node.value):
+                    yield from node.targets
+
+            elif isinstance(node, ast.AnnAssign):
+                if cls._is_non_empty_string(node.value):
+                    yield node.target
+
+    @staticmethod
+    def _deduplicate_targets(
+        targets: Iterable[ast.expr],
+    ) -> list[ast.expr]:
+        """Remove duplicate target objects while preserving order."""
+
+        unique_targets: list[ast.expr] = []
         seen_targets: set[int] = set()
 
-        for target in sensitive_targets:
+        for target in targets:
             target_identity = id(target)
 
             if target_identity in seen_targets:
                 continue
 
             seen_targets.add(target_identity)
+            unique_targets.append(target)
 
-            findings.append(
-                Finding(
-                    rule_id=self.rule_id,
-                    message="Possible hardcoded secret found.",
-                    file_path=file_path,
-                    line_number=target.lineno,
-                    severity=Severity.WARNING,
-                    column_number=target.col_offset + 1,
-                )
-            )
+        return unique_targets
 
-        return findings
+    def _create_finding(
+        self,
+        target: ast.expr,
+        file_path: str,
+    ) -> Finding:
+        """Create a hardcoded-secret finding for one target."""
+
+        return Finding(
+            rule_id=self.rule_id,
+            message="Possible hardcoded secret found.",
+            file_path=file_path,
+            line_number=target.lineno,
+            severity=Severity.WARNING,
+            column_number=target.col_offset + 1,
+        )
 
     @staticmethod
     def _is_non_empty_string(

@@ -17,6 +17,12 @@ _PASCAL_CASE_PATTERN = re.compile(
     r"^_*[A-Z][A-Za-z0-9]*$"
 )
 
+_Definition = (
+    ast.FunctionDef
+    | ast.AsyncFunctionDef
+    | ast.ClassDef
+)
+
 
 class NamingConventionRule(BaseRule):
     """Detect function and class naming convention violations."""
@@ -34,55 +40,88 @@ class NamingConventionRule(BaseRule):
     ) -> list[Finding]:
         """Return findings for invalid function and class names."""
 
-        definitions = sorted(
-            (
-                node
-                for node in ast.walk(tree)
-                if isinstance(
-                    node,
-                    (
-                        ast.FunctionDef,
-                        ast.AsyncFunctionDef,
-                        ast.ClassDef,
-                    ),
+        findings: list[Finding] = []
+
+        for definition in self._find_definitions(tree):
+            message = self._get_violation_message(definition)
+
+            if message is None:
+                continue
+
+            findings.append(
+                self._create_finding(
+                    definition,
+                    message,
+                    file_path,
                 )
-            ),
+            )
+
+        return findings
+
+    @staticmethod
+    def _find_definitions(
+        tree: ast.AST,
+    ) -> list[_Definition]:
+        """Return supported definitions in source order."""
+
+        definitions = (
+            node
+            for node in ast.walk(tree)
+            if isinstance(
+                node,
+                (
+                    ast.FunctionDef,
+                    ast.AsyncFunctionDef,
+                    ast.ClassDef,
+                ),
+            )
+        )
+
+        return sorted(
+            definitions,
             key=lambda node: (
                 node.lineno,
                 node.col_offset,
             ),
         )
 
-        findings: list[Finding] = []
+    @classmethod
+    def _get_violation_message(
+        cls,
+        definition: _Definition,
+    ) -> str | None:
+        """Return the naming violation message when invalid."""
 
-        for definition in definitions:
-            if isinstance(definition, ast.ClassDef):
-                if self._is_valid_class_name(definition.name):
-                    continue
+        if isinstance(definition, ast.ClassDef):
+            if cls._is_valid_class_name(definition.name):
+                return None
 
-                message = "Class name should use PascalCase."
+            return "Class name should use PascalCase."
 
-            else:
-                if self._is_dunder_name(definition.name):
-                    continue
+        if cls._is_dunder_name(definition.name):
+            return None
 
-                if self._is_valid_function_name(definition.name):
-                    continue
+        if cls._is_valid_function_name(definition.name):
+            return None
 
-                message = "Function name should use snake_case."
+        return "Function name should use snake_case."
 
-            findings.append(
-                Finding(
-                    rule_id=self.rule_id,
-                    message=message,
-                    file_path=file_path,
-                    line_number=definition.lineno,
-                    severity=Severity.INFO,
-                    column_number=definition.col_offset + 1,
-                )
-            )
+    def _create_finding(
+        self,
+        definition: _Definition,
+        message: str,
+        file_path: str,
+    ) -> Finding:
+        """Create one naming-convention finding."""
 
-        return findings
+        return Finding(
+            rule_id=self.rule_id,
+            message=message,
+            file_path=file_path,
+            line_number=definition.lineno,
+            severity=Severity.INFO,
+            column_number=definition.col_offset + 1,
+        )
 
     @staticmethod
     def _is_dunder_name(name: str) -> bool:
