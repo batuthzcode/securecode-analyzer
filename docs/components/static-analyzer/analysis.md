@@ -4572,6 +4572,60 @@ Self-analysis aşaması:
 - Tam test paketinin çalıştırılması
 - Son self-analysis çalıştırması
 - Self-analysis raporunun hazırlanması
+### 26.19 Gerçekleştirilen Self-Analysis Sonucu
+
+SecureCode Analyzer public console script üzerinden kendi `src` klasörü
+üzerinde çalıştırılmıştır.
+
+Başlangıç sonucu:
+
+```text
+2 findings found.
+```
+
+Başlangıçta iki adet `SA001` Long Function bulgusu tespit edilmiştir:
+
+| Dosya | Fonksiyon | Uzunluk | Sınıflandırma |
+|---|---|---:|---|
+| `hardcoded_secret.py` | `check()` | 58 | Geçerli bulgu |
+| `naming_convention.py` | `check()` | 56 | Geçerli bulgu |
+
+Her iki fonksiyon davranışları korunarak yardımcı metotlara ayrılmıştır.
+
+Kural eşikleri yalnızca temiz bir analiz sonucu elde etmek için
+değiştirilmemiştir. Kural kimlikleri, severity değerleri ve bulgu mesajları
+korunmuştur.
+
+Son text sonucu:
+
+```text
+No findings found.
+```
+
+Son JSON sonucu:
+
+```json
+{
+  "findings": [],
+  "summary": {
+    "total": 0
+  }
+}
+```
+
+Son doğrulama:
+
+```text
+Text exit code: 0
+JSON exit code: 0
+288 passed
+```
+
+Ayrıntılı rapor:
+
+```text
+docs/components/static-analyzer/self-analysis.md
+```
 
 ## 27. Navigation
 

@@ -818,6 +818,57 @@ format_findings_json()
 ```
 
 Runner kendi parser, analyzer veya formatter uygulamasını oluşturmaz.
+### Self-Analysis
+
+SecureCode Analyzer kendi kaynak kodu üzerinde public console script
+aracılığıyla doğrulanmıştır.
+
+Analiz hedefi:
+
+```text
+src
+```
+
+İlk analiz sonucu:
+
+```text
+2 findings found.
+```
+
+İki bulgu da `SA001` Long Function kuralı tarafından üretilmiştir:
+
+- `HardcodedSecretRule.check()` — 58 satır
+- `NamingConventionRule.check()` — 56 satır
+
+Bulgular geçerli kod kalitesi problemleri olarak sınıflandırılmıştır.
+
+Fonksiyonlar davranışları korunarak küçük yardımcı metotlara ayrılmıştır.
+Kural eşikleri, kimlikleri, severity değerleri ve bulgu mesajları
+değiştirilmemiştir.
+
+Son analiz sonucu:
+
+```text
+No findings found.
+```
+
+Son exit code:
+
+```text
+0
+```
+
+Tam test sonucu:
+
+```text
+288 passed
+```
+
+Ayrıntılı rapor:
+
+```text
+docs/components/static-analyzer/self-analysis.md
+```
 
 #### Text Çıktısı
 
@@ -1454,7 +1505,33 @@ Tamamlanan çalışmalar:
 - Liste, tuple ve generator girdileri desteklendi.
 - Bulguların giriş sırasının korunması sağlandı.
 - JSON formatter 25 test senaryosuyla doğrulandı.
+- CLI argümanlarını, analyzer factory'yi ve formatter bileşenlerini birleştiren CLI runner geliştirildi.
+- `run_cli()` ve `main()` public fonksiyonları eklendi.
+- Varsayılan ve açık text formatı desteği eklendi.
+- JSON formatı desteği eklendi.
+- Analyzer factory bağımlılığının testlerde değiştirilebilmesi sağlandı.
+- Analyzer factory ve analyzer çağrılarının bir kez yapılması sağlandı.
+- Başarılı çıktının standart çıktıya yazılması sağlandı.
+- Çıktının sonuna tam olarak bir yeni satır eklenmesi sağlandı.
+- Bulgusuz analiz için exit code `0` politikası eklendi.
+- Bulgulu analiz için exit code `1` politikası eklendi.
+- Operasyonel hatalar için exit code `2` politikası eklendi.
+- Beklenen operasyonel hataların standart hata çıktısına yazılması sağlandı.
+- Beklenmeyen exception türlerinin gizlenmemesi sağlandı.
+- Standart argparse `SystemExit` davranışı korundu.
+- `securecode-analyzer` console script girişi eklendi.
+- CLI runner 29 test senaryosuyla doğrulandı.
 - Projedeki toplam 288 test başarıyla çalıştırıldı.
+- SecureCode Analyzer kendi `src` klasörü üzerinde çalıştırıldı.
+- Text ve JSON self-analysis sonuçları karşılaştırıldı.
+- Başlangıçta iki `SA001` Long Function bulgusu tespit edildi.
+- İki bulgu da geçerli kod kalitesi problemi olarak sınıflandırıldı.
+- Hardcoded secret kuralının `check()` fonksiyonu yardımcı metotlara ayrıldı.
+- Naming convention kuralının `check()` fonksiyonu yardımcı metotlara ayrıldı.
+- Kural eşikleri ve bulgu politikaları değiştirilmeden self-analysis bulguları giderildi.
+- Son self-analysis sonucunda sıfır bulgu elde edildi.
+- Text ve JSON exit code değerlerinin `0` olduğu doğrulandı.
+- Self-analysis sonuçları ayrı bir raporda belgelendi.
 
 
 Henüz tamamlanmayan çalışmalar:
