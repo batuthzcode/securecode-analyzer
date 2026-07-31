@@ -463,6 +463,182 @@ Unit testler internet bağlantısına ihtiyaç duymamalıdır.
 docs(dependency-scanner): define data model requirements
 feat(dependency-scanner): add core data models
 docs(dependency-scanner): document core data models
+## Gerçekleştirilen Dependency Veri Modelleri
+
+Dependency scanner için planlanan temel veri modelleri uygulanmıştır.
+
+### Oluşturulan Dosyalar
+
+```text
+src/dependency_scanner/__init__.py
+src/dependency_scanner/models.py
+tests/test_dependency_models.py
+```
+
+### Dependency Modeli
+
+`Dependency` modeli aşağıdaki alanlarla uygulanmıştır:
+
+| Alan | Tip |
+|---|---|
+| `name` | `str` |
+| `version` | `str` |
+| `operator` | `str` |
+| `source_file` | `str` |
+| `line_number` | `int` |
+
+Model aşağıdaki doğrulamaları yapmaktadır:
+
+- Paket adı boş olamaz.
+- Paket sürümü boş olamaz.
+- Kaynak dosya yolu boş olamaz.
+- Satır numarası pozitif tam sayı olmalıdır.
+- `bool` değeri satır numarası olarak kabul edilmez.
+- İlk sürümde yalnızca `==` operatörü kabul edilir.
+
+String alanlarının başındaki ve sonundaki gereksiz boşluklar temizlenmektedir.
+
+### AdvisorySource Modeli
+
+`AdvisorySource` modeli aşağıdaki alanlarla uygulanmıştır:
+
+| Alan | Tip |
+|---|---|
+| `name` | `str` |
+| `url` | `str \| None` |
+
+Kaynak adı zorunludur. Kaynak bağlantısı opsiyoneldir.
+
+Bir URL değeri verilmişse boş veya yalnızca boşluk karakterlerinden oluşamaz.
+
+### VulnerabilitySeverity Enum Değeri
+
+Aşağıdaki değerler uygulanmıştır:
+
+```text
+unknown
+low
+medium
+high
+critical
+```
+
+Enum, string tabanlıdır ve JSON dönüşümünde küçük harfli değerlerini kullanır.
+
+### DependencyFinding Modeli
+
+`DependencyFinding` aşağıdaki alanlarla uygulanmıştır:
+
+| Alan | Tip |
+|---|---|
+| `dependency` | `Dependency` |
+| `advisory_id` | `str` |
+| `message` | `str` |
+| `source` | `AdvisorySource` |
+| `severity` | `VulnerabilitySeverity` |
+| `fixed_version` | `str \| None` |
+| `aliases` | `tuple[str, ...]` |
+
+Varsayılan değerler:
+
+```text
+severity = unknown
+fixed_version = None
+aliases = ()
+```
+
+Model, nested alanların doğru model tiplerini kullanmasını doğrulamaktadır.
+
+Aşağıdaki geçersiz değerler reddedilmektedir:
+
+- Boş advisory kimliği
+- Boş bulgu mesajı
+- Boş fixed version
+- Boş alias
+- Tuple olmayan aliases değeri
+- `Dependency` olmayan dependency değeri
+- `AdvisorySource` olmayan source değeri
+- Geçersiz severity tipi
+
+### JSON Dönüşümü
+
+Bütün modeller `to_dict()` metodu sağlamaktadır.
+
+`DependencyFinding.to_dict()`:
+
+- Dependency modelini nested sözlüğe dönüştürür.
+- Advisory source modelini nested sözlüğe dönüştürür.
+- Severity enum değerini string olarak üretir.
+- Alias tuple değerini JSON uyumlu listeye dönüştürür.
+- Opsiyonel alanlarda `None` değerini korur.
+
+### Değiştirilemezlik
+
+Bütün modeller aşağıdaki dataclass seçenekleriyle uygulanmıştır:
+
+```python
+@dataclass(frozen=True, slots=True)
+```
+
+Bu sayede:
+
+- Model alanları oluşturulduktan sonra değiştirilemez.
+- Dinamik ve tanımlanmamış alanlar eklenemez.
+- Model sözleşmesi açık kalır.
+
+### Sorumluluk Sınırları
+
+Veri modelleri:
+
+- Requirements dosyası okumaz.
+- Requirements satırı ayrıştırmaz.
+- Paket adı normalizasyonu yapmaz.
+- Paket sürümü karşılaştırmaz.
+- OSV API isteği göndermez.
+- Advisory API yanıtı ayrıştırmaz.
+- Terminal çıktısı üretmez.
+- JSON dosyası yazmaz.
+- Exit code hesaplamaz.
+- Static analyzer paketine bağımlı değildir.
+
+### Test Sonuçları
+
+Model testleri:
+
+```text
+40 passed
+```
+
+Tam test paketi:
+
+```text
+328 passed
+```
+
+Derleme kontrolü:
+
+```powershell
+.\.venv\Scripts\python.exe -m compileall -q src tests
+```
+
+Derleme işlemi hata üretmemiştir.
+
+Self-analysis:
+
+```text
+No findings found.
+```
+
+Self-analysis exit code:
+
+```text
+0
+```
+
+İlk uygulamada iki uzun `__post_init__()` bulgusu tespit edilmiştir.
+
+Bu bulgular analiz eşiği değiştirilmeden, doğrulama ve temizleme işlemlerinin
+küçük yardımcı fonksiyonlara ayrılmasıyla giderilmiştir.
 ```
 
 ## Navigation
