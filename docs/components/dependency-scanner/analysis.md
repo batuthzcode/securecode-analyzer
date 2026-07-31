@@ -93,6 +93,377 @@ Canlı kullanım sırasında ise güncel güvenlik açığı bilgileri API üzer
 Bu bileşen şu anda analiz ve teknik tasarım aşamasındadır.
 
 Kod geliştirme aşamasında önce `requirements.txt` dosyasının ayrıştırılması, daha sonra güvenlik açığı sorgulama işlemi geliştirilecektir.
+## Dependency Veri Modelleri Gereksinimleri
+
+### Amaç
+
+Dependency scanner bileşeninin farklı katmanlarında kullanılacak ortak veri
+yapıları tanımlanacaktır.
+
+Veri modelleri aşağıdaki işlemler arasında ortak bir sözleşme sağlayacaktır:
+
+- `requirements.txt` ayrıştırma
+- Dependency normalizasyonu
+- OSV sorguları
+- Advisory yanıtlarının işlenmesi
+- Güvenlik açığı bulgularının oluşturulması
+- Terminal çıktısı
+- JSON çıktısı
+- Unit ve entegrasyon testleri
+
+Modeller aşağıdaki modülde bulunacaktır:
+
+```text
+src/dependency_scanner/models.py
+```
+
+Public modeller paket seviyesinden de dışa aktarılacaktır:
+
+```python
+from dependency_scanner import (
+    AdvisorySource,
+    Dependency,
+    DependencyFinding,
+    VulnerabilitySeverity,
+)
+```
+
+### Dependency Modeli
+
+`Dependency` modeli, requirements dosyasından ayrıştırılan tek bir Python
+bağımlılığını temsil edecektir.
+
+Planlanan alanlar:
+
+| Alan | Tip | Açıklama |
+|---|---|---|
+| `name` | `str` | Requirements dosyasında bulunan orijinal paket adı |
+| `version` | `str` | Kullanılan sabitlenmiş paket sürümü |
+| `operator` | `str` | İlk sürümde desteklenen sürüm operatörü |
+| `source_file` | `str` | Dependency bilgisinin okunduğu dosya |
+| `line_number` | `int` | Dependency satırının dosyadaki konumu |
+
+İlk sürümde desteklenen operatör:
+
+```text
+==
+```
+
+Örnek:
+
+```python
+Dependency(
+    name="Flask",
+    version="2.0.0",
+    operator="==",
+    source_file="requirements.txt",
+    line_number=1,
+)
+```
+
+Model, paket adının requirements dosyasındaki orijinal biçimini koruyacaktır.
+
+Paket adı normalizasyonu parser veya ayrı bir normalizasyon yardımcı fonksiyonu
+tarafından gerçekleştirilecektir. Veri modelinin kendisi dosya okumamalı veya
+requirements satırı ayrıştırmamalıdır.
+
+### AdvisorySource Modeli
+
+`AdvisorySource`, güvenlik açığı bilgisinin hangi kaynaktan geldiğini temsil
+edecektir.
+
+Planlanan alanlar:
+
+| Alan | Tip | Açıklama |
+|---|---|---|
+| `name` | `str` | Kaynağın kullanıcı tarafından okunabilir adı |
+| `url` | `str \| None` | Advisory veya kaynak bağlantısı |
+
+Örnek:
+
+```python
+AdvisorySource(
+    name="OSV",
+    url="https://osv.dev/vulnerability/example",
+)
+```
+
+Kaynak bağlantısı her advisory kaydında bulunmayabileceği için `url` alanı
+opsiyonel olacaktır.
+
+### VulnerabilitySeverity Enum Değeri
+
+Dependency bulgularının önem seviyeleri `VulnerabilitySeverity` enum değeriyle
+temsil edilecektir.
+
+Desteklenen değerler:
+
+```text
+unknown
+low
+medium
+high
+critical
+```
+
+Enum, `str` sınıfından türetilecektir. Böylece değerler JSON çıktısına doğrudan
+uygun metinsel değerlerle dönüştürülebilecektir.
+
+Varsayılan önem seviyesi:
+
+```text
+unknown
+```
+
+Bir advisory kaydında güvenilir severity bilgisi bulunmadığında tahmini bir
+seviye üretilmeyecektir.
+
+Dependency scanner severity modeli, static analyzer bileşenindeki severity
+modelinden bağımsız olacaktır.
+
+### DependencyFinding Modeli
+
+`DependencyFinding`, kullanılan bir dependency ile onu etkileyen advisory
+kaydını birleştirecektir.
+
+Planlanan alanlar:
+
+| Alan | Tip | Açıklama |
+|---|---|---|
+| `dependency` | `Dependency` | Etkilenen dependency bilgisi |
+| `advisory_id` | `str` | OSV, GHSA veya CVE gibi advisory kimliği |
+| `message` | `str` | Güvenlik açığı açıklaması |
+| `source` | `AdvisorySource` | Advisory bilgisinin kaynağı |
+| `severity` | `VulnerabilitySeverity` | Önem seviyesi |
+| `fixed_version` | `str \| None` | Biliniyorsa düzeltilmiş sürüm |
+| `aliases` | `tuple[str, ...]` | CVE veya GHSA gibi alternatif kimlikler |
+
+Örnek:
+
+```python
+DependencyFinding(
+    dependency=Dependency(
+        name="example-package",
+        version="1.0.0",
+        operator="==",
+        source_file="requirements.txt",
+        line_number=3,
+    ),
+    advisory_id="OSV-EXAMPLE",
+    message="The installed version is affected.",
+    source=AdvisorySource(
+        name="OSV",
+        url=None,
+    ),
+    severity=VulnerabilitySeverity.HIGH,
+    fixed_version="1.0.1",
+    aliases=("CVE-2099-0001",),
+)
+```
+
+`fixed_version` her advisory kaydında bulunmayabilir. Bu durumda değer
+`None` olacaktır.
+
+`aliases` alanı bulunmayan kayıtlarda boş tuple kullanılacaktır.
+
+### Değiştirilemez Veri Yapıları
+
+Bütün dependency modelleri dataclass olarak tanımlanacaktır.
+
+Aşağıdaki seçenekler kullanılacaktır:
+
+```python
+@dataclass(frozen=True, slots=True)
+```
+
+`frozen=True`, oluşturulan analiz verilerinin daha sonraki katmanlarda
+yanlışlıkla değiştirilmesini engelleyecektir.
+
+`slots=True`, modellerin tanımlanmamış alanlar almasını engelleyecek ve model
+yapısını açık tutacaktır.
+
+### JSON Dönüşümü
+
+Her public model JSON uyumlu sözlük üretebilmelidir.
+
+Planlanan public metot:
+
+```python
+to_dict()
+```
+
+`Dependency.to_dict()` örneği:
+
+```json
+{
+  "name": "Flask",
+  "version": "2.0.0",
+  "operator": "==",
+  "source_file": "requirements.txt",
+  "line_number": 1
+}
+```
+
+`AdvisorySource.to_dict()` örneği:
+
+```json
+{
+  "name": "OSV",
+  "url": null
+}
+```
+
+`DependencyFinding.to_dict()` örneği:
+
+```json
+{
+  "dependency": {
+    "name": "example-package",
+    "version": "1.0.0",
+    "operator": "==",
+    "source_file": "requirements.txt",
+    "line_number": 3
+  },
+  "advisory_id": "OSV-EXAMPLE",
+  "message": "The installed version is affected.",
+  "source": {
+    "name": "OSV",
+    "url": null
+  },
+  "severity": "high",
+  "fixed_version": "1.0.1",
+  "aliases": [
+    "CVE-2099-0001"
+  ]
+}
+```
+
+Enum değerleri kendi küçük harfli string değerleriyle gösterilecektir.
+
+Tuple alanları JSON uyumluluğu için listelere dönüştürülecektir.
+
+### Girdi Doğrulaması
+
+Modeller en az aşağıdaki geçersiz değerleri reddetmelidir:
+
+- Boş dependency adı
+- Boş dependency sürümü
+- Desteklenmeyen veya boş sürüm operatörü
+- Boş kaynak dosya yolu
+- Sıfır veya negatif satır numarası
+- Boş advisory source adı
+- Boş advisory kimliği
+- Boş bulgu mesajı
+- Boş fixed version değeri
+- Boş alias değerleri
+
+Geçersiz model verileri için:
+
+```text
+ValueError
+```
+
+üretilmelidir.
+
+String değerlerinin başında ve sonunda bulunan gereksiz boşluklar model
+oluşturulurken temizlenebilir.
+
+Model doğrulaması:
+
+- Dosya sistemine erişmemelidir.
+- İnternet isteği yapmamalıdır.
+- OSV verisi sorgulamamalıdır.
+- Paket sürümlerini karşılaştırmamalıdır.
+- Requirements satırlarını ayrıştırmamalıdır.
+
+### Sorumluluk Sınırları
+
+Dependency modelleri yalnızca veri temsilinden ve kendi alanlarının temel
+doğrulamasından sorumludur.
+
+Bu aşamada modeller:
+
+- `requirements.txt` dosyası okumayacaktır.
+- Paket adı normalizasyonu yapmayacaktır.
+- Version karşılaştırması yapmayacaktır.
+- OSV API isteği göndermeyecektir.
+- Advisory JSON yanıtı ayrıştırmayacaktır.
+- Terminal çıktısı üretmeyecektir.
+- JSON dosyası yazmayacaktır.
+- Exit code hesaplamayacaktır.
+- Static analyzer modellerine bağımlı olmayacaktır.
+
+### Paket Yapısı
+
+Planlanan dosyalar:
+
+```text
+src/dependency_scanner/__init__.py
+src/dependency_scanner/models.py
+tests/test_dependency_models.py
+```
+
+`__init__.py` aşağıdaki public importları sağlayacaktır:
+
+```python
+from dependency_scanner import (
+    AdvisorySource,
+    Dependency,
+    DependencyFinding,
+    VulnerabilitySeverity,
+)
+```
+
+### Test Gereksinimleri
+
+Testler en az aşağıdaki davranışları doğrulamalıdır:
+
+- Bütün modellerin geçerli verilerle oluşturulması
+- Modellerin `frozen` olması
+- Modellerin `slots` kullanması
+- Severity enum değerleri
+- Varsayılan `unknown` severity
+- Opsiyonel source URL davranışı
+- Opsiyonel fixed version davranışı
+- Varsayılan boş aliases tuple değeri
+- Dependency JSON dönüşümü
+- Advisory source JSON dönüşümü
+- Dependency finding JSON dönüşümü
+- Enum değerinin string olarak dönüştürülmesi
+- Alias tuple değerinin JSON listesine dönüştürülmesi
+- Nested dependency ve source dönüşümü
+- Boş zorunlu string alanlarının reddedilmesi
+- Geçersiz line number değerlerinin reddedilmesi
+- Desteklenmeyen operator değerlerinin reddedilmesi
+- Boş fixed version değerinin reddedilmesi
+- Boş alias değerinin reddedilmesi
+- Public package importları
+- Modellerin birbirinden bağımsız örnekler olması
+
+Unit testler internet bağlantısına ihtiyaç duymamalıdır.
+
+### Kabul Kriterleri
+
+1. `dependency_scanner` Python paketi oluşturulmalıdır.
+2. `Dependency` modeli uygulanmalıdır.
+3. `AdvisorySource` modeli uygulanmalıdır.
+4. `VulnerabilitySeverity` enum değeri uygulanmalıdır.
+5. `DependencyFinding` modeli uygulanmalıdır.
+6. Modeller `frozen` ve `slots` kullanmalıdır.
+7. Modeller temel girdi doğrulaması yapmalıdır.
+8. Modeller JSON uyumlu sözlük üretebilmelidir.
+9. Public modeller paket seviyesinden import edilebilmelidir.
+10. Modeller static analyzer paketine bağımlı olmamalıdır.
+11. Unit testler dış servislere bağlanmamalıdır.
+12. Bütün mevcut proje testleri geçmeye devam etmelidir.
+
+### Planlanan Git Commitleri
+
+```text
+docs(dependency-scanner): define data model requirements
+feat(dependency-scanner): add core data models
+docs(dependency-scanner): document core data models
+```
 
 ## Navigation
 
