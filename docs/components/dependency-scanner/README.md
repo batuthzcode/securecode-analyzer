@@ -658,6 +658,122 @@ Self-analysis exit code:
 ```text
 0
 ```
+## Uygulanan OSV Response Parser
+
+Dependency scanner bileşenine, Python nesnelerine dönüştürülmüş OSV response
+payload değerlerini immutable OSV modellerine çeviren parser katmanı
+eklenmiştir.
+
+Oluşturulan dosyalar:
+
+```text
+src/dependency_scanner/osv_parser.py
+tests/test_osv_parser.py
+```
+
+### Public API
+
+```python
+from dependency_scanner import (
+    OsvResponseParseError,
+    parse_osv_query_response,
+)
+```
+
+Örnek kullanım:
+
+```python
+payload = {
+    "vulns": [
+        {
+            "id": "PYSEC-2026-1",
+            "summary": "Example vulnerability",
+        },
+    ],
+}
+
+response = parse_osv_query_response(payload)
+```
+
+Parser bir:
+
+```text
+OsvQueryResponse
+```
+
+modeli döndürür.
+
+### Desteklenen Dönüşümler
+
+Desteklenen OSV alanları:
+
+```text
+vulns
+id
+summary
+details
+aliases
+severity
+affected
+package
+ranges
+events
+versions
+next_page_token
+```
+
+Temel alan eşlemeleri:
+
+```text
+vulns → vulnerabilities
+id → advisory_id
+severity.type → severity_type
+ranges.type → range_type
+```
+
+Payload içindeki listeler model katmanında tuple değerlerine dönüştürülür.
+
+Parser:
+
+- Eksik collection alanlarını boş tuple yapar.
+- Eksik opsiyonel string alanlarını `None` yapar.
+- Collection sırasını korur.
+- Duplicate değerleri korur.
+- Bilinmeyen alanları yok sayar.
+- Nested response yapılarını ayrıştırır.
+- Hatalı alanın konumunu hata mesajında gösterir.
+
+Geçersiz payload değerlerinde:
+
+```python
+OsvResponseParseError
+```
+
+üretilir.
+
+### Sorumluluk Sınırları
+
+OSV response parser:
+
+- HTTP isteği göndermez.
+- OSV API bağlantısı kurmaz.
+- JSON metninde `json.loads()` çalıştırmaz.
+- Dosya işlemi yapmaz.
+- Paket adını normalize etmez.
+- Sürüm karşılaştırması yapmaz.
+- Vulnerable sürüm kararı vermez.
+- Dependency finding oluşturmaz.
+- Retry, timeout veya cache uygulamaz.
+- Terminal raporu veya exit code üretmez.
+
+### Test Sonuçları
+
+```text
+OSV response parser tests: 76 passed
+Complete test suite: 564 passed
+Self-analysis: No findings found.
+Exit code: 0
+```
 
 ## Mevcut Durum
 Dependency scanner geliştirmesi devam etmektedir. Ortak veri modelleri,

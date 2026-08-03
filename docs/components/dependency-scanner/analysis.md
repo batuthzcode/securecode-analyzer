@@ -87,6 +87,132 @@ Bir paket sorgulanamazsa mümkün olduğu durumda diğer paketlerin analizine de
 Unit testlerin internet bağlantısına bağlı olmaması için gerçek güvenlik açığı kayıtlarından hazırlanmış yerel örnek veriler kullanılacaktır.
 
 Canlı kullanım sırasında ise güncel güvenlik açığı bilgileri API üzerinden alınacaktır.
+## Uygulanan OSV Response Parser
+
+Dependency scanner bileşenine, daha önce Python nesnelerine dönüştürülmüş OSV
+response payload değerlerini immutable OSV modellerine çeviren parser katmanı
+eklenmiştir.
+
+Oluşturulan dosyalar:
+
+```text
+src/dependency_scanner/osv_parser.py
+tests/test_osv_parser.py
+```
+
+### Public API
+
+```python
+from dependency_scanner import (
+    OsvResponseParseError,
+    parse_osv_query_response,
+)
+```
+
+Parser kullanımı:
+
+```python
+payload = {
+    "vulns": [
+        {
+            "id": "PYSEC-2026-1",
+            "summary": "Example vulnerability",
+        },
+    ],
+}
+
+response = parse_osv_query_response(payload)
+```
+
+Fonksiyon aşağıdaki modeli döndürür:
+
+```text
+OsvQueryResponse
+```
+
+### Desteklenen Dönüşümler
+
+Parser aşağıdaki OSV alanlarını model katmanına dönüştürür:
+
+```text
+vulns
+id
+summary
+details
+aliases
+severity
+affected
+package
+ranges
+events
+versions
+next_page_token
+```
+
+OSV payload içindeki listeler model katmanında tuple değerlerine çevrilir.
+
+OSV alanları ile model alanları arasındaki temel eşlemeler:
+
+```text
+vulns → vulnerabilities
+id → advisory_id
+type → severity_type
+type → range_type
+```
+
+### Parser Davranışı
+
+Parser:
+
+- Eksik opsiyonel collection alanlarını boş tuple yapar.
+- Eksik opsiyonel string alanlarını `None` yapar.
+- Collection sırasını korur.
+- Duplicate değerleri korur.
+- Bilinmeyen alanları yok sayar.
+- Nested response yapılarını ayrıştırır.
+- Geçersiz alan konumunu hata mesajına ekler.
+
+Geçersiz payload değerlerinde:
+
+```python
+OsvResponseParseError
+```
+
+üretilir.
+
+Örnek hata konumları:
+
+```text
+payload
+payload.vulns
+payload.vulns[0].id
+payload.vulns[0].affected[0].package
+payload.vulns[0].affected[0].ranges[0].events
+```
+
+### Sorumluluk Sınırları
+
+OSV response parser:
+
+- HTTP isteği göndermez.
+- OSV API bağlantısı kurmaz.
+- JSON metninde `json.loads()` çalıştırmaz.
+- Dosya okumaz veya yazmaz.
+- Paket adını normalize etmez.
+- Sürüm karşılaştırması yapmaz.
+- Vulnerable sürüm kararı vermez.
+- Dependency finding oluşturmaz.
+- Retry, timeout veya cache uygulamaz.
+- Terminal raporu veya exit code üretmez.
+
+### Test Sonuçları
+
+```text
+OSV response parser tests: 76 passed
+Complete test suite: 564 passed
+Self-analysis: No findings found.
+Exit code: 0
+```
 
 ## Mevcut Durum
 
@@ -3372,6 +3498,203 @@ Unit testler en az aşağıdaki durumları kapsayacaktır:
 Testler tamamen offline çalışacaktır.
 
 HTTP bağlantısı veya gerçek OSV servisi kullanılmayacaktır.
+## Gerçekleştirilen OSV Response Parser
+
+OSV response payload değerlerini immutable response modellerine dönüştüren
+parser katmanı uygulanmıştır.
+
+### Oluşturulan Dosyalar
+
+```text
+src/dependency_scanner/osv_parser.py
+tests/test_osv_parser.py
+```
+
+Public paket export dosyası güncellenmiştir:
+
+```text
+src/dependency_scanner/__init__.py
+```
+
+### Public Bileşenler
+
+```python
+from dependency_scanner import (
+    OsvResponseParseError,
+    parse_osv_query_response,
+)
+```
+
+Ana parser fonksiyonu:
+
+```python
+parse_osv_query_response(
+    payload: object,
+) -> OsvQueryResponse
+```
+
+şeklindedir.
+
+### Top-Level Dönüşüm
+
+Top-level payload dictionary olmak zorundadır.
+
+Desteklenen alanlar:
+
+```text
+vulns
+next_page_token
+```
+
+`vulns` bulunmadığında:
+
+```python
+vulnerabilities=()
+```
+
+kullanılır.
+
+`next_page_token` bulunmadığında:
+
+```python
+next_page_token=None
+```
+
+kullanılır.
+
+### Nested Model Dönüşümleri
+
+Parser aşağıdaki modelleri oluşturur:
+
+```text
+OsvQueryResponse
+OsvVulnerability
+OsvSeverity
+OsvAffectedPackage
+OsvPackage
+OsvRange
+OsvRangeEvent
+```
+
+OSV alan eşlemeleri:
+
+```text
+vulns → vulnerabilities
+id → advisory_id
+severity.type → severity_type
+ranges.type → range_type
+```
+
+### Collection Dönüşümü
+
+Payload içindeki listeler tuple değerlerine çevrilir:
+
+```text
+vulns
+aliases
+severity
+affected
+ranges
+events
+versions
+```
+
+Collection sırası ve duplicate değerler korunur.
+
+Parser otomatik sıralama veya duplicate temizleme yapmaz.
+
+### Opsiyonel Alanlar
+
+Eksik opsiyonel collection alanları:
+
+```python
+()
+```
+
+olarak temsil edilir.
+
+Eksik veya `null` opsiyonel string alanları:
+
+```python
+None
+```
+
+olarak temsil edilir.
+
+### Bilinmeyen Alanlar
+
+Desteklenmeyen alanlar hata üretmeden yok sayılır.
+
+Bu davranış OSV response yapısına ileride yeni alanlar eklenmesi durumunda
+parser uyumluluğunun korunmasını sağlar.
+
+### Hata Yönetimi
+
+Geçersiz payload değerlerinde:
+
+```python
+OsvResponseParseError
+```
+
+üretilir.
+
+Hata mesajları geçersiz alanın konumunu içerir.
+
+Örnekler:
+
+```text
+payload: must be a dictionary.
+payload.vulns: must be a list.
+payload.vulns[0].id: required field is missing.
+payload.vulns[0].aliases[0]: must be a string.
+payload.vulns[0].affected[0].package: must be a dictionary.
+```
+
+Alt model tarafından üretilen `ValueError` hataları da
+`OsvResponseParseError` türüne dönüştürülür.
+
+### Sorumluluk Sınırları
+
+Parser:
+
+- HTTP isteği göndermez.
+- JSON metni ayrıştırmaz.
+- Dosya işlemi yapmaz.
+- Paket adı normalizasyonu yapmaz.
+- Sürüm karşılaştırması yapmaz.
+- Vulnerability eşleştirmesi yapmaz.
+- Severity dönüşümü yapmaz.
+- Dependency modeli oluşturmaz.
+- Dependency finding oluşturmaz.
+- Retry, timeout veya cache uygulamaz.
+- Terminal ya da JSON raporu oluşturmaz.
+- Exit code hesaplamaz.
+
+### Test Sonuçları
+
+Parser testleri:
+
+```text
+76 passed
+```
+
+Tam test paketi:
+
+```text
+564 passed
+```
+
+Self-analysis:
+
+```text
+No findings found.
+```
+
+Self-analysis exit code:
+
+```text
+0
+```
 
 ## Navigation
 
