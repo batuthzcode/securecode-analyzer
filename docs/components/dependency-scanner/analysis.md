@@ -2083,6 +2083,186 @@ docs(dependency-scanner): define vulnerability source requirements
 feat(dependency-scanner): add vulnerability source interface
 docs(dependency-scanner): document vulnerability source interface
 ```
+## Gerçekleştirilen Vulnerability Source Interface
+
+Dependency scanner’ın farklı güvenlik açığı kaynaklarıyla çalışabilmesi için
+ortak bir protocol arayüzü uygulanmıştır.
+
+### Oluşturulan Dosyalar
+
+```text
+src/dependency_scanner/vulnerability_source.py
+tests/test_vulnerability_source.py
+```
+
+Public paket export dosyası güncellenmiştir:
+
+```text
+src/dependency_scanner/__init__.py
+```
+
+### Public Protocol
+
+Aşağıdaki protocol paket seviyesinden dışa aktarılmaktadır:
+
+```python
+from dependency_scanner import VulnerabilitySource
+```
+
+Protocol tanımı:
+
+```python
+@runtime_checkable
+class VulnerabilitySource(Protocol):
+    @property
+    def advisory_source(self) -> AdvisorySource:
+        ...
+
+    def find_vulnerabilities(
+        self,
+        dependency: Dependency,
+    ) -> tuple[DependencyFinding, ...]:
+        ...
+```
+
+### Advisory Source Bilgisi
+
+Her uyumlu kaynak bir `AdvisorySource` modeli sağlamaktadır.
+
+Bu model:
+
+- Kaynağın adını
+- Opsiyonel kaynak bağlantısını
+
+temsil eder.
+
+Örnek:
+
+```python
+AdvisorySource(
+    name="Fake",
+    url=None,
+)
+```
+
+### Vulnerability Sorgusu
+
+`find_vulnerabilities()` tek bir `Dependency` alır.
+
+Dönüş değeri:
+
+```python
+tuple[DependencyFinding, ...]
+```
+
+olmalıdır.
+
+Bulgu bulunmadığında:
+
+```python
+()
+```
+
+döndürülür.
+
+Bir veya daha fazla bulgu bulunduğunda sonuçların tuple sırası korunur.
+
+### Yapısal Protocol Davranışı
+
+Protocol yapısal uyumluluk kullanmaktadır.
+
+Bir sınıfın doğrudan `VulnerabilitySource` değerinden kalıtım alması
+gerekmez.
+
+Aşağıdaki bileşenleri sağlaması yeterlidir:
+
+- `advisory_source` property
+- `find_vulnerabilities()` metodu
+
+Runtime kontrolü:
+
+```python
+isinstance(
+    source,
+    VulnerabilitySource,
+)
+```
+
+ile yapılabilir.
+
+Eksik property veya metot bulunan nesneler protocol kontrolünü geçmez.
+
+### Dependency Koruması
+
+Testlerde sorgulanan dependency örneğinin aynı nesne olarak kaynağa
+iletildiği doğrulanmıştır.
+
+Fake kaynak:
+
+- Dependency modelini değiştirmez.
+- Paket adını otomatik normalize etmez.
+- Yeni bir dependency modeli oluşturmaz.
+- Döndürülen bulgularda orijinal dependency örneğini koruyabilir.
+
+### Deterministik Fake Kaynak
+
+Unit testlerde internet gerektirmeyen fake kaynak kullanılmıştır.
+
+Fake kaynak:
+
+1. Aldığı dependency örneğini kaydeder.
+2. Önceden yapılandırılmış bulguları döndürür.
+3. Bulgusuz durumda boş tuple döndürür.
+4. Birden fazla bulgunun sırasını değiştirmez.
+5. Dependency modelinin mevcut alanlarını korur.
+
+### Sorumluluk Sınırları
+
+Vulnerability source interface:
+
+- Requirements dosyası okumaz.
+- Requirements satırı ayrıştırmaz.
+- Paket adı normalizasyonu yapmaz.
+- Dependency modelini değiştirmez.
+- HTTP isteği göndermez.
+- OSV cevabı ayrıştırmaz.
+- Retry, timeout veya cache politikası uygulamaz.
+- Hataları boş bulgu sonucuna dönüştürmez.
+- Terminal veya JSON raporu üretmez.
+- Exit code hesaplamaz.
+- Static analyzer paketine bağımlı değildir.
+
+### Test Sonuçları
+
+Vulnerability source testleri:
+
+```text
+10 passed
+```
+
+Tam test paketi:
+
+```text
+414 passed
+```
+
+Derleme doğrulaması:
+
+```powershell
+.\.venv\Scripts\python.exe -m compileall -q src tests
+```
+
+Self-analysis:
+
+```text
+No findings found.
+```
+
+Self-analysis exit code:
+
+```text
+0
+```
 
 ## Navigation
 

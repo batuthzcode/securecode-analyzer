@@ -319,16 +319,137 @@ Self-analysis exit code:
 ```text
 0
 ```
+## Uygulanan Vulnerability Source Interface
+
+Dependency scanner bileşenine güvenlik açığı kaynakları için ortak bir
+arayüz eklenmiştir.
+
+Oluşturulan modül:
+
+```text
+src/dependency_scanner/vulnerability_source.py
+```
+
+Test dosyası:
+
+```text
+tests/test_vulnerability_source.py
+```
+
+### Public API
+
+Arayüz paket seviyesinden import edilebilir:
+
+```python
+from dependency_scanner import VulnerabilitySource
+```
+
+### Protocol Sözleşmesi
+
+`VulnerabilitySource`, `typing.Protocol` ve `@runtime_checkable` kullanır.
+
+Her vulnerability source aşağıdaki property değerini sağlamalıdır:
+
+```python
+@property
+def advisory_source(self) -> AdvisorySource:
+    ...
+```
+
+Her kaynak ayrıca aşağıdaki sorgu metodunu sağlamalıdır:
+
+```python
+def find_vulnerabilities(
+    self,
+    dependency: Dependency,
+) -> tuple[DependencyFinding, ...]:
+    ...
+```
+
+Bulgu bulunmadığında boş tuple döndürülür:
+
+```python
+()
+```
+
+### Yapısal Uyumluluk
+
+Concrete kaynak sınıflarının doğrudan `VulnerabilitySource` sınıfından
+kalıtım alması gerekmez.
+
+Gerekli property ve metodu sağlayan sınıflar yapısal olarak protocol
+sözleşmesini karşılayabilir:
+
+```python
+isinstance(
+    fake_source,
+    VulnerabilitySource,
+)
+```
+
+### Testlerde Fake Kaynak
+
+Unit testlerde gerçek ağ bağlantısı yerine deterministik fake kaynak
+kullanılmıştır.
+
+Fake kaynak:
+
+- Sorgulanan dependency örneğini kaydeder.
+- Yapılandırılmış bulguları tuple olarak döndürür.
+- Bulgusuz durumda boş tuple döndürür.
+- Bulgu sırasını değiştirmez.
+- Dependency modelini değiştirmez.
+- İnternet bağlantısı kullanmaz.
+
+### Sorumluluk Sınırları
+
+Bu interface:
+
+- HTTP isteği göndermez.
+- OSV cevabı ayrıştırmaz.
+- Paket adı normalizasyonu yapmaz.
+- Dependency modelini değiştirmez.
+- Retry veya timeout politikası uygulamaz.
+- Hataları yakalayıp gizlemez.
+- Terminal veya JSON raporu üretmez.
+- Exit code hesaplamaz.
+
+Gerçek OSV istemcisi sonraki geliştirme aşamasında bu sözleşmeye uygun
+olarak uygulanacaktır.
+
+### Test Sonuçları
+
+Vulnerability source testleri:
+
+```text
+10 passed
+```
+
+Tam proje testleri:
+
+```text
+414 passed
+```
+
+Self-analysis:
+
+```text
+No findings found.
+```
+
+Self-analysis exit code:
+
+```text
+0
+```
 
 ## Mevcut Durum
 Dependency scanner geliştirmesi devam etmektedir. Ortak veri modelleri,
-`requirements.txt` ayrıştırıcısı ve paket adı normalizasyonu tamamlanmıştır.
+requirements parser, paket adı normalizasyonu ve vulnerability source
+interface tamamlanmıştır.
 
-Sıradaki aşama vulnerability kaynağı için istemci arayüzünün ve yerel test
-fixture yapısının geliştirilmesidir.
-
-Sıradaki aşama paket adı normalizasyonu ve vulnerability kaynağı istemci
-arayüzünün geliştirilmesidir.
+Sıradaki aşama OSV istemcisi için istek ve yanıt veri yapılarının
+geliştirilmesidir.
 ## Uygulanan Paket Adı Normalizasyonu
 
 Dependency scanner bileşenine Python paket adlarını ortak bir biçime dönüştüren
