@@ -639,6 +639,19 @@ Self-analysis exit code:
 
 Bu bulgular analiz eşiği değiştirilmeden, doğrulama ve temizleme işlemlerinin
 küçük yardımcı fonksiyonlara ayrılmasıyla giderilmiştir.
+## Requirements Parser Gereksinimleri
+
+### Amaç
+
+Requirements Parser, bir Python projesindeki `requirements.txt` dosyasını
+okuyarak desteklenen dependency satırlarını `Dependency` modellerine
+dönüştürecektir.
+
+Planlanan dosyalar:
+
+```text
+src/dependency_scanner/requirements_parser.py
+tests/test_requirements_parser.py
 ```
 
 ## Navigation
