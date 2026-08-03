@@ -442,14 +442,230 @@ Self-analysis exit code:
 ```text
 0
 ```
+## Uygulanan OSV Response Modelleri
+
+Dependency scanner bileşenine OSV API cevaplarını immutable ve tip güvenli
+Python nesneleriyle temsil eden response modelleri eklenmiştir.
+
+Oluşturulan modül:
+
+```text
+src/dependency_scanner/osv_models.py
+```
+
+Test dosyası:
+
+```text
+tests/test_osv_models.py
+```
+
+### Public API
+
+Aşağıdaki modeller paket seviyesinden import edilebilir:
+
+```python
+from dependency_scanner import (
+    OsvAffectedPackage,
+    OsvPackage,
+    OsvQueryResponse,
+    OsvRange,
+    OsvRangeEvent,
+    OsvSeverity,
+    OsvVulnerability,
+)
+```
+
+### Model Yapısı
+
+Uygulanan modeller:
+
+```text
+OsvSeverity
+OsvRangeEvent
+OsvRange
+OsvPackage
+OsvAffectedPackage
+OsvVulnerability
+OsvQueryResponse
+```
+
+Modeller:
+
+- `dataclass` kullanır.
+- `frozen=True` ile immutable davranır.
+- `slots=True` kullanır.
+- Collection alanlarında tuple kullanır.
+- Nested modelleri destekler.
+- JSON uyumlu sözlük çıktısı üretebilir.
+
+### Nested Response Örneği
+
+```python
+response = OsvQueryResponse(
+    vulnerabilities=(
+        OsvVulnerability(
+            advisory_id="PYSEC-2026-1",
+            aliases=(
+                "CVE-2026-0001",
+            ),
+            affected=(
+                OsvAffectedPackage(
+                    package=OsvPackage(
+                        ecosystem="PyPI",
+                        name="sample-package",
+                    ),
+                    ranges=(
+                        OsvRange(
+                            range_type="ECOSYSTEM",
+                            events=(
+                                OsvRangeEvent(
+                                    introduced="0",
+                                ),
+                                OsvRangeEvent(
+                                    fixed="2.0.0",
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    ),
+)
+```
+
+### JSON Uyumlu Sözlük Çıktısı
+
+Her model aşağıdaki metodu sağlar:
+
+```python
+data = response.to_dict()
+```
+
+Nested modeller recursive olarak dönüştürülür.
+
+Tuple alanları JSON uyumlu listelere dönüştürülür:
+
+```python
+import json
+
+serialized = json.dumps(
+    response.to_dict()
+)
+```
+
+### Veri Doğrulaması
+
+Zorunlu string alanları boş veya whitespace-only değer kabul etmez.
+
+Doğrulanan alanlardan bazıları:
+
+```text
+severity_type
+score
+range_type
+ecosystem
+name
+advisory_id
+```
+
+Opsiyonel alanlar `None` kabul eder ancak boş string kabul etmez:
+
+```text
+introduced
+fixed
+last_affected
+limit
+summary
+details
+next_page_token
+```
+
+Collection alanlarının tuple olması gerekir.
+
+Collection içindeki değerler de beklenen model veya string türüyle
+eşleşmelidir.
+
+Geçersiz girdilerde:
+
+```python
+ValueError
+```
+
+üretilir.
+
+### Immutable Davranış
+
+Model alanları oluşturulduktan sonra değiştirilemez:
+
+```python
+vulnerability.advisory_id = "CHANGED"
+```
+
+Bu işlem `FrozenInstanceError` üretir.
+
+### Sıra Koruması
+
+Modeller aşağıdaki değerlerin sırasını değiştirmez:
+
+- Vulnerability kayıtları
+- Alias değerleri
+- Affected package kayıtları
+- Version kayıtları
+- Range kayıtları
+- Range event kayıtları
+- Severity kayıtları
+
+Duplicate değerler otomatik kaldırılmaz ve alfabetik sıralama yapılmaz.
+
+### Sorumluluk Sınırları
+
+OSV response modelleri:
+
+- HTTP isteği göndermez.
+- OSV API bağlantısı kurmaz.
+- JSON metni ayrıştırmaz.
+- Paket adını normalize etmez.
+- Sürüm karşılaştırması yapmaz.
+- Vulnerable sürüm kararı vermez.
+- `DependencyFinding` oluşturmaz.
+- Retry, timeout veya cache uygulamaz.
+- Terminal ya da JSON raporu üretmez.
+- Exit code hesaplamaz.
+
+### Test Sonuçları
+
+OSV response model testleri:
+
+```text
+74 passed
+```
+
+Tam proje testleri:
+
+```text
+488 passed
+```
+
+Self-analysis:
+
+```text
+No findings found.
+```
+
+Self-analysis exit code:
+
+```text
+0
+```
 
 ## Mevcut Durum
 Dependency scanner geliştirmesi devam etmektedir. Ortak veri modelleri,
-requirements parser, paket adı normalizasyonu ve vulnerability source
-interface tamamlanmıştır.
+requirements parser, paket adı normalizasyonu, vulnerability source interface
+ve OSV response modelleri tamamlanmıştır.
 
-Sıradaki aşama OSV istemcisi için istek ve yanıt veri yapılarının
-geliştirilmesidir.
+Sıradaki aşama OSV JSON cevaplarını response modellerine dönüştüren parser
+katmanının geliştirilmesidir.
 ## Uygulanan Paket Adı Normalizasyonu
 
 Dependency scanner bileşenine Python paket adlarını ortak bir biçime dönüştüren

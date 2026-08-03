@@ -2720,6 +2720,308 @@ docs(dependency-scanner): define OSV response model requirements
 feat(dependency-scanner): add OSV response models
 docs(dependency-scanner): document OSV response models
 ```
+## Gerçekleştirilen OSV Response Modelleri
+
+OSV API cevaplarını uygulama içinde immutable ve tip güvenli biçimde temsil
+etmek için response modelleri uygulanmıştır.
+
+### Oluşturulan Dosyalar
+
+```text
+src/dependency_scanner/osv_models.py
+tests/test_osv_models.py
+```
+
+Public paket export dosyası güncellenmiştir:
+
+```text
+src/dependency_scanner/__init__.py
+```
+
+### Uygulanan Modeller
+
+```text
+OsvSeverity
+OsvRangeEvent
+OsvRange
+OsvPackage
+OsvAffectedPackage
+OsvVulnerability
+OsvQueryResponse
+```
+
+### OsvSeverity
+
+OSV severity kaydını temsil eder:
+
+```python
+OsvSeverity(
+    severity_type="CVSS_V3",
+    score="CVSS:3.1/AV:N/AC:L",
+)
+```
+
+Model severity türünü ve score değerini orijinal string biçiminde korur.
+
+Severity sınıflandırması veya CVSS hesaplaması yapmaz.
+
+### OsvRangeEvent
+
+Version range içindeki olayları temsil eder:
+
+```python
+OsvRangeEvent(
+    introduced="0",
+)
+
+OsvRangeEvent(
+    fixed="2.0.0",
+)
+```
+
+Desteklenen alanlar:
+
+```text
+introduced
+fixed
+last_affected
+limit
+```
+
+Eksik alanlar `None` olarak korunur.
+
+### OsvRange
+
+Affected version range bilgisini temsil eder:
+
+```python
+OsvRange(
+    range_type="ECOSYSTEM",
+    events=(
+        OsvRangeEvent(
+            introduced="0",
+        ),
+        OsvRangeEvent(
+            fixed="2.0.0",
+        ),
+    ),
+)
+```
+
+Event sırası değişmeden korunur.
+
+Model kendi başına sürüm karşılaştırması yapmaz.
+
+### OsvPackage
+
+OSV paket bilgisini temsil eder:
+
+```python
+OsvPackage(
+    ecosystem="PyPI",
+    name="sample-package",
+)
+```
+
+Paket adı OSV cevabındaki biçimiyle korunur.
+
+Otomatik paket adı normalizasyonu yapılmaz.
+
+### OsvAffectedPackage
+
+Bir advisory tarafından etkilenen paket bilgisini temsil eder:
+
+```python
+OsvAffectedPackage(
+    package=OsvPackage(
+        ecosystem="PyPI",
+        name="sample-package",
+    ),
+    ranges=(),
+    versions=(),
+    severity=(),
+)
+```
+
+Collection alanları tuple kullanır.
+
+Eksik collection değerleri boş tuple olarak temsil edilir.
+
+### OsvVulnerability
+
+Tek bir OSV vulnerability kaydını temsil eder:
+
+```python
+OsvVulnerability(
+    advisory_id="PYSEC-2026-1",
+    summary="Example vulnerability",
+    aliases=(
+        "CVE-2026-0001",
+        "GHSA-xxxx-yyyy-zzzz",
+    ),
+)
+```
+
+Desteklenen alanlar:
+
+```text
+advisory_id
+summary
+details
+aliases
+severity
+affected
+```
+
+Alias sırası korunur ve duplicate değerler otomatik kaldırılmaz.
+
+### OsvQueryResponse
+
+Bir OSV query cevabını temsil eder:
+
+```python
+OsvQueryResponse(
+    vulnerabilities=(),
+    next_page_token=None,
+)
+```
+
+Bulgu bulunmadığında boş vulnerability tuple değeri kullanılır.
+
+Pagination token bulunmadığında `None` kullanılır.
+
+### Immutable Model Yapısı
+
+Bütün modeller:
+
+```python
+@dataclass(
+    frozen=True,
+    slots=True,
+)
+```
+
+yapısını kullanır.
+
+Model alanlarının sonradan değiştirilmesi mümkün değildir.
+
+Bu davranış unit testlerde `FrozenInstanceError` ile doğrulanmıştır.
+
+### Recursive Sözlük Dönüşümü
+
+Bütün modeller ortak olarak:
+
+```python
+model.to_dict()
+```
+
+metodunu sağlar.
+
+Dönüşüm sırasında:
+
+- Nested dataclass modeller dictionary değerine dönüştürülür.
+- Tuple değerleri listeye dönüştürülür.
+- `None` değerleri korunur.
+- String değerleri değiştirilmez.
+- Sonuç `json.dumps()` ile serialize edilebilir.
+
+### Veri Doğrulaması
+
+Zorunlu string alanlar:
+
+```text
+severity_type
+score
+range_type
+ecosystem
+name
+advisory_id
+```
+
+aşağıdaki değerleri kabul etmez:
+
+- String olmayan değer
+- Boş string
+- Whitespace-only string
+
+Opsiyonel string alanlar `None` kabul eder.
+
+String sağlandığında boş veya whitespace-only değer reddedilir.
+
+Collection alanları:
+
+- Tuple olmak zorundadır.
+- Liste kabul etmez.
+- String kabul etmez.
+- Dictionary kabul etmez.
+- İçindeki değerler beklenen model veya string türünde olmalıdır.
+
+Geçersiz değerlerde `ValueError` üretilir.
+
+### Sıra Koruması
+
+Aşağıdaki collection değerlerinin sırası korunur:
+
+- Query içindeki vulnerability kayıtları
+- Vulnerability aliases değerleri
+- Affected package kayıtları
+- Explicit version değerleri
+- Range kayıtları
+- Range event kayıtları
+- Severity kayıtları
+
+Modeller sıralama veya duplicate temizleme uygulamaz.
+
+### Sorumluluk Sınırları
+
+OSV response modelleri:
+
+- HTTP isteği göndermez.
+- OSV API istemcisi oluşturmaz.
+- JSON metni ayrıştırmaz.
+- Dependency modeli oluşturmaz.
+- Paket adı normalizasyonu yapmaz.
+- Sürüm karşılaştırması yapmaz.
+- Bir sürümün vulnerable olduğuna karar vermez.
+- Severity dönüşümü yapmaz.
+- Dependency finding oluşturmaz.
+- Retry, timeout veya cache uygulamaz.
+- Terminal çıktısı üretmez.
+- JSON dosyası yazmaz.
+- Exit code hesaplamaz.
+- Static analyzer paketine bağımlı değildir.
+
+### Test Sonuçları
+
+OSV response model testleri:
+
+```text
+74 passed
+```
+
+Tam test paketi:
+
+```text
+488 passed
+```
+
+Derleme doğrulaması:
+
+```powershell
+.\.venv\Scripts\python.exe -m compileall -q src tests
+```
+
+Self-analysis:
+
+```text
+No findings found.
+```
+
+Self-analysis exit code:
+
+```text
+0
+``
 
 ## Navigation
 
