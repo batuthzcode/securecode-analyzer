@@ -15,6 +15,9 @@ from dependency_scanner.requirements_parser import (
     parse_requirements_file,
     parse_requirements_text,
 )
+from dependency_scanner.vulnerability_source import (
+    VulnerabilitySource,
+)
 
 __all__ = [
     "AdvisorySource",
@@ -22,6 +25,7 @@ __all__ = [
     "DependencyFinding",
     "RequirementsParseError",
     "VulnerabilitySeverity",
+    "VulnerabilitySource",
     "normalize_package_name",
     "parse_requirement_line",
     "parse_requirements_file",
