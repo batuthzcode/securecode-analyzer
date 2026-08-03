@@ -6,6 +6,15 @@ from dependency_scanner.models import (
     DependencyFinding,
     VulnerabilitySeverity,
 )
+from dependency_scanner.osv_models import (
+    OsvAffectedPackage,
+    OsvPackage,
+    OsvQueryResponse,
+    OsvRange,
+    OsvRangeEvent,
+    OsvSeverity,
+    OsvVulnerability,
+)
 from dependency_scanner.package_normalizer import (
     normalize_package_name,
 )
@@ -23,6 +32,13 @@ __all__ = [
     "AdvisorySource",
     "Dependency",
     "DependencyFinding",
+    "OsvAffectedPackage",
+    "OsvPackage",
+    "OsvQueryResponse",
+    "OsvRange",
+    "OsvRangeEvent",
+    "OsvSeverity",
+    "OsvVulnerability",
     "RequirementsParseError",
     "VulnerabilitySeverity",
     "VulnerabilitySource",
