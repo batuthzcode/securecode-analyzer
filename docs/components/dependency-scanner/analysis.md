@@ -877,6 +877,319 @@ Self-analysis exit code:
 ```text
 0
 ```
+## Paket Adı Normalizasyonu Gereksinimleri
+
+### Amaç
+
+Paket adı normalizasyonu, farklı yazım biçimleriyle belirtilen aynı Python
+paketinin güvenlik açığı kaynaklarında ortak bir adla sorgulanmasını
+sağlayacaktır.
+
+Örneğin aşağıdaki adlar aynı normalize edilmiş paket adına dönüşmelidir:
+
+```text
+Sample-Package
+sample_package
+sample.package
+sample---package
+```
+
+Beklenen normalize edilmiş değer:
+
+```text
+sample-package
+```
+
+Planlanan modül:
+
+```text
+src/dependency_scanner/package_normalizer.py
+```
+
+Planlanan testPlanlanan modül:
+
+```text
+src/dependency_scanner/package_normalizer.py
+```
+
+Planlanan test dosyası:
+
+```text
+tests/test_package_normalizer.py
+```
+
+### Public API
+
+Normalizasyon fonksiyonu paket seviyesinden import edilebilmelidir:
+
+```python
+from dependency_scanner import normalize_package_name
+```
+
+Planlanan fonksiyon imzası:
+
+```python
+def normalize_package_name(name: str) -> str:
+    ...
+```
+
+Fonksiyon yalnızca paket adını almalı ve normalize edilmiş string değeri
+döndürmelidir.
+
+### Normalizasyon Kuralları
+
+Paket adı aşağıdaki sırayla normalize edilmelidir:
+
+1. Başındaki ve sonundaki whitespace temizlenmelidir.
+2. Bütün harfler küçük harfe dönüştürülmelidir.
+3. Ardışık tire, alt çizgi ve nokta karakterleri tek tireye dönüştürülmelidir.
+4. Paket adının diğer geçerli karakterleri korunmalıdır.
+
+Dönüştürülecek ayırıcı karakterler:
+
+```text
+-
+_
+.
+```
+
+Örnekler:
+
+| Girdi | Sonuç |
+|---|---|
+| `Flask` | `flask` |
+| `Requests` | `requests` |
+| `sample-package` | `sample-package` |
+| `sample_package` | `sample-package` |
+| `sample.package` | `sample-package` |
+| `Sample_Package` | `sample-package` |
+| `sample---package` | `sample-package` |
+| `sample__package` | `sample-package` |
+| `sample..package` | `sample-package` |
+| `sample-_.package` | `sample-package` |
+| `package2` | `package2` |
+| `Package2_Name` | `package2-name` |
+
+### Orijinal Paket Adının Korunması
+
+`Dependency.name` alanı requirements dosyasında bulunan orijinal paket adını
+korumaya devam etmelidir.
+
+Örnek:
+
+```python
+dependency = Dependency(
+    name="Sample_Package",
+    version="1.0.0",
+    operator="==",
+    source_file="requirements.txt",
+    line_number=1,
+)
+```
+
+Normalizasyon sonrasında `dependency.name` değiştirilmemelidir.
+
+Bunun yerine:
+
+```python
+normalized_name = normalize_package_name(
+    dependency.name
+)
+```
+
+kullanılmalıdır.
+
+Beklenen:
+
+```text
+dependency.name == "Sample_Package"
+normalized_name == "sample-package"
+```
+
+Normalizasyon fonksiyonu `Dependency` modelini değiştirmemeli veya yeni bir
+`Dependency` örneği oluşturmamalıdır.
+
+### Girdi Doğrulaması
+
+Fonksiyon aşağıdaki geçersiz girdileri reddetmelidir:
+
+- String olmayan değer
+- Boş string
+- Yalnızca whitespace içeren string
+- Yalnızca ayırıcı karakterlerden oluşan paket adı
+- Normalize edildiğinde boş kalan değer
+
+Geçersiz girdiler için:
+
+```text
+ValueError
+```
+
+üretilmelidir.
+
+Örnek geçersiz değerler:
+
+```text
+""
+"   "
+"-"
+"_"
+"."
+"-_."
+```
+
+String olmayan girdiler de `ValueError` üretmelidir.
+
+### Geçerli Karakterler
+
+İlk sürümde normalize edilecek paket adı:
+
+- ASCII harf içerebilir.
+- Rakam içerebilir.
+- Tire içerebilir.
+- Alt çizgi içerebilir.
+- Nokta içerebilir.
+
+Normalizasyon fonksiyonu requirements satırı ayrıştırmamalıdır.
+
+Desteklenmeyen karakterler içeren adlar reddedilmelidir.
+
+Örnek geçersiz adlar:
+
+```text
+package name
+package/name
+package@name
+package#name
+```
+
+### Deterministik Davranış
+
+Aynı paket adı her çağrıda aynı sonucu üretmelidir.
+
+Normalizasyon idempotent olmalıdır:
+
+```python
+normalized = normalize_package_name(
+    "Sample_Package"
+)
+
+assert normalize_package_name(
+    normalized
+) == normalized
+```
+
+Fonksiyon:
+
+- Dosya sistemine erişmemelidir.
+- İnternet isteği göndermemelidir.
+- Global state değiştirmemelidir.
+- Dependency listesini değiştirmemelidir.
+- Paket sürümünü incelememelidir.
+
+### Parser ile Sorumluluk Ayrımı
+
+Requirements parser paket adının orijinal yazımını korumaya devam etmelidir.
+
+Örnek requirements satırı:
+
+```text
+Sample_Package==1.0.0
+```
+
+Parser sonucu:
+
+```python
+Dependency(
+    name="Sample_Package",
+    version="1.0.0",
+    operator="==",
+    source_file="requirements.txt",
+    line_number=1,
+)
+```
+
+Normalizasyon ancak güvenlik açığı kaynağına sorgu hazırlanırken veya paket
+adlarının karşılaştırılması gerektiğinde açıkça uygulanmalıdır.
+
+Parser içinde otomatik normalizasyon yapılmamalıdır.
+
+### Paket Exportu
+
+Aşağıdaki import çalışmalıdır:
+
+```python
+from dependency_scanner import normalize_package_name
+```
+
+Mevcut model ve requirements parser exportları korunmalıdır.
+
+### Test Gereksinimleri
+
+Unit testler en az aşağıdaki davranışları doğrulamalıdır:
+
+- Büyük harflerin küçük harfe çevrilmesi
+- Küçük harfli adın korunması
+- Tireli adın normalize edilmesi
+- Alt çizginin tireye dönüştürülmesi
+- Noktanın tireye dönüştürülmesi
+- Ardışık tirelerin tek tireye dönüştürülmesi
+- Ardışık alt çizgilerin tek tireye dönüştürülmesi
+- Ardışık noktaların tek tireye dönüştürülmesi
+- Karışık ayırıcıların tek tireye dönüştürülmesi
+- Rakamların korunması
+- Baş ve son whitespace temizliği
+- Aynı paketin farklı yazımlarının aynı sonuca dönüşmesi
+- Normalize edilmiş adın tekrar normalize edilmesi
+- Orijinal `Dependency.name` değerinin değişmemesi
+- Boş adın reddedilmesi
+- Whitespace-only adın reddedilmesi
+- Yalnızca ayırıcı içeren adın reddedilmesi
+- String olmayan değerin reddedilmesi
+- Whitespace içeren paket adının reddedilmesi
+- Slash içeren paket adının reddedilmesi
+- `@` içeren paket adının reddedilmesi
+- Public package exportu
+- Testlerin internet bağlantısı gerektirmemesi
+
+### Sorumluluk Sınırları
+
+Paket adı normalizasyonu:
+
+- Requirements dosyası okumayacaktır.
+- Requirements satırı ayrıştırmayacaktır.
+- `Dependency` modelini değiştirmeyecektir.
+- Paket sürümü karşılaştırmayacaktır.
+- Duplicate dependency tespiti yapmayacaktır.
+- OSV API isteği göndermeyecektir.
+- Advisory cevabı ayrıştırmayacaktır.
+- Güvenlik açığı bulgusu oluşturmayacaktır.
+- Terminal veya JSON raporu üretmeyecektir.
+- Exit code hesaplamayacaktır.
+- Static analyzer paketine bağımlı olmayacaktır.
+
+### Kabul Kriterleri
+
+1. `package_normalizer.py` modülü oluşturulmalıdır.
+2. `normalize_package_name()` fonksiyonu uygulanmalıdır.
+3. Paket adları küçük harfe dönüştürülmelidir.
+4. Tire, alt çizgi ve nokta grupları tek tireye dönüştürülmelidir.
+5. Orijinal `Dependency.name` değeri değiştirilmemelidir.
+6. Geçersiz girdiler açık hata üretmelidir.
+7. Normalizasyon deterministik ve idempotent olmalıdır.
+8. Public fonksiyon paket seviyesinden export edilmelidir.
+9. Unit testler dış servis kullanmamalıdır.
+10. Requirements parser davranışı korunmalıdır.
+11. Bütün mevcut proje testleri geçmelidir.
+12. SecureCode Analyzer self-analysis sonucu temiz olmalıdır.
+
+### Planlanan Git Commitleri
+
+```text
+docs(dependency-scanner): define package normalization requirements
+feat(dependency-scanner): add package name normalization
+docs(dependency-scanner): document package name normalization
+```
 
 ## Navigation
 
