@@ -3022,6 +3022,356 @@ Self-analysis exit code:
 ```text
 0
 ``
+## OSV Response Parser Gereksinimleri
+
+OSV API tarafından döndürülen ve daha önce JSON formatından Python
+nesnelerine dönüştürülmüş veriler, dependency scanner içindeki immutable OSV
+response modellerine çevrilecektir.
+
+### Planlanan Dosyalar
+
+```text
+src/dependency_scanner/osv_parser.py
+tests/test_osv_parser.py
+```
+
+Public paket export dosyası:
+
+```text
+src/dependency_scanner/__init__.py
+```
+
+güncellenecektir.
+
+### Public API
+
+Parser katmanı aşağıdaki public bileşenleri sağlayacaktır:
+
+```python
+from dependency_scanner import (
+    OsvResponseParseError,
+    parse_osv_query_response,
+)
+```
+
+Ana parser fonksiyonu:
+
+```python
+parse_osv_query_response(
+    payload: object,
+) -> OsvQueryResponse
+```
+
+şeklinde çalışacaktır.
+
+### Girdi Sınırı
+
+Parser doğrudan JSON metni kabul etmeyecektir.
+
+Girdi, `json.loads()` veya bir HTTP istemcisi tarafından daha önce Python
+nesnelerine dönüştürülmüş bir payload olacaktır.
+
+Örnek:
+
+```python
+payload = {
+    "vulns": [
+        {
+            "id": "PYSEC-2026-1",
+            "summary": "Example vulnerability",
+        },
+    ],
+}
+```
+
+### Top-Level Response
+
+Top-level payload dictionary olmak zorundadır.
+
+Desteklenen alanlar:
+
+```text
+vulns
+next_page_token
+```
+
+`vulns` alanı bulunmadığında boş vulnerability collection kullanılacaktır.
+
+`next_page_token` alanı bulunmadığında `None` kullanılacaktır.
+
+### Vulnerability Dönüşümü
+
+Her vulnerability kaydı:
+
+```text
+OsvVulnerability
+```
+
+modeline dönüştürülecektir.
+
+Desteklenen alanlar:
+
+```text
+id
+summary
+details
+aliases
+severity
+affected
+```
+
+OSV cevabındaki:
+
+```text
+id
+```
+
+alanı model içindeki:
+
+```text
+advisory_id
+```
+
+alanına aktarılacaktır.
+
+`id` zorunlu ve boş olmayan bir string olmalıdır.
+
+### Severity Dönüşümü
+
+Severity kayıtları:
+
+```text
+OsvSeverity
+```
+
+modeline dönüştürülecektir.
+
+Desteklenen alanlar:
+
+```text
+type
+score
+```
+
+OSV cevabındaki `type` alanı model içindeki `severity_type` alanına
+aktarılacaktır.
+
+### Affected Package Dönüşümü
+
+Affected kayıtları:
+
+```text
+OsvAffectedPackage
+```
+
+modeline dönüştürülecektir.
+
+Desteklenen alanlar:
+
+```text
+package
+ranges
+versions
+severity
+```
+
+`package` alanı zorunlu olacaktır.
+
+### Package Dönüşümü
+
+Package kayıtları:
+
+```text
+OsvPackage
+```
+
+modeline dönüştürülecektir.
+
+Desteklenen alanlar:
+
+```text
+ecosystem
+name
+```
+
+Her iki alan da zorunlu ve boş olmayan string olmalıdır.
+
+### Range Dönüşümü
+
+Range kayıtları:
+
+```text
+OsvRange
+```
+
+modeline dönüştürülecektir.
+
+Desteklenen alanlar:
+
+```text
+type
+events
+```
+
+OSV cevabındaki `type` alanı model içindeki `range_type` alanına
+aktarılacaktır.
+
+### Range Event Dönüşümü
+
+Range event kayıtları:
+
+```text
+OsvRangeEvent
+```
+
+modeline dönüştürülecektir.
+
+Desteklenen alanlar:
+
+```text
+introduced
+fixed
+last_affected
+limit
+```
+
+Eksik event alanları `None` olarak korunacaktır.
+
+### Collection Dönüşümü
+
+OSV payload içindeki listeler model katmanında tuple değerlerine
+dönüştürülecektir.
+
+Dönüştürülecek collection alanları:
+
+```text
+vulns
+aliases
+severity
+affected
+ranges
+events
+versions
+```
+
+Collection sırası korunacaktır.
+
+Duplicate değerler kaldırılmayacaktır.
+
+### Eksik Opsiyonel Alanlar
+
+Eksik opsiyonel string alanları `None` olarak temsil edilecektir.
+
+Eksik opsiyonel collection alanları boş tuple olarak temsil edilecektir.
+
+Parser eksik opsiyonel alanlar nedeniyle hata üretmeyecektir.
+
+### Bilinmeyen Alanlar
+
+OSV payload içindeki parser tarafından desteklenmeyen ek alanlar
+yok sayılacaktır.
+
+Bu davranış OSV cevabına ileride yeni alanlar eklenmesi durumunda parser
+uyumluluğunun korunmasını sağlayacaktır.
+
+### Hata Yönetimi
+
+Geçersiz response verilerinde:
+
+```python
+OsvResponseParseError
+```
+
+üretilecektir.
+
+Hata mesajı mümkün olduğunda geçersiz alanın konumunu içerecektir.
+
+Örnek konumlar:
+
+```text
+payload
+vulns
+vulns[0]
+vulns[0].id
+vulns[0].affected[0].package
+vulns[0].affected[0].ranges[0].events
+```
+
+Aşağıdaki durumlar parse hatası olacaktır:
+
+- Top-level payload değerinin dictionary olmaması
+- Collection alanının liste olmaması
+- Collection içindeki elemanın dictionary olmaması
+- Zorunlu alanın eksik olması
+- String alanının yanlış türde olması
+- Zorunlu string alanının boş olması
+- Collection içindeki string değerinin yanlış türde olması
+- Nested package veya range kaydının geçersiz olması
+
+Alt model tarafından üretilen doğrulama hataları parser hata türüne
+dönüştürülecektir.
+
+### Sıra Koruması
+
+Parser aşağıdaki alanların orijinal sırasını koruyacaktır:
+
+- Vulnerability kayıtları
+- Alias kayıtları
+- Severity kayıtları
+- Affected package kayıtları
+- Range kayıtları
+- Range event kayıtları
+- Explicit version kayıtları
+
+Parser otomatik sıralama veya duplicate temizleme yapmayacaktır.
+
+### Sorumluluk Sınırları
+
+OSV response parser:
+
+- HTTP isteği göndermez.
+- OSV API bağlantısı kurmaz.
+- JSON metninde `json.loads()` çalıştırmaz.
+- Dosya okumaz veya yazmaz.
+- Paket adını normalize etmez.
+- Paket sürümü karşılaştırmaz.
+- Bir sürümün vulnerable olduğuna karar vermez.
+- Severity seviyesini dönüştürmez.
+- `Dependency` modeli oluşturmaz.
+- `DependencyFinding` oluşturmaz.
+- Retry, timeout veya cache uygulamaz.
+- Terminal çıktısı üretmez.
+- JSON raporu oluşturmaz.
+- Exit code hesaplamaz.
+
+### Test Gereksinimleri
+
+Unit testler en az aşağıdaki durumları kapsayacaktır:
+
+- Boş response payload
+- Tek vulnerability kaydı
+- Tam nested vulnerability kaydı
+- Pagination token
+- Eksik opsiyonel alanlar
+- Bilinmeyen alanların yok sayılması
+- Collection sırasının korunması
+- Duplicate değerlerin korunması
+- Listelerin tuple değerlerine dönüştürülmesi
+- Geçersiz top-level payload
+- Geçersiz vulnerability kaydı
+- Eksik vulnerability ID değeri
+- Geçersiz alias collection
+- Geçersiz severity kaydı
+- Geçersiz affected package
+- Geçersiz package kaydı
+- Geçersiz range kaydı
+- Geçersiz range event kaydı
+- Geçersiz version collection
+- Model doğrulama hatalarının parser hatasına dönüştürülmesi
+
+Testler tamamen offline çalışacaktır.
+
+HTTP bağlantısı veya gerçek OSV servisi kullanılmayacaktır.
 
 ## Navigation
 
