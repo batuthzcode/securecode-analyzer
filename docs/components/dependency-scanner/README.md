@@ -154,12 +154,179 @@ SecureCode Analyzer self-analysis sonucu:
 ```text
 No findings found.
 ```
+## Uygulanan Requirements Parser
+
+Dependency scanner bileşenine `requirements.txt` ayrıştırıcısı eklenmiştir.
+
+Oluşturulan modül:
+
+```text
+src/dependency_scanner/requirements_parser.py
+```
+
+Test dosyası:
+
+```text
+tests/test_requirements_parser.py
+```
+
+### Public API
+
+Parser bileşenleri paket seviyesinden kullanılabilir:
+
+```python
+from dependency_scanner import (
+    RequirementsParseError,
+    parse_requirement_line,
+    parse_requirements_file,
+    parse_requirements_text,
+)
+```
+
+### Desteklenen Requirement Biçimi
+
+İlk sürümde tam sürüm sabitlemesi desteklenmektedir:
+
+```text
+Flask==2.0.0
+requests==2.25.0
+example-package==1.4.2
+```
+
+Operatör çevresindeki boşluklar kabul edilmektedir:
+
+```text
+Flask == 2.0.0
+```
+
+Parser paket adının orijinal yazımını korur ve şu aşamada paket adı
+normalizasyonu yapmaz.
+
+### Atlanan Satırlar
+
+Aşağıdaki satırlar dependency üretmeden atlanır:
+
+- Boş satırlar
+- Yalnızca whitespace içeren satırlar
+- Tam satır yorumları
+- Girintili tam satır yorumları
+
+Örnek:
+
+```text
+# production dependencies
+
+Flask==2.0.0
+```
+
+Bu örnekte `Flask` dependency kaydının satır numarası `3` olarak korunur.
+
+### Üretilen Dependency Bilgileri
+
+Her geçerli satır aşağıdaki alanlara sahip bir `Dependency` modeline
+dönüştürülür:
+
+- Paket adı
+- Paket sürümü
+- Sürüm operatörü
+- Kaynak dosya yolu
+- Bir tabanlı satır numarası
+
+Sonuçlar requirements dosyasındaki kaynak sırasıyla tuple olarak döndürülür.
+
+Parser:
+
+- Sonuçları alfabetik olarak sıralamaz.
+- Tekrarlanan paketleri kaldırmaz.
+- Paket adlarını normalleştirmez.
+- Sürümleri karşılaştırmaz.
+
+### Parse Hataları
+
+Desteklenmeyen aktif satırlar için:
+
+```python
+RequirementsParseError
+```
+
+üretilir.
+
+Exception aşağıdaki bilgileri saklar:
+
+- `source_file`
+- `line_number`
+- `line`
+- `reason`
+
+Örnek hata mesajı:
+
+```text
+requirements.txt:4: Unsupported requirement format.
+```
+
+İlk sürümde aşağıdaki biçimler desteklenmemektedir:
+
+- `>=`, `~=`, `<` gibi farklı operatörler
+- Inline yorumlar
+- Environment marker ifadeleri
+- Extras
+- Requirements include satırları
+- Constraint satırları
+- Index seçenekleri
+- Hash değerleri
+- URL dependency kayıtları
+- VCS dependency kayıtları
+- Yerel paket yolları
+
+### Dosya Okuma
+
+`parse_requirements_file()`:
+
+- Dosyayı UTF-8 olarak okur.
+- Dosya yolunu dependency modellerine aktarır.
+- İçeriği `parse_requirements_text()` ile ayrıştırır.
+- Sonuçları tuple olarak döndürür.
+
+Aşağıdaki operasyonel hatalar gizlenmez:
+
+- `FileNotFoundError`
+- `PermissionError`
+- `IsADirectoryError`
+- `UnicodeDecodeError`
+
+### Test Sonuçları
+
+Requirements parser testleri:
+
+```text
+38 passed
+```
+
+Tam proje testleri:
+
+```text
+366 passed
+```
+
+SecureCode Analyzer self-analysis sonucu:
+
+```text
+No findings found.
+```
+
+Self-analysis exit code:
+
+```text
+0
+```
 
 ## Mevcut Durum
 
-Dependency scanner geliştirmesi başlamıştır. Ortak veri modelleri ve model
-testleri tamamlanmıştır. Sıradaki aşama `requirements.txt` ayrıştırıcısının
-geliştirilmesidir.## Navigation
+Dependency scanner geliştirmesi devam etmektedir. Ortak veri modelleri ve
+`requirements.txt` ayrıştırıcısı tamamlanmıştır.
+
+Sıradaki aşama paket adı normalizasyonu ve vulnerability kaynağı istemci
+arayüzünün geliştirilmesidir.
 
 ## Navigation
 

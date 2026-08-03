@@ -653,6 +653,230 @@ Planlanan dosyalar:
 src/dependency_scanner/requirements_parser.py
 tests/test_requirements_parser.py
 ```
+## Gerçekleştirilen Requirements Parser
+
+Dependency scanner için exact-pin requirements ayrıştırıcısı uygulanmıştır.
+
+### Oluşturulan Dosyalar
+
+```text
+src/dependency_scanner/requirements_parser.py
+tests/test_requirements_parser.py
+```
+
+Mevcut paket export dosyası güncellenmiştir:
+
+```text
+src/dependency_scanner/__init__.py
+```
+
+### Public Bileşenler
+
+Aşağıdaki bileşenler `dependency_scanner` paketi üzerinden dışa
+aktarılmaktadır:
+
+```python
+from dependency_scanner import (
+    RequirementsParseError,
+    parse_requirement_line,
+    parse_requirements_file,
+    parse_requirements_text,
+)
+```
+
+### Satır Ayrıştırma
+
+`parse_requirement_line()` tek bir requirements satırını işler.
+
+Geçerli örnek:
+
+```text
+Flask==2.0.0
+```
+
+Üretilen model:
+
+```python
+Dependency(
+    name="Flask",
+    version="2.0.0",
+    operator="==",
+    source_file="requirements.txt",
+    line_number=1,
+)
+```
+
+Operatör çevresindeki boşluklar kabul edilmektedir:
+
+```text
+Flask == 2.0.0
+```
+
+Paket adı ve sürüm değeri çevresindeki gereksiz boşluklar ayrıştırma sırasında
+temizlenmektedir.
+
+### Desteklenen Paket Adları
+
+İlk uygulama aşağıdaki karakterleri içeren paket adlarını desteklemektedir:
+
+- Harf
+- Rakam
+- Tire
+- Alt çizgi
+- Nokta
+
+Örnekler:
+
+```text
+example-package
+example_package
+example.package
+package2
+```
+
+Paket adı normalizasyonu parser sorumluluğuna dahil edilmemiştir.
+
+### Boş ve Yorum Satırları
+
+Aşağıdaki satırlar için `None` döndürülmektedir:
+
+- Boş satırlar
+- Whitespace-only satırlar
+- İlk görünür karakteri `#` olan tam satır yorumları
+
+Metin ayrıştırma sırasında bu satırlar sonuç tuple değerine eklenmez.
+
+### Metin Ayrıştırma
+
+`parse_requirements_text()`:
+
+1. Metni satırlara ayırır.
+2. Satır numaralarını `1` değerinden başlatır.
+3. Satırları kaynak sırasıyla işler.
+4. Boş ve yorum satırlarını atlar.
+5. Aktif satırları `parse_requirement_line()` ile ayrıştırır.
+6. Sonuçları tuple olarak döndürür.
+
+Boş ve yorum satırları satır numarası hesaplamasından çıkarılmaz.
+
+Parser dependency kayıtlarını sıralamaz veya tekrarları kaldırmaz.
+
+### Dosya Ayrıştırma
+
+`parse_requirements_file()`:
+
+1. Girdiyi `Path` nesnesine dönüştürür.
+2. Dosyayı UTF-8 olarak okur.
+3. İçeriği `parse_requirements_text()` fonksiyonuna gönderir.
+4. Dosya yolunu dependency modellerine aktarır.
+5. Sonuçları tuple olarak döndürür.
+
+Operasyonel dosya hataları parser hatasına dönüştürülmez.
+
+Korunan hata türleri:
+
+```text
+FileNotFoundError
+PermissionError
+IsADirectoryError
+UnicodeDecodeError
+```
+
+### RequirementsParseError
+
+Desteklenmeyen aktif requirements satırları
+`RequirementsParseError` üretmektedir.
+
+Exception alanları:
+
+| Alan | Açıklama |
+|---|---|
+| `source_file` | Hatanın bulunduğu requirements dosyası |
+| `line_number` | Bir tabanlı satır numarası |
+| `line` | Orijinal satır içeriği |
+| `reason` | Kullanıcı tarafından okunabilir hata nedeni |
+
+Örnek mesaj:
+
+```text
+requirements.txt:4: Unsupported requirement format.
+```
+
+Orijinal satır exception alanında saklanır ancak hata mesajında gereksiz
+şekilde tekrar edilmez.
+
+### Reddedilen Biçimler
+
+İlk uygulamada aşağıdaki biçimler reddedilmektedir:
+
+```text
+==1.2.3
+Flask==
+Flask>=2.0.0
+Flask~=2.0.0
+Flask<3.0.0
+Flask==2.0.0 # comment
+Flask==2.0.0; python_version >= "3.11"
+requests[security]==2.25.0
+-r base-requirements.txt
+-c constraints.txt
+--index-url https://example.com/simple
+Flask==2.0.0 --hash=sha256:example
+package @ https://example.com/package.whl
+git+https://example.com/repository.git
+../local-package
+```
+
+Bu biçimler gelecekte ayrı geliştirmelerle desteklenebilir.
+
+### Sorumluluk Sınırları
+
+Requirements parser:
+
+- Paket adı normalizasyonu yapmaz.
+- Paket sürümü karşılaştırmaz.
+- Duplicate dependency politikası uygulamaz.
+- OSV API isteği göndermez.
+- Advisory kayıtlarını ayrıştırmaz.
+- Güvenlik açığı bulgusu oluşturmaz.
+- Terminal raporu üretmez.
+- JSON dosyası yazmaz.
+- Exit code hesaplamaz.
+- Static analyzer paketine bağımlı değildir.
+
+### Test Sonuçları
+
+Requirements parser testleri:
+
+```text
+38 passed
+```
+
+Tam test paketi:
+
+```text
+366 passed
+```
+
+Derleme kontrolü:
+
+```powershell
+.\.venv\Scripts\python.exe -m compileall -q src tests
+```
+
+Derleme kontrolü hata üretmemiştir.
+
+Self-analysis:
+
+```text
+No findings found.
+```
+
+Self-analysis exit code:
+
+```text
+0
+```
 
 ## Navigation
 
