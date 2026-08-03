@@ -1722,6 +1722,367 @@ Self-analysis exit code:
 ```text
 0
 ```
+## Vulnerability Source Interface Gereksinimleri
+
+### Amaç
+
+Vulnerability source interface, dependency bilgilerini farklı güvenlik açığı
+kaynaklarında sorgulayan bileşenler için ortak bir sözleşme sağlayacaktır.
+
+Bu arayüz sayesinde dependency scanner:
+
+- Belirli bir API sağlayıcısına doğrudan bağımlı olmayacaktır.
+- OSV gibi gerçek kaynaklar sonradan ayrı sınıflarla uygulanabilecektir.
+- Unit testlerde internet gerektirmeyen sahte kaynaklar kullanılabilecektir.
+- Tarama akışı kaynak uygulamasından bağımsız geliştirilebilecektir.
+- Yeni güvenlik açığı kaynakları mevcut tarama kodu değiştirilmeden
+  eklenebilecektir.
+
+Planlanan modül:
+
+```text
+src/dependency_scanner/vulnerability_source.py
+```
+
+Planlanan test dosyası:
+
+```text
+tests/test_vulnerability_source.py
+```
+
+### Public API
+
+Aşağıdaki arayüz paket seviyesinden import edilebilmelidir:
+
+```python
+from dependency_scanner import VulnerabilitySource
+```
+
+Planlanan sözleşme:
+
+```python
+class VulnerabilitySource(Protocol):
+    @property
+    def advisory_source(self) -> AdvisorySource:
+        ...
+
+    def find_vulnerabilities(
+        self,
+        dependency: Dependency,
+    ) -> tuple[DependencyFinding, ...]:
+        ...
+```
+
+Arayüz `typing.Protocol` kullanmalıdır.
+
+Concrete kaynak sınıflarının zorunlu olarak bu arayüzden kalıtım alması
+gerekmemelidir. Gerekli alanları ve metotları sağlamaları yeterli olmalıdır.
+
+### Advisory Source Bilgisi
+
+Her vulnerability source aşağıdaki property değerini sağlamalıdır:
+
+```python
+advisory_source
+```
+
+Bu property bir `AdvisorySource` modeli döndürmelidir.
+
+Örnek:
+
+```python
+source.advisory_source == AdvisorySource(
+    name="OSV",
+    url="https://osv.dev",
+)
+```
+
+Bu bilgi:
+
+- Kaynak adını kullanıcıya göstermek
+- Bulguların hangi kaynaktan geldiğini belirtmek
+- Terminal ve JSON raporlarına kaynak bilgisi eklemek
+
+için kullanılabilecektir.
+
+Property aynı kaynak örneği için deterministik davranmalıdır.
+
+### Vulnerability Sorgulama Metodu
+
+Her kaynak aşağıdaki metodu sağlamalıdır:
+
+```python
+find_vulnerabilities(
+    dependency: Dependency,
+) -> tuple[DependencyFinding, ...]
+```
+
+Metot tek bir `Dependency` almalı ve bu dependency değerini etkileyen
+vulnerability bulgularını tuple olarak döndürmelidir.
+
+Bulgu yoksa:
+
+```python
+()
+```
+
+döndürülmelidir.
+
+Bulgu bulunduğunda:
+
+```python
+(
+    DependencyFinding(...),
+    DependencyFinding(...),
+)
+```
+
+biçiminde sonuç üretilmelidir.
+
+`None`, liste veya generator public dönüş değeri olarak kullanılmamalıdır.
+
+### Dependency Bilgisinin Korunması
+
+Kaynağa verilen `Dependency` modeli değiştirilmemelidir.
+
+Concrete kaynak, dış servise sorgu hazırlarken paket adını normalize edebilir:
+
+```python
+normalized_name = normalize_package_name(
+    dependency.name
+)
+```
+
+Ancak döndürülen `DependencyFinding.dependency` alanında kullanıcının orijinal
+dependency modeli korunmalıdır.
+
+Örnek:
+
+```python
+dependency.name == "Sample_Package"
+normalized_query_name == "sample-package"
+finding.dependency is dependency
+```
+
+Interface kendi başına paket adı normalizasyonu yapmamalıdır. Bu işlem concrete
+kaynak uygulamasının sorgu hazırlama sorumluluğudur.
+
+### Bulgu Sözleşmesi
+
+Döndürülen her değer `DependencyFinding` örneği olmalıdır.
+
+Her bulgu:
+
+- Sorgulanan dependency bilgisini içermelidir.
+- Advisory kimliğini içermelidir.
+- Kullanıcı tarafından okunabilir açıklama içermelidir.
+- Kaynak bilgisini içermelidir.
+- Biliniyorsa severity bilgisini içermelidir.
+- Biliniyorsa fixed version bilgisini içermelidir.
+- Biliniyorsa CVE veya GHSA alias değerlerini içermelidir.
+
+Concrete kaynaklar, eksik severity bilgisinde:
+
+```python
+VulnerabilitySeverity.UNKNOWN
+```
+
+değerini kullanmalıdır.
+
+Eksik fixed version değeri:
+
+```python
+None
+```
+
+olmalıdır.
+
+Eksik aliases değeri:
+
+```python
+()
+```
+
+olmalıdır.
+
+### Sonuç Sırası
+
+Concrete kaynak aynı advisory verileri için deterministik sonuç sırası
+üretmelidir.
+
+Arayüz katmanı:
+
+- Bulguları alfabetik olarak sıralamamalıdır.
+- Duplicate advisory kayıtlarını otomatik kaldırmamalıdır.
+- Severity değerine göre yeniden sıralama yapmamalıdır.
+- Kaynaktan gelen bulguları gizlememelidir.
+
+Sıralama ve duplicate politikası gerekiyorsa daha üst bir tarama katmanında
+ayrıca tanımlanmalıdır.
+
+### Hata Davranışı
+
+Vulnerability source interface hata yakalamamalı veya dönüştürmemelidir.
+
+Concrete kaynaklarda oluşabilecek hata örnekleri:
+
+- Ağ bağlantısı hatası
+- Zaman aşımı
+- HTTP hata cevabı
+- Geçersiz JSON
+- Beklenmeyen API cevabı
+- Eksik advisory alanları
+
+Bu hataların nasıl temsil edileceği concrete istemci geliştirmesinde ayrıca
+tanımlanacaktır.
+
+Interface bu aşamada:
+
+- Retry uygulamayacaktır.
+- Timeout değeri belirlemeyecektir.
+- Hataları boş bulgu sonucu gibi göstermeyecektir.
+- Hataları terminale yazmayacaktır.
+- Exit code hesaplamayacaktır.
+
+### Sahte Kaynak Kullanımı
+
+Unit testlerde internet bağlantısı kullanılmamalıdır.
+
+Testlerde aşağıdaki gibi basit bir fake kaynak oluşturulabilmelidir:
+
+```python
+class FakeVulnerabilitySource:
+    def __init__(
+        self,
+        findings: tuple[DependencyFinding, ...],
+    ) -> None:
+        self._findings = findings
+        self.received_dependencies: list[
+            Dependency
+        ] = []
+
+    @property
+    def advisory_source(self) -> AdvisorySource:
+        return AdvisorySource(
+            name="Fake",
+            url=None,
+        )
+
+    def find_vulnerabilities(
+        self,
+        dependency: Dependency,
+    ) -> tuple[DependencyFinding, ...]:
+        self.received_dependencies.append(
+            dependency
+        )
+        return self._findings
+```
+
+Fake sınıfın arayüzü yapısal olarak karşılaması yeterli olmalıdır.
+
+### Runtime Davranışı
+
+Arayüz mümkünse:
+
+```python
+@runtime_checkable
+```
+
+ile tanımlanmalıdır.
+
+Böylece testlerde ve dependency injection sınırlarında aşağıdaki kontrol
+yapılabilecektir:
+
+```python
+isinstance(
+    fake_source,
+    VulnerabilitySource,
+)
+```
+
+Runtime kontrolü yalnızca gerekli property ve metotların varlığını doğrular.
+
+Metotların gerçek dönüş değerleri ayrıca unit testlerle doğrulanmalıdır.
+
+### Paket Exportu
+
+Aşağıdaki import çalışmalıdır:
+
+```python
+from dependency_scanner import VulnerabilitySource
+```
+
+Mevcut exportlar korunmalıdır:
+
+- Dependency modelleri
+- Requirements parser bileşenleri
+- Paket adı normalizasyon fonksiyonu
+
+### Sorumluluk Sınırları
+
+Vulnerability source interface:
+
+- Requirements dosyası okumayacaktır.
+- Requirements satırı ayrıştırmayacaktır.
+- Dependency modelini değiştirmeyecektir.
+- Paket adı normalizasyonunu kendisi uygulamayacaktır.
+- Paket sürümü karşılaştırmayacaktır.
+- HTTP isteği göndermeyecektir.
+- OSV cevabı ayrıştırmayacaktır.
+- Retry veya timeout politikası uygulamayacaktır.
+- Cache kullanmayacaktır.
+- Terminal raporu üretmeyecektir.
+- JSON dosyası yazmayacaktır.
+- Exit code hesaplamayacaktır.
+- Static analyzer paketine bağımlı olmayacaktır.
+
+### Test Gereksinimleri
+
+Unit testler en az aşağıdaki davranışları doğrulamalıdır:
+
+- Public `VulnerabilitySource` importu
+- Protocol tanımının runtime kontrolüne uygun olması
+- Fake kaynağın arayüzü karşılaması
+- Eksik property içeren nesnenin arayüzü karşılamaması
+- Eksik metot içeren nesnenin arayüzü karşılamaması
+- `advisory_source` property değerinin `AdvisorySource` olması
+- `find_vulnerabilities()` metodunun dependency alması
+- Sorgulanan dependency örneğinin korunması
+- Bulgusuz sonucun boş tuple olması
+- Tek bulgulu sonucun tuple olması
+- Birden fazla bulgunun kaynak sırasının korunması
+- Döndürülen değerlerin `DependencyFinding` olması
+- Dependency modelinin değiştirilmemesi
+- Fake kaynağın internet bağlantısı kullanmaması
+- Mevcut public package exportlarının korunması
+- Static analyzer paketinden bağımsızlık
+- Bütün mevcut testlerin geçmeye devam etmesi
+- Self-analysis sonucunun temiz olması
+
+### Kabul Kriterleri
+
+1. `vulnerability_source.py` modülü oluşturulmalıdır.
+2. `VulnerabilitySource` protocol arayüzü tanımlanmalıdır.
+3. Arayüz `advisory_source` property değerini tanımlamalıdır.
+4. Arayüz `find_vulnerabilities()` metodunu tanımlamalıdır.
+5. Metot tuple biçiminde `DependencyFinding` sonuçları üretmelidir.
+6. Bulgusuz durumda boş tuple kullanılmalıdır.
+7. Runtime protocol kontrolü desteklenmelidir.
+8. Fake kaynak sınıfı internet olmadan test edilebilmelidir.
+9. Public interface paket seviyesinden export edilmelidir.
+10. Mevcut modeller, parser ve normalizer davranışları korunmalıdır.
+11. Arayüz gerçek HTTP veya OSV kodu içermemelidir.
+12. Unit testler dış servislere bağlanmamalıdır.
+13. Bütün proje testleri geçmelidir.
+14. SecureCode Analyzer self-analysis sonucu temiz olmalıdır.
+
+### Planlanan Git Commitleri
+
+```text
+docs(dependency-scanner): define vulnerability source requirements
+feat(dependency-scanner): add vulnerability source interface
+docs(dependency-scanner): document vulnerability source interface
+```
 
 ## Navigation
 
