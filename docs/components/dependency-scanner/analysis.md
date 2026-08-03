@@ -2263,6 +2263,463 @@ Self-analysis exit code:
 ```text
 0
 ```
+## OSV Response Model Gereksinimleri
+
+### Amaç
+
+OSV response modelleri, OSV API tarafından döndürülen vulnerability
+bilgilerini uygulama içinde immutable ve tip güvenli Python nesneleriyle
+temsil edecektir.
+
+Bu modeller sayesinde:
+
+- OSV JSON ayrıştırma işlemi model yapısından ayrılacaktır.
+- Vulnerability kayıtları deterministik biçimde taşınabilecektir.
+- Unit testlerde gerçek ağ bağlantısı kullanılmayacaktır.
+- OSV istemcisi ile DependencyFinding dönüştürücüsü birbirinden
+  ayrılabilecektir.
+- Eksik veya opsiyonel OSV alanları açık biçimde temsil edilebilecektir.
+
+Planlanan modül:
+
+```text
+src/dependency_scanner/osv_models.py
+```
+
+Planlanan test dosyası:
+
+```text
+tests/test_osv_models.py
+```
+
+### Model Listesi
+
+Aşağıdaki modeller planlanmaktadır:
+
+```text
+OsvSeverity
+OsvRangeEvent
+OsvRange
+OsvPackage
+OsvAffectedPackage
+OsvVulnerability
+OsvQueryResponse
+```
+
+Model sınıfları:
+
+- `dataclass` kullanmalıdır.
+- `frozen=True` olmalıdır.
+- `slots=True` olmalıdır.
+- Mutable liste yerine tuple kullanmalıdır.
+- JSON-serializable sözlük çıktısı üretebilmelidir.
+- Ağ veya dosya işlemi yapmamalıdır.
+
+### OsvSeverity
+
+OSV severity kaydını temsil etmelidir.
+
+Planlanan alanlar:
+
+```python
+@dataclass(frozen=True, slots=True)
+class OsvSeverity:
+    severity_type: str
+    score: str
+```
+
+`severity_type` örnekleri:
+
+```text
+CVSS_V2
+CVSS_V3
+CVSS_V4
+```
+
+`score`, OSV tarafından sağlanan severity veya CVSS değerini orijinal string
+biçiminde korumalıdır.
+
+Bu model kendi başına severity sınıflandırması yapmamalıdır.
+
+### OsvRangeEvent
+
+Vulnerable version range içindeki bir olayı temsil etmelidir.
+
+Planlanan alanlar:
+
+```python
+@dataclass(frozen=True, slots=True)
+class OsvRangeEvent:
+    introduced: str | None = None
+    fixed: str | None = None
+    last_affected: str | None = None
+    limit: str | None = None
+```
+
+Bir event aşağıdaki bilgilerden birini veya gerekli olduğu durumda uygun
+kombinasyonunu taşıyabilir:
+
+- Vulnerability başlangıcı
+- Düzeltilen sürüm
+- Etkilenen son sürüm
+- Range sınırı
+
+Eksik alanlar `None` olmalıdır.
+
+### OsvRange
+
+Bir affected package içindeki version range bilgisini temsil etmelidir.
+
+Planlanan alanlar:
+
+```python
+@dataclass(frozen=True, slots=True)
+class OsvRange:
+    range_type: str
+    events: tuple[OsvRangeEvent, ...]
+```
+
+`range_type` örnekleri:
+
+```text
+ECOSYSTEM
+SEMVER
+GIT
+```
+
+Event sırası OSV cevabındaki sırayla korunmalıdır.
+
+Model:
+
+- Event sırasını değiştirmemelidir.
+- Version karşılaştırması yapmamalıdır.
+- Vulnerable olup olmadığına karar vermemelidir.
+
+### OsvPackage
+
+OSV affected kaydındaki paket bilgisini temsil etmelidir.
+
+Planlanan alanlar:
+
+```python
+@dataclass(frozen=True, slots=True)
+class OsvPackage:
+    ecosystem: str
+    name: str
+```
+
+Python dependency sorguları için ecosystem değeri genellikle:
+
+```text
+PyPI
+```
+
+olacaktır.
+
+Paket adı OSV cevabındaki biçimiyle korunmalıdır. Bu model otomatik paket adı
+normalizasyonu yapmamalıdır.
+
+### OsvAffectedPackage
+
+Bir vulnerability tarafından etkilenen paket bilgisini temsil etmelidir.
+
+Planlanan alanlar:
+
+```python
+@dataclass(frozen=True, slots=True)
+class OsvAffectedPackage:
+    package: OsvPackage
+    ranges: tuple[OsvRange, ...] = ()
+    versions: tuple[str, ...] = ()
+    severity: tuple[OsvSeverity, ...] = ()
+```
+
+Model aşağıdaki bilgileri taşıyabilmelidir:
+
+- Etkilenen paket
+- Vulnerable version range değerleri
+- Açıkça listelenmiş affected sürümler
+- Pakete özel severity değerleri
+
+Collection alanları tuple olmalıdır.
+
+OSV cevabında alan bulunmuyorsa boş tuple kullanılmalıdır.
+
+### OsvVulnerability
+
+Tek bir OSV vulnerability kaydını temsil etmelidir.
+
+Planlanan alanlar:
+
+```python
+@dataclass(frozen=True, slots=True)
+class OsvVulnerability:
+    advisory_id: str
+    summary: str | None = None
+    details: str | None = None
+    aliases: tuple[str, ...] = ()
+    severity: tuple[OsvSeverity, ...] = ()
+    affected: tuple[OsvAffectedPackage, ...] = ()
+```
+
+`advisory_id` OSV kaydının zorunlu kimliğidir.
+
+Örnekler:
+
+```text
+GHSA-xxxx-xxxx-xxxx
+PYSEC-2024-000
+CVE-2024-0000
+```
+
+`summary` veya `details` bulunmuyorsa `None` kullanılmalıdır.
+
+Aliases sırası değiştirilmemelidir.
+
+Aliases içinde aşağıdaki kimlik türleri bulunabilir:
+
+```text
+CVE
+GHSA
+PYSEC
+```
+
+Model duplicate alias değerlerini otomatik kaldırmamalıdır.
+
+### OsvQueryResponse
+
+Tek bir OSV query cevabını temsil etmelidir.
+
+Planlanan alanlar:
+
+```python
+@dataclass(frozen=True, slots=True)
+class OsvQueryResponse:
+    vulnerabilities: tuple[OsvVulnerability, ...] = ()
+    next_page_token: str | None = None
+```
+
+OSV JSON cevabındaki:
+
+```text
+vulns
+```
+
+alanı parser katmanında:
+
+```text
+vulnerabilities
+```
+
+alanına dönüştürülecektir.
+
+Bulgu bulunmadığında:
+
+```python
+OsvQueryResponse(
+    vulnerabilities=(),
+    next_page_token=None,
+)
+```
+
+oluşturulabilmelidir.
+
+Pagination token bulunmuyorsa `None` kullanılmalıdır.
+
+Vulnerability sırası OSV cevabındaki sırayla korunmalıdır.
+
+### Immutable Davranış
+
+Bütün modeller immutable olmalıdır.
+
+Aşağıdaki gibi alan değişikliği yapılamamalıdır:
+
+```python
+vulnerability.advisory_id = "CHANGED"
+```
+
+Tuple alanlarına yeni değer eklenememelidir.
+
+Immutable yapı:
+
+- Testlerin deterministik olmasını
+- API cevabının yanlışlıkla değiştirilmemesini
+- Katmanlar arasında güvenilir veri aktarımını
+
+sağlayacaktır.
+
+### Sözlük Dönüşümü
+
+Her model JSON-serializable sözlük çıktısı sağlayabilmelidir:
+
+```python
+model.to_dict()
+```
+
+Nested modeller recursive olarak sözlüğe dönüştürülmelidir.
+
+Tuple alanları JSON çıktısına uygun biçimde listeye dönüştürülebilir.
+
+`None` değerleri korunmalıdır.
+
+Enum kullanılmadığı için ham OSV değerleri string olarak korunmalıdır.
+
+### Doğrulama Kuralları
+
+Aşağıdaki zorunlu string alanları boş olmamalıdır:
+
+```text
+OsvSeverity.severity_type
+OsvSeverity.score
+OsvRange.range_type
+OsvPackage.ecosystem
+OsvPackage.name
+OsvVulnerability.advisory_id
+```
+
+Aşağıdaki girdiler reddedilmelidir:
+
+- String olmayan zorunlu alan
+- Boş string
+- Whitespace-only string
+- Collection alanında yanlış model tipi
+- Collection yerine string, liste veya dictionary verilmesi
+
+Geçersiz girdilerde:
+
+```python
+ValueError
+```
+
+üretilmelidir.
+
+Opsiyonel string alanlar:
+
+```text
+summary
+details
+next_page_token
+introduced
+fixed
+last_affected
+limit
+```
+
+için `None` kabul edilmelidir.
+
+String sağlandığında boş veya whitespace-only değer kabul edilmemelidir.
+
+### Sıra Koruması
+
+Aşağıdaki koleksiyonların sırası değiştirilmemelidir:
+
+- Severity kayıtları
+- Range event kayıtları
+- Range kayıtları
+- Explicit affected versions
+- Aliases
+- Affected package kayıtları
+- Vulnerability kayıtları
+
+Modeller:
+
+- Alfabetik sıralama yapmamalıdır.
+- Duplicate değerleri otomatik kaldırmamalıdır.
+- Severity değerine göre sıralama yapmamalıdır.
+
+### Public Paket Exportu
+
+Aşağıdaki importlar çalışmalıdır:
+
+```python
+from dependency_scanner import (
+    OsvAffectedPackage,
+    OsvPackage,
+    OsvQueryResponse,
+    OsvRange,
+    OsvRangeEvent,
+    OsvSeverity,
+    OsvVulnerability,
+)
+```
+
+Mevcut public exportlar korunmalıdır:
+
+- Dependency modelleri
+- Requirements parser
+- Package name normalizer
+- VulnerabilitySource protocol
+
+### Sorumluluk Sınırları
+
+OSV response modelleri:
+
+- HTTP isteği göndermeyecektir.
+- OSV API bağlantısı kurmayacaktır.
+- JSON metni ayrıştırmayacaktır.
+- Dependency modeli oluşturmayacaktır.
+- Paket adı normalizasyonu yapmayacaktır.
+- Version karşılaştırması yapmayacaktır.
+- Bir sürümün vulnerable olup olmadığına karar vermeyecektir.
+- OSV severity değerini uygulama severity enumuna dönüştürmeyecektir.
+- DependencyFinding oluşturmayacaktır.
+- Retry, timeout veya cache uygulamayacaktır.
+- Terminal raporu üretmeyecektir.
+- JSON dosyası yazmayacaktır.
+- Exit code hesaplamayacaktır.
+- Static analyzer paketine bağımlı olmayacaktır.
+
+### Test Gereksinimleri
+
+Unit testler en az aşağıdaki davranışları doğrulamalıdır:
+
+- Bütün OSV modellerinin public importu
+- Zorunlu alanlarla model oluşturma
+- Opsiyonel alanların varsayılan değerleri
+- Nested model oluşturma
+- Empty query response
+- Birden fazla vulnerability sırasının korunması
+- Alias sırasının korunması
+- Affected package sırasının korunması
+- Version sırasının korunması
+- Range event sırasının korunması
+- Severity sırasının korunması
+- Pagination token desteği
+- Immutable model davranışı
+- Recursive `to_dict()` çıktısı
+- Boş zorunlu stringlerin reddedilmesi
+- Whitespace-only değerlerin reddedilmesi
+- Yanlış collection tiplerinin reddedilmesi
+- Collection içindeki yanlış model tiplerinin reddedilmesi
+- Modellerin internet bağlantısı kullanmaması
+- Mevcut public exportların korunması
+- Bütün mevcut testlerin geçmesi
+- Self-analysis sonucunun temiz olması
+
+### Kabul Kriterleri
+
+1. `osv_models.py` oluşturulmalıdır.
+2. Yedi OSV response modeli tanımlanmalıdır.
+3. Modeller frozen ve slotted dataclass olmalıdır.
+4. Collection alanları tuple olmalıdır.
+5. Opsiyonel alanlar `None` ile temsil edilmelidir.
+6. Nested response yapısı desteklenmelidir.
+7. OSV cevabındaki sıra korunmalıdır.
+8. Modeller recursive sözlük çıktısı üretmelidir.
+9. Zorunlu alanlar doğrulanmalıdır.
+10. Public package exportları eklenmelidir.
+11. Gerçek HTTP veya JSON parser kodu eklenmemelidir.
+12. Unit testler dış servislere bağlanmamalıdır.
+13. Mevcut testler geçmeye devam etmelidir.
+14. SecureCode Analyzer self-analysis sonucu temiz olmalıdır.
+
+### Planlanan Git Commitleri
+
+```text
+docs(dependency-scanner): define OSV response model requirements
+feat(dependency-scanner): add OSV response models
+docs(dependency-scanner): document OSV response models
+```
 
 ## Navigation
 
