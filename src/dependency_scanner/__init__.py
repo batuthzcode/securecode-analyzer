@@ -6,6 +6,9 @@ from dependency_scanner.models import (
     DependencyFinding,
     VulnerabilitySeverity,
 )
+from dependency_scanner.package_normalizer import (
+    normalize_package_name,
+)
 from dependency_scanner.requirements_parser import (
     RequirementsParseError,
     parse_requirement_line,
@@ -19,6 +22,7 @@ __all__ = [
     "DependencyFinding",
     "RequirementsParseError",
     "VulnerabilitySeverity",
+    "normalize_package_name",
     "parse_requirement_line",
     "parse_requirements_file",
     "parse_requirements_text",
