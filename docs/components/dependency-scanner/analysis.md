@@ -1190,6 +1190,538 @@ docs(dependency-scanner): define package normalization requirements
 feat(dependency-scanner): add package name normalization
 docs(dependency-scanner): document package name normalization
 ```
+## Gerçekleştirilen Paket Adı Normalizasyonu
+
+Python paket adlarının güvenlik açığı kaynaklarında güvenilir biçimde
+karşılaştırılabilmesi için paket adı normalizasyonu uygulanmıştır.
+
+### Oluşturulan Dosyalar
+
+```text
+src/dependency_scanner/package_normalizer.py
+tests/test_package_normalizer.py
+```
+
+Public paket export dosyası güncellenmiştir:
+
+```text
+src/dependency_scanner/__init__.py
+```
+
+### Public Fonksiyon
+
+Aşağıdaki fonksiyon `dependency_scanner` paketinden dışa aktarılmaktadır:
+
+```python
+from dependency_scanner import normalize_package_name
+```
+
+Fonksiyon imzası:
+
+```python
+def normalize_package_name(name: str) -> str:
+    ...
+```
+
+### Normalizasyon Akışı
+
+`normalize_package_name()` aşağıdaki işlemleri uygular:
+
+1. Girdinin string olduğunu doğrular.
+2. Başındaki ve sonundaki whitespace değerlerini temizler.
+3. Paket adının yalnızca desteklenen karakterleri içerdiğini doğrular.
+4. Ardışık tire, alt çizgi ve nokta karakterlerini tek tireye dönüştürür.
+5. Büyük harfleri küçük harfe dönüştürür.
+6. Sonucun en az bir alfanümerik karakter içerdiğini doğrular.
+7. Normalize edilmiş string değerini döndürür.
+
+Ayırıcı normalizasyonu için aşağıdaki karakter grubu kullanılmaktadır:
+
+```text
+[-_.]+
+```
+
+Bu grup tek tire karakterine dönüştürülmektedir.
+
+### Normalizasyon Örnekleri
+
+| Girdi | Sonuç |
+|---|---|
+| `Flask` | `flask` |
+| `requests` | `requests` |
+| `sample-package` | `sample-package` |
+| `sample_package` | `sample-package` |
+| `sample.package` | `sample-package` |
+| `Sample_Package` | `sample-package` |
+| `sample---package` | `sample-package` |
+| `sample__package` | `sample-package` |
+| `sample..package` | `sample-package` |
+| `sample-_.package` | `sample-package` |
+| `package2` | `package2` |
+| `Package2_Name` | `package2-name` |
+
+Aşağıdaki farklı yazımlar aynı sonucu üretmektedir:
+
+```text
+Sample-Package
+sample_package
+sample.package
+sample---package
+```
+
+Normalize edilmiş sonuç:
+
+```text
+sample-package
+```
+
+### Orijinal Paket Adının Korunması
+
+Normalizasyon `Dependency` modelinin içinde otomatik olarak yapılmamaktadır.
+
+Örnek:
+
+```python
+dependency = Dependency(
+    name="Sample_Package",
+    version="1.0.0",
+    operator="==",
+    source_file="requirements.txt",
+    line_number=1,
+)
+
+normalized_name = normalize_package_name(
+    dependency.name
+)
+```
+
+Doğrulanan sonuç:
+
+```text
+dependency.name == "Sample_Package"
+normalized_name == "sample-package"
+```
+
+Bu ayrım sayesinde:
+
+- Requirements dosyasındaki orijinal yazım korunur.
+- Kullanıcıya gösterilecek dependency bilgisi değiştirilmez.
+- Güvenlik açığı sorgusu için normalize edilmiş ad ayrıca üretilebilir.
+- Parser ile normalizasyon sorumlulukları birbirinden ayrılır.
+
+### Girdi Doğrulaması
+
+Fonksiyon aşağıdaki değerleri reddetmektedir:
+
+- String olmayan değer
+- Boş string
+- Whitespace-only string
+- Yalnızca tire, alt çizgi veya noktadan oluşan değer
+- İç whitespace içeren değer
+- Slash içeren değer
+- `@`, `#` veya `:` gibi desteklenmeyen karakterler
+- ASCII paket adı kapsamı dışındaki karakterler
+
+Geçersiz örnekler:
+
+```text
+""
+" "
+"-"
+"_"
+"."
+"-_."
+"package name"
+"package/name"
+"package@name"
+"package#name"
+```
+
+Geçersiz girdilerde `ValueError` üretilmektedir.
+
+### Deterministik Davranış
+
+Normalizasyon fonksiyonu global state kullanmamaktadır.
+
+Aynı girdi her çağrıda aynı sonucu üretmektedir.
+
+Örnek:
+
+```python
+first_result = normalize_package_name(
+    "Sample_Package"
+)
+second_result = normalize_package_name(
+    "Sample_Package"
+)
+
+assert first_result == second_result
+```
+
+### Idempotent Davranış
+
+Normalize edilmiş paket adı tekrar normalize edildiğinde değişmemektedir:
+
+```python
+normalized_name = normalize_package_name(
+    "Sample_Package"
+)
+
+assert normalize_package_name(
+    normalized_name
+) == normalized_name
+```
+
+### Parser ile Entegrasyon Sınırı
+
+Requirements parser paket adının orijinal biçimini korumaktadır.
+
+Örnek requirements satırı:
+
+```text
+Sample_Package==1.0.0
+```
+
+Parser sonucu:
+
+```python
+Dependency(
+    name="Sample_Package",
+    version="1.0.0",
+    operator="==",
+    source_file="requirements.txt",
+    line_number=1,
+)
+```
+
+Normalizasyon parser içinde otomatik olarak uygulanmamaktadır.
+
+Güvenlik açığı kaynağına sorgu hazırlanırken aşağıdaki biçimde açıkça
+uygulanabilecektir:
+
+```python
+package_name = normalize_package_name(
+    dependency.name
+)
+```
+
+### Sorumluluk Sınırları
+
+Paket adı normalizasyonu:
+
+- Requirements dosyası okumaz.
+- Requirements satırı ayrıştırmaz.
+- Dependency modelini değiştirmez.
+- Yeni Dependency modeli oluşturmaz.
+- Paket sürümü karşılaştırmaz.
+- Duplicate dependency politikası uygulamaz.
+- OSV API isteği göndermez.
+- Advisory cevabı ayrıştırmaz.
+- Güvenlik açığı bulgusu oluşturmaz.
+- Terminal raporu üretmez.
+- JSON dosyası yazmaz.
+- Exit code hesaplamaz.
+- Static analyzer paketine bağımlı değildir.
+
+### Test Sonuçları
+
+Paket adı normalizasyon testleri:
+
+```text
+38 passed
+```
+
+Tam test paketi:
+
+```text
+404 passed
+```
+
+Derleme doğrulaması:
+
+```powershell
+.\.venv\Scripts\python.exe -m compileall -q src tests
+```
+
+Derleme kontrolü hata üretmemiştir.
+
+Self-analysis:
+
+```text
+No findings found.
+```
+
+Self-analysis exit code:
+
+```text
+0
+```
+## Gerçekleştirilen Paket Adı Normalizasyonu
+
+Python paket adlarının güvenlik açığı kaynaklarında güvenilir biçimde
+karşılaştırılabilmesi için paket adı normalizasyonu uygulanmıştır.
+
+### Oluşturulan Dosyalar
+
+```text
+src/dependency_scanner/package_normalizer.py
+tests/test_package_normalizer.py
+```
+
+Public paket export dosyası güncellenmiştir:
+
+```text
+src/dependency_scanner/__init__.py
+```
+
+### Public Fonksiyon
+
+Aşağıdaki fonksiyon `dependency_scanner` paketinden dışa aktarılmaktadır:
+
+```python
+from dependency_scanner import normalize_package_name
+```
+
+Fonksiyon imzası:
+
+```python
+def normalize_package_name(name: str) -> str:
+    ...
+```
+
+### Normalizasyon Akışı
+
+`normalize_package_name()` aşağıdaki işlemleri uygular:
+
+1. Girdinin string olduğunu doğrular.
+2. Başındaki ve sonundaki whitespace değerlerini temizler.
+3. Paket adının yalnızca desteklenen karakterleri içerdiğini doğrular.
+4. Ardışık tire, alt çizgi ve nokta karakterlerini tek tireye dönüştürür.
+5. Büyük harfleri küçük harfe dönüştürür.
+6. Sonucun en az bir alfanümerik karakter içerdiğini doğrular.
+7. Normalize edilmiş string değerini döndürür.
+
+Ayırıcı normalizasyonu için aşağıdaki karakter grubu kullanılmaktadır:
+
+```text
+[-_.]+
+```
+
+Bu grup tek tire karakterine dönüştürülmektedir.
+
+### Normalizasyon Örnekleri
+
+| Girdi | Sonuç |
+|---|---|
+| `Flask` | `flask` |
+| `requests` | `requests` |
+| `sample-package` | `sample-package` |
+| `sample_package` | `sample-package` |
+| `sample.package` | `sample-package` |
+| `Sample_Package` | `sample-package` |
+| `sample---package` | `sample-package` |
+| `sample__package` | `sample-package` |
+| `sample..package` | `sample-package` |
+| `sample-_.package` | `sample-package` |
+| `package2` | `package2` |
+| `Package2_Name` | `package2-name` |
+
+Aşağıdaki farklı yazımlar aynı sonucu üretmektedir:
+
+```text
+Sample-Package
+sample_package
+sample.package
+sample---package
+```
+
+Normalize edilmiş sonuç:
+
+```text
+sample-package
+```
+
+### Orijinal Paket Adının Korunması
+
+Normalizasyon `Dependency` modelinin içinde otomatik olarak yapılmamaktadır.
+
+Örnek:
+
+```python
+dependency = Dependency(
+    name="Sample_Package",
+    version="1.0.0",
+    operator="==",
+    source_file="requirements.txt",
+    line_number=1,
+)
+
+normalized_name = normalize_package_name(
+    dependency.name
+)
+```
+
+Doğrulanan sonuç:
+
+```text
+dependency.name == "Sample_Package"
+normalized_name == "sample-package"
+```
+
+Bu ayrım sayesinde:
+
+- Requirements dosyasındaki orijinal yazım korunur.
+- Kullanıcıya gösterilecek dependency bilgisi değiştirilmez.
+- Güvenlik açığı sorgusu için normalize edilmiş ad ayrıca üretilebilir.
+- Parser ile normalizasyon sorumlulukları birbirinden ayrılır.
+
+### Girdi Doğrulaması
+
+Fonksiyon aşağıdaki değerleri reddetmektedir:
+
+- String olmayan değer
+- Boş string
+- Whitespace-only string
+- Yalnızca tire, alt çizgi veya noktadan oluşan değer
+- İç whitespace içeren değer
+- Slash içeren değer
+- `@`, `#` veya `:` gibi desteklenmeyen karakterler
+- ASCII paket adı kapsamı dışındaki karakterler
+
+Geçersiz örnekler:
+
+```text
+""
+" "
+"-"
+"_"
+"."
+"-_."
+"package name"
+"package/name"
+"package@name"
+"package#name"
+```
+
+Geçersiz girdilerde `ValueError` üretilmektedir.
+
+### Deterministik Davranış
+
+Normalizasyon fonksiyonu global state kullanmamaktadır.
+
+Aynı girdi her çağrıda aynı sonucu üretmektedir.
+
+Örnek:
+
+```python
+first_result = normalize_package_name(
+    "Sample_Package"
+)
+second_result = normalize_package_name(
+    "Sample_Package"
+)
+
+assert first_result == second_result
+```
+
+### Idempotent Davranış
+
+Normalize edilmiş paket adı tekrar normalize edildiğinde değişmemektedir:
+
+```python
+normalized_name = normalize_package_name(
+    "Sample_Package"
+)
+
+assert normalize_package_name(
+    normalized_name
+) == normalized_name
+```
+
+### Parser ile Entegrasyon Sınırı
+
+Requirements parser paket adının orijinal biçimini korumaktadır.
+
+Örnek requirements satırı:
+
+```text
+Sample_Package==1.0.0
+```
+
+Parser sonucu:
+
+```python
+Dependency(
+    name="Sample_Package",
+    version="1.0.0",
+    operator="==",
+    source_file="requirements.txt",
+    line_number=1,
+)
+```
+
+Normalizasyon parser içinde otomatik olarak uygulanmamaktadır.
+
+Güvenlik açığı kaynağına sorgu hazırlanırken aşağıdaki biçimde açıkça
+uygulanabilecektir:
+
+```python
+package_name = normalize_package_name(
+    dependency.name
+)
+```
+
+### Sorumluluk Sınırları
+
+Paket adı normalizasyonu:
+
+- Requirements dosyası okumaz.
+- Requirements satırı ayrıştırmaz.
+- Dependency modelini değiştirmez.
+- Yeni Dependency modeli oluşturmaz.
+- Paket sürümü karşılaştırmaz.
+- Duplicate dependency politikası uygulamaz.
+- OSV API isteği göndermez.
+- Advisory cevabı ayrıştırmaz.
+- Güvenlik açığı bulgusu oluşturmaz.
+- Terminal raporu üretmez.
+- JSON dosyası yazmaz.
+- Exit code hesaplamaz.
+- Static analyzer paketine bağımlı değildir.
+
+### Test Sonuçları
+
+Paket adı normalizasyon testleri:
+
+```text
+38 passed
+```
+
+Tam test paketi:
+
+```text
+404 passed
+```
+
+Derleme doğrulaması:
+
+```powershell
+.\.venv\Scripts\python.exe -m compileall -q src tests
+```
+
+Derleme kontrolü hata üretmemiştir.
+
+Self-analysis:
+
+```text
+No findings found.
+```
+
+Self-analysis exit code:
+
+```text
+0
+```
 
 ## Navigation
 

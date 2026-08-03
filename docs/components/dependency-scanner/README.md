@@ -321,12 +321,202 @@ Self-analysis exit code:
 ```
 
 ## Mevcut Durum
+Dependency scanner geliştirmesi devam etmektedir. Ortak veri modelleri,
+`requirements.txt` ayrıştırıcısı ve paket adı normalizasyonu tamamlanmıştır.
 
-Dependency scanner geliştirmesi devam etmektedir. Ortak veri modelleri ve
-`requirements.txt` ayrıştırıcısı tamamlanmıştır.
+Sıradaki aşama vulnerability kaynağı için istemci arayüzünün ve yerel test
+fixture yapısının geliştirilmesidir.
 
 Sıradaki aşama paket adı normalizasyonu ve vulnerability kaynağı istemci
 arayüzünün geliştirilmesidir.
+## Uygulanan Paket Adı Normalizasyonu
+
+Dependency scanner bileşenine Python paket adlarını ortak bir biçime dönüştüren
+normalizasyon fonksiyonu eklenmiştir.
+
+Oluşturulan modül:
+
+```text
+src/dependency_scanner/package_normalizer.py
+```
+
+Test dosyası:
+
+```text
+tests/test_package_normalizer.py
+```
+
+### Public API
+
+Normalizasyon fonksiyonu paket seviyesinden kullanılabilir:
+
+```python
+from dependency_scanner import normalize_package_name
+```
+
+Örnek:
+
+```python
+normalized_name = normalize_package_name(
+    "Sample_Package"
+)
+```
+
+Sonuç:
+
+```text
+sample-package
+```
+
+### Normalizasyon Kuralları
+
+Fonksiyon:
+
+1. Paket adının başındaki ve sonundaki whitespace değerlerini temizler.
+2. Büyük harfleri küçük harfe dönüştürür.
+3. Ardışık tire, alt çizgi ve nokta karakterlerini tek tireye dönüştürür.
+4. Harf ve rakamları korur.
+
+Örnekler:
+
+| Girdi | Sonuç |
+|---|---|
+| `Flask` | `flask` |
+| `Sample-Package` | `sample-package` |
+| `sample_package` | `sample-package` |
+| `sample.package` | `sample-package` |
+| `sample---package` | `sample-package` |
+| `sample-_.package` | `sample-package` |
+| `Package2_Name` | `package2-name` |
+
+Aşağıdaki yazımlar aynı normalize edilmiş değeri üretir:
+
+```text
+Sample-Package
+sample_package
+sample.package
+sample---package
+```
+
+Ortak sonuç:
+
+```text
+sample-package
+```
+
+### Orijinal Dependency Bilgisinin Korunması
+
+Normalizasyon fonksiyonu mevcut `Dependency` modelini değiştirmez.
+
+Örnek:
+
+```python
+dependency = Dependency(
+    name="Sample_Package",
+    version="1.0.0",
+    operator="==",
+    source_file="requirements.txt",
+    line_number=1,
+)
+
+normalized_name = normalize_package_name(
+    dependency.name
+)
+```
+
+Sonuç:
+
+```text
+dependency.name: Sample_Package
+normalized_name: sample-package
+```
+
+Requirements parser paket adının orijinal yazımını korumaya devam eder.
+Normalizasyon yalnızca açıkça çağrıldığında uygulanır.
+
+### Girdi Doğrulaması
+
+Aşağıdaki girdiler reddedilir:
+
+- String olmayan değerler
+- Boş string
+- Yalnızca whitespace içeren değerler
+- Yalnızca ayırıcı karakterlerden oluşan adlar
+- Whitespace içeren paket adları
+- Slash içeren paket adları
+- `@`, `#` veya `:` gibi desteklenmeyen karakterler
+- ASCII paket adı kapsamı dışındaki karakterler
+
+Geçersiz girdiler:
+
+```text
+""
+"   "
+"-_."
+"package name"
+"package/name"
+"package@name"
+"package#name"
+```
+
+Bu durumlarda `ValueError` üretilir.
+
+### Deterministik ve Idempotent Davranış
+
+Aynı girdi her çağrıda aynı sonucu üretir.
+
+Normalizasyon idempotent davranır:
+
+```python
+normalized_name = normalize_package_name(
+    "Sample_Package"
+)
+
+assert normalize_package_name(
+    normalized_name
+) == normalized_name
+```
+
+### Sorumluluk Sınırları
+
+Paket adı normalizasyonu:
+
+- Requirements dosyası okumaz.
+- Requirements satırı ayrıştırmaz.
+- `Dependency` modelini değiştirmez.
+- Paket sürümü karşılaştırmaz.
+- Duplicate paket kontrolü yapmaz.
+- OSV API isteği göndermez.
+- Advisory kaydı ayrıştırmaz.
+- Güvenlik açığı bulgusu oluşturmaz.
+- Terminal veya JSON raporu üretmez.
+- Exit code hesaplamaz.
+
+### Test Sonuçları
+
+Paket adı normalizasyon testleri:
+
+```text
+38 passed
+```
+
+Tam proje testleri:
+
+```text
+404 passed
+```
+
+SecureCode Analyzer self-analysis sonucu:
+
+```text
+No findings found.
+```
+
+Self-analysis exit code:
+
+```text
+0
+```
 
 ## Navigation
 
