@@ -6,6 +6,10 @@ from dependency_scanner.models import (
     DependencyFinding,
     VulnerabilitySeverity,
 )
+from dependency_scanner.osv_client import (
+    OsvQueryClient,
+    OsvQueryError,
+)
 from dependency_scanner.osv_models import (
     OsvAffectedPackage,
     OsvPackage,
@@ -38,6 +42,8 @@ __all__ = [
     "DependencyFinding",
     "OsvAffectedPackage",
     "OsvPackage",
+    "OsvQueryClient",
+    "OsvQueryError",
     "OsvQueryResponse",
     "OsvRange",
     "OsvRangeEvent",

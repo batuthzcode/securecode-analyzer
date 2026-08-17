@@ -3695,7 +3695,372 @@ Self-analysis exit code:
 ```text
 0
 ```
+## OSV Query Client Gereksinimleri
 
+Dependency scanner bileşeninin OSV servisine paket ve sürüm bilgisi
+gönderebilmesi için HTTP query client katmanı oluşturulacaktır.
+
+### Amaç
+
+Query client aşağıdaki akışı gerçekleştirecektir:
+
+```text
+package name + version
+        ↓
+OSV HTTP request
+        ↓
+JSON response
+        ↓
+OSV response parser
+        ↓
+OsvQueryResponse
+```
+
+Bu katman OSV servisine HTTP isteği gönderecek ve dönen cevabı mevcut
+OSV response parser katmanına aktaracaktır.
+
+### Oluşturulacak Dosyalar
+
+Query client:
+
+```text
+src/dependency_scanner/osv_client.py
+```
+
+Unit testler:
+
+```text
+tests/test_osv_client.py
+```
+
+Public paket export dosyası:
+
+```text
+src/dependency_scanner/__init__.py
+```
+
+güncellenecektir.
+
+### Public API
+
+Aşağıdaki bileşenler public API üzerinden kullanılabilecektir:
+
+```python
+OsvQueryClient
+OsvQueryError
+```
+
+Ana sorgu metodu:
+
+```python
+query_package(
+    package_name: str,
+    version: str,
+    page_token: str | None = None,
+) -> OsvQueryResponse
+```
+
+şeklinde olacaktır.
+
+### OSV Endpoint
+
+Kullanılacak OSV endpoint:
+
+```text
+https://api.osv.dev/v1/query
+```
+
+HTTP metodu:
+
+```text
+POST
+```
+
+olacaktır.
+
+Request body JSON formatında gönderilecektir.
+
+### PyPI Ecosystem
+
+Python paketleri sorgulandığı için ecosystem değeri:
+
+```text
+PyPI
+```
+
+olarak kullanılacaktır.
+
+### Request Payload
+
+Standart paket ve sürüm sorgusu:
+
+```json
+{
+  "package": {
+    "name": "jinja2",
+    "ecosystem": "PyPI"
+  },
+  "version": "3.1.4"
+}
+```
+
+şeklinde olacaktır.
+
+Package adı OSV'ye gönderilmeden önce mevcut:
+
+```python
+normalize_package_name()
+```
+
+fonksiyonu kullanılarak normalize edilecektir.
+
+Örnekler:
+
+```text
+Jinja2 -> jinja2
+Sample_Package -> sample-package
+```
+
+Orijinal `Dependency` modeli değiştirilmemelidir.
+
+### Pagination
+
+Query metodu opsiyonel:
+
+```text
+page_token
+```
+
+değeri kabul edecektir.
+
+`page_token` verilmezse request payload içine bu alan eklenmeyecektir.
+
+Token verilirse örnek payload:
+
+```json
+{
+  "package": {
+    "name": "jinja2",
+    "ecosystem": "PyPI"
+  },
+  "version": "3.1.4",
+  "page_token": "token-value"
+}
+```
+
+şeklinde olacaktır.
+
+Client bu aşamada otomatik pagination döngüsü çalıştırmayacaktır.
+
+Her `query_package()` çağrısı yalnızca tek OSV response sayfasını
+işleyecektir.
+
+Response içindeki:
+
+```text
+next_page_token
+```
+
+değeri mevcut `OsvQueryResponse` modeli tarafından korunacaktır.
+
+### HTTP Header
+
+Request:
+
+```text
+Content-Type: application/json
+```
+
+header değeriyle gönderilecektir.
+
+### Timeout
+
+Client yapılandırılabilir timeout değerine sahip olacaktır.
+
+Varsayılan timeout:
+
+```text
+10 saniye
+```
+
+olacaktır.
+
+Timeout pozitif sayı olmak zorundadır.
+
+Aşağıdaki timeout değerleri reddedilecektir:
+
+```text
+0
+negatif değerler
+sayısal olmayan değerler
+```
+
+### Response İşleme
+
+Başarılı HTTP response aşağıdaki sırayla işlenecektir:
+
+1. Response body okunacaktır.
+2. UTF-8 olarak decode edilecektir.
+3. JSON verisine dönüştürülecektir.
+4. `parse_osv_query_response()` fonksiyonuna aktarılacaktır.
+5. `OsvQueryResponse` döndürülecektir.
+
+Query client ayrı bir OSV response parser oluşturmayacaktır.
+
+Mevcut parser yeniden kullanılacaktır.
+
+### Hata Yönetimi
+
+Client seviyesindeki hatalar:
+
+```python
+OsvQueryError
+```
+
+olarak temsil edilecektir.
+
+En az aşağıdaki durumlar kapsanacaktır:
+
+- HTTP status hatası
+- Network bağlantı hatası
+- DNS bağlantı hatası
+- Timeout
+- Response body okuma hatası
+- Geçersiz JSON response
+- Geçersiz OSV response payload
+- Geçersiz package adı
+- Geçersiz version
+- Geçersiz page token
+- Geçersiz timeout
+
+HTTP status code biliniyorsa hata mesajında korunacaktır.
+
+### JSON Hataları
+
+Response geçerli JSON değilse:
+
+```python
+OsvQueryError
+```
+
+üretilecektir.
+
+Ham JSON exception traceback'i public API üzerinden kullanıcıya
+aktarılmayacaktır.
+
+### Parser Hataları
+
+JSON response başarılı şekilde ayrıştırıldıktan sonra:
+
+```python
+parse_osv_query_response()
+```
+
+kullanılacaktır.
+
+Parser tarafından üretilen:
+
+```python
+OsvResponseParseError
+```
+
+hatası client seviyesinde:
+
+```python
+OsvQueryError
+```
+
+hatasına dönüştürülecektir.
+
+### Girdi Doğrulaması
+
+Aşağıdaki package name değerleri reddedilecektir:
+
+- String olmayan değer
+- Boş string
+- Yalnızca whitespace
+
+Package adı doğrulaması ve normalizasyonunda mevcut
+`normalize_package_name()` fonksiyonu kullanılacaktır.
+
+Aşağıdaki version değerleri reddedilecektir:
+
+- String olmayan değer
+- Boş string
+- Yalnızca whitespace
+
+Aşağıdaki page token değerleri reddedilecektir:
+
+- String olmayan değer
+- Boş string
+- Yalnızca whitespace
+
+`None` page token geçerli olacaktır.
+
+### Standart Kütüphane Kullanımı
+
+Bu özellik için yeni runtime dependency eklenmeyecektir.
+
+HTTP ve JSON işlemlerinde Python standart kütüphanesi kullanılacaktır.
+
+Temel modüller:
+
+```text
+urllib.request
+urllib.error
+json
+socket
+```
+
+### Test Gereksinimleri
+
+Unit testler gerçek internete bağlanmadan çalışacaktır.
+
+En az aşağıdaki durumlar test edilecektir:
+
+- Doğru OSV endpoint kullanımı
+- POST request kullanımı
+- Content-Type header
+- PyPI ecosystem değeri
+- Package adı normalizasyonu
+- Version değerinin request payload içine eklenmesi
+- Page token bulunmayan request
+- Page token bulunan request
+- Varsayılan timeout
+- Özel timeout
+- Geçersiz timeout
+- Başarılı boş OSV response
+- Vulnerability içeren OSV response
+- Pagination token içeren response
+- HTTP status hatası
+- Network bağlantı hatası
+- Timeout
+- Geçersiz JSON
+- Geçersiz OSV payload
+- Geçersiz package adı
+- Geçersiz version
+- Geçersiz page token
+
+HTTP unit testlerinde gerçek OSV servisine bağlantı kurulmayacaktır.
+
+Mock veya kontrollü test double kullanılacaktır.
+
+### Sorumluluk Sınırları
+
+OSV query client:
+
+- Requirements dosyası okumaz.
+- Dependency listesi oluşturmaz.
+- Birden fazla dependency'yi otomatik taramaz.
+- OSV range karşılaştırması yapmaz.
+- `DependencyFinding` oluşturmaz.
+- Severity mapping yapmaz.
+- Retry politikası uygulamaz.
+- Cache oluşturmaz.
+- Terminal çıktısı üretmez.
+- JSON raporu oluşturmaz.
+- Exit code hesaplamaz.
+- Otomatik pagination döngüsü çalıştırmaz.
 ## Navigation
 
 - [Dependency Scanner sayfasına dön](README.md)

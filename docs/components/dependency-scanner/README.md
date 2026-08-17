@@ -970,6 +970,79 @@ Self-analysis exit code:
 ```text
 0
 ```
+## Uygulanan OSV Query Client
+
+Dependency scanner bileşenine OSV servisine HTTP isteği gönderen query client
+katmanı eklenmiştir.
+
+### Public API
+
+```python
+from dependency_scanner import (
+    OsvQueryClient,
+    OsvQueryError,
+)
+```
+
+Paket ve sürüm sorgusu:
+
+```python
+client = OsvQueryClient()
+
+response = client.query_package(
+    "jinja2",
+    "3.1.4",
+)
+```
+
+Kullanılan OSV endpoint:
+
+```text
+https://api.osv.dev/v1/query
+```
+
+HTTP metodu `POST`, ecosystem değeri `PyPI` olarak kullanılır.
+
+Paket adı sorgudan önce mevcut `normalize_package_name()` fonksiyonuyla
+normalize edilir.
+
+Client varsayılan olarak:
+
+```text
+10 saniye
+```
+
+timeout kullanır.
+
+Opsiyonel `page_token` desteği vardır. Client otomatik pagination yapmaz;
+her çağrı tek bir OSV response sayfasını işler.
+
+### Hata Yönetimi
+
+Aşağıdaki durumlar `OsvQueryError` ile temsil edilir:
+
+- HTTP hataları
+- Network hataları
+- Timeout
+- Geçersiz JSON
+- Geçersiz UTF-8
+- Geçersiz OSV response
+- Geçersiz package adı
+- Geçersiz version
+- Geçersiz page token
+- Geçersiz timeout
+
+OSV response verisi mevcut `parse_osv_query_response()` fonksiyonuyla
+ayrıştırılır.
+
+### Test Sonuçları
+
+```text
+OSV Query Client tests: 37 passed
+Complete test suite: 601 passed
+Self-analysis: No findings found.
+Exit code: 0
+```
 
 ## Navigation
 
