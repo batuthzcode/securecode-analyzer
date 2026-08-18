@@ -11,6 +11,7 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = [
+    "coverage>=7.10,<8.0",
     "Flask>=3.1.3,<4.0",
     "pytest>=9.0,<10.0",
 ]
@@ -23,6 +24,18 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["src", "sample_app", "tools"]
+omit = ["*/sample_app/analyzer_demo.py"]
+
+[tool.coverage.report]
+fail_under = 97
+precision = 1
+show_missing = true
+skip_covered = true
+
 [project.scripts]
 securecode-analyzer = "static_analyzer.runner:main"
 securecode-dependency-scan = "dependency_scanner.runner:main"

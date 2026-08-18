@@ -1128,6 +1128,10 @@ Sub-task’ler:
 * Bilinen false positive sonuçları belgeye ekle.
 * Son tarama raporunu sakla.
 
+**Durum:** Tamamlandı. Branch-aware test coverage gate'i, whole-project
+self-analysis generator'ı, canonical JSON raporu ve bulgu sınıflandırması
+[`docs/self-analysis.md`](self-analysis.md) içinde belgelenmiştir.
+
 ## Backlog 5.6 — README ve kullanım dokümantasyonu
 
 **Öncelik:** P0

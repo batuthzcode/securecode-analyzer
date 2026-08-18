@@ -8,7 +8,9 @@ from pathlib import Path
 import pytest
 
 import dependency_scanner.osv_client as osv_client_module
+import tools.generate_sample_app_reports as report_module
 from tools.generate_sample_app_reports import (
+    _portable_path,
     build_dependency_scan_report,
     build_reports,
     find_stale_reports,
@@ -178,3 +180,74 @@ def test_check_mode_reports_stale_artifact(
     assert exit_code == 1
     assert str(stale_path) in capsys.readouterr().out
     assert stale_path.read_text(encoding="utf-8") == "{}\n"
+
+
+def test_check_mode_accepts_current_reports(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Check mode should succeed for exact generated artifacts."""
+
+    write_reports(tmp_path)
+
+    assert main(["--check", "--output-directory", str(tmp_path)]) == 0
+    assert "are current" in capsys.readouterr().out
+
+
+def test_check_mode_reports_missing_artifact(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Check mode should identify a missing generated report."""
+
+    write_reports(tmp_path)
+    missing_path = tmp_path / "dependency-scan.json"
+    missing_path.unlink()
+
+    assert main(["--check", "--output-directory", str(tmp_path)]) == 1
+    assert str(missing_path) in capsys.readouterr().out
+
+
+def test_main_writes_both_reports(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Write mode should create and announce both canonical documents."""
+
+    assert main(["--output-directory", str(tmp_path)]) == 0
+    output = capsys.readouterr().out
+
+    assert (tmp_path / "static-analysis.json").exists()
+    assert (tmp_path / "dependency-scan.json").exists()
+    assert output.count("Wrote report:") == 2
+
+
+def test_dependency_report_rejects_failed_scan(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Baseline generation should never serialize a partial scan."""
+
+    class FailedScanner:
+        def scan_requirements(self, path: Path) -> object:
+            del path
+            return type("Result", (), {"succeeded": False})()
+
+    monkeypatch.setattr(
+        report_module,
+        "DependencyScanner",
+        lambda source: FailedScanner(),
+    )
+
+    with pytest.raises(RuntimeError, match="fixture-backed"):
+        build_dependency_scan_report()
+
+
+def test_report_paths_are_repository_scoped(tmp_path: Path) -> None:
+    """Portable paths should support relative inputs and reject outsiders."""
+
+    assert _portable_path("sample_app/requirements.txt") == (
+        "sample_app/requirements.txt"
+    )
+
+    with pytest.raises(ValueError, match="outside the repository"):
+        _portable_path(str(tmp_path / "requirements.txt"))

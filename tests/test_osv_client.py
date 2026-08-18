@@ -20,8 +20,8 @@ class FakeResponse:
 
     def __init__(
         self,
-        body: bytes = b"{}",
-        status: int = 200,
+        body: object = b"{}",
+        status: object = 200,
         read_error: OSError | None = None,
     ) -> None:
         self.body = body
@@ -39,7 +39,7 @@ class FakeResponse:
     ) -> None:
         return None
 
-    def read(self) -> bytes:
+    def read(self) -> object:
         if self.read_error is not None:
             raise self.read_error
 
@@ -48,7 +48,7 @@ class FakeResponse:
 
 def _install_response(
     monkeypatch: pytest.MonkeyPatch,
-    response: FakeResponse,
+    response: object,
 ) -> list[tuple[object, float]]:
     """Install a fake urlopen implementation."""
 
@@ -57,7 +57,7 @@ def _install_response(
     def fake_urlopen(
         request: object,
         timeout: float,
-    ) -> FakeResponse:
+    ) -> object:
         calls.append(
             (request, timeout)
         )
@@ -448,6 +448,33 @@ def test_query_translates_network_error(
         )
 
 
+def test_query_translates_direct_os_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Socket-level OS errors should use the public query error."""
+
+    def raise_os_error(
+        request: object,
+        timeout: float,
+    ) -> FakeResponse:
+        raise OSError("connection reset")
+
+    monkeypatch.setattr(
+        osv_client,
+        "urlopen",
+        raise_os_error,
+    )
+
+    with pytest.raises(
+        OsvQueryError,
+        match="connection reset",
+    ):
+        OsvQueryClient().query_package(
+            "jinja2",
+            "3.1.4",
+        )
+
+
 def test_query_translates_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -524,6 +551,72 @@ def test_query_translates_response_read_error(
             "jinja2",
             "3.1.4",
         )
+
+
+def test_query_accepts_response_without_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Responses without an explicit status retain urllib compatibility."""
+
+    _install_response(
+        monkeypatch,
+        FakeResponse(status=None),
+    )
+
+    result = OsvQueryClient().query_package(
+        "jinja2",
+        "3.1.4",
+    )
+
+    assert result.vulnerabilities == ()
+
+
+def test_query_rejects_non_integer_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Malformed response status values should fail closed."""
+
+    _install_response(
+        monkeypatch,
+        FakeResponse(status="200"),
+    )
+
+    with pytest.raises(OsvQueryError, match="status 200"):
+        OsvQueryClient().query_package("jinja2", "3.1.4")
+
+
+def test_query_rejects_response_without_reader(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A response without a callable read method is invalid."""
+
+    class UnreadableResponse:
+        status = 200
+
+        def __enter__(self) -> UnreadableResponse:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+    _install_response(monkeypatch, UnreadableResponse())
+
+    with pytest.raises(OsvQueryError, match="could not be read"):
+        OsvQueryClient().query_package("jinja2", "3.1.4")
+
+
+def test_query_rejects_non_bytes_response_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """urllib response bodies must remain byte strings."""
+
+    _install_response(
+        monkeypatch,
+        FakeResponse(body="{}"),
+    )
+
+    with pytest.raises(OsvQueryError, match="must contain bytes"):
+        OsvQueryClient().query_package("jinja2", "3.1.4")
 
 
 def test_query_rejects_invalid_utf8(

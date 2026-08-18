@@ -38,8 +38,10 @@ jobs:
       - name: Install development dependencies
         run: python -m pip install -e ".[dev]"
 
-      - name: Run tests
-        run: python -m pytest -q
+      - name: Run tests with branch coverage
+        run: |
+          python -m coverage run -m pytest -q
+          python -m coverage report
 
   static-analysis:
     name: Static analysis
@@ -92,6 +94,9 @@ jobs:
             reports/sample-app/static-analysis.json
           python -m pytest tests/test_sample_app_security_demo.py -q
 
+      - name: Validate whole-project self-analysis
+        run: python -m tools.generate_self_analysis_report --check
+
       - name: Verify static analysis reports
         if: ${{ !cancelled() }}
         shell: bash
@@ -100,6 +105,7 @@ jobs:
             reports/ci/static-analysis-src.json
             reports/ci/static-analysis-tools.json
             reports/ci/static-analysis-sample-app.json
+            reports/project/static-analysis.json
           )
 
           for report in "${reports[@]}"; do
@@ -118,6 +124,7 @@ jobs:
             reports/ci/static-analysis-src.json
             reports/ci/static-analysis-tools.json
             reports/ci/static-analysis-sample-app.json
+            reports/project/static-analysis.json
           if-no-files-found: error
           retention-days: 14
 

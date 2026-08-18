@@ -5,6 +5,8 @@ from __future__ import annotations
 import dependency_scanner
 import pytest
 
+import dependency_scanner.osv_source as osv_source_module
+
 from dependency_scanner import (
     AdvisorySource,
     Dependency,
@@ -159,6 +161,26 @@ def test_source_is_available_through_package_api() -> None:
         dependency_scanner.OsvVulnerabilitySource
         is OsvVulnerabilitySource
     )
+
+
+def test_source_creates_default_query_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Omitting a client should construct the production OSV client."""
+
+    client = FakeOsvQueryClient(OsvQueryResponse())
+    monkeypatch.setattr(
+        osv_source_module,
+        "OsvQueryClient",
+        lambda: client,
+    )
+
+    findings = OsvVulnerabilitySource().find_vulnerabilities(
+        create_dependency()
+    )
+
+    assert findings == ()
+    assert client.calls == [("Sample_Package", "1.0.0", None)]
 
 
 def test_source_exposes_osv_advisory_information() -> None:

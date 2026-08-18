@@ -104,13 +104,14 @@ def test_python_environment_is_explicit_and_cached() -> None:
 
 
 def test_dependency_install_and_test_commands_are_ordered() -> None:
-    """The job should prepare pip, install dev extras, then test."""
+    """The job should prepare pip, install extras, then measure tests."""
 
     workflow = _workflow_text()
     commands = (
         "python -m pip install --upgrade pip",
         'python -m pip install -e ".[dev]"',
-        "python -m pytest -q",
+        "python -m coverage run -m pytest -q",
+        "python -m coverage report",
     )
     positions = tuple(
         workflow.index(command)
@@ -118,6 +119,21 @@ def test_dependency_install_and_test_commands_are_ordered() -> None:
     )
 
     assert positions == tuple(sorted(positions))
+
+
+def test_test_job_enforces_branch_coverage() -> None:
+    """Coverage should include branches and fail below the project floor."""
+
+    project = (_REPOSITORY_ROOT / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
+    workflow = _workflow_text()
+
+    assert '"coverage>=7.10,<8.0"' in project
+    assert "[tool.coverage.run]\nbranch = true\n" in project
+    assert "fail_under = 97" in project
+    assert "python -m coverage run -m pytest -q" in workflow
+    assert "python -m coverage report" in workflow
 
 
 def test_test_job_has_bounded_ubuntu_execution() -> None:
@@ -196,6 +212,19 @@ def test_static_analysis_job_validates_controlled_demo() -> None:
     )
 
 
+def test_static_analysis_job_validates_project_baseline() -> None:
+    """The complete repository analysis should remain drift-free."""
+
+    workflow = _workflow_text()
+
+    assert "name: Validate whole-project self-analysis" in workflow
+    assert (
+        "python -m tools.generate_self_analysis_report --check"
+        in workflow
+    )
+    assert "reports/project/static-analysis.json" in workflow
+
+
 def test_dependency_scan_job_waits_for_tests() -> None:
     """The offline vulnerability gate should follow the test job."""
 
@@ -265,6 +294,7 @@ def test_static_analysis_reports_are_uploaded() -> None:
         "            reports/ci/static-analysis-src.json\n"
         "            reports/ci/static-analysis-tools.json\n"
         "            reports/ci/static-analysis-sample-app.json\n"
+        "            reports/project/static-analysis.json\n"
         in workflow
     )
 
