@@ -160,3 +160,162 @@ def test_store_instances_do_not_share_created_tasks() -> None:
 
     assert len(first.list_tasks()) == 3
     assert len(second.list_tasks()) == 2
+
+
+def test_store_updates_task_with_immutable_replacement() -> None:
+    """Update returns a new Task and preserves omitted fields."""
+
+    original = Task(
+        id=1,
+        title="Original title",
+        description="Original description",
+        completed=False,
+    )
+    store = InMemoryTaskStore((original,))
+
+    updated = store.update_task(
+        1,
+        title="  Updated title  ",
+    )
+
+    assert updated == Task(
+        id=1,
+        title="Updated title",
+        description="Original description",
+        completed=False,
+    )
+    assert updated is not original
+    assert original.title == "Original title"
+    assert store.get_task(1) is updated
+
+
+def test_store_updates_multiple_fields() -> None:
+    """Update can replace description and completion together."""
+
+    store = InMemoryTaskStore(
+        (create_task(1),)
+    )
+
+    updated = store.update_task(
+        1,
+        description="Complete review.",
+        completed=True,
+    )
+
+    assert updated.description == "Complete review."
+    assert updated.completed is True
+
+
+def test_store_update_preserves_task_order() -> None:
+    """Replacing an existing dictionary value keeps order."""
+
+    first = create_task(1, "First")
+    second = create_task(2, "Second")
+    store = InMemoryTaskStore((first, second))
+
+    updated = store.update_task(
+        1,
+        title="Updated first",
+    )
+
+    assert store.list_tasks() == (
+        updated,
+        second,
+    )
+
+
+def test_store_update_returns_none_for_missing_task() -> None:
+    """Updating an unknown ID does not create a task."""
+
+    store = InMemoryTaskStore((create_task(1),))
+
+    updated = store.update_task(
+        99,
+        title="Missing",
+    )
+
+    assert updated is None
+    assert store.list_tasks() == (create_task(1),)
+
+
+def test_store_invalid_update_preserves_state() -> None:
+    """Validation completes before the stored value changes."""
+
+    original = create_task(1)
+    store = InMemoryTaskStore((original,))
+
+    with pytest.raises(
+        ValueError,
+        match="title must not be empty",
+    ):
+        store.update_task(
+            1,
+            title="   ",
+        )
+
+    assert store.get_task(1) is original
+
+
+def test_store_deletes_and_returns_existing_task() -> None:
+    """Delete removes exactly one task and returns it."""
+
+    first = create_task(1, "First")
+    second = create_task(2, "Second")
+    store = InMemoryTaskStore((first, second))
+
+    deleted = store.delete_task(1)
+
+    assert deleted is first
+    assert store.list_tasks() == (second,)
+
+
+def test_store_delete_returns_none_for_missing_task() -> None:
+    """Deleting an unknown ID leaves state unchanged."""
+
+    task = create_task(1)
+    store = InMemoryTaskStore((task,))
+
+    deleted = store.delete_task(99)
+
+    assert deleted is None
+    assert store.list_tasks() == (task,)
+
+
+def test_store_does_not_reuse_deleted_task_id() -> None:
+    """Create continues from the monotonic ID sequence."""
+
+    store = InMemoryTaskStore(
+        (
+            create_task(1),
+            create_task(2),
+        )
+    )
+
+    store.delete_task(2)
+    created = store.create_task("Third")
+
+    assert created.id == 3
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        "update",
+        "delete",
+    ],
+)
+def test_store_write_rejects_invalid_task_id(
+    operation: str,
+) -> None:
+    """Update and delete preserve the positive ID contract."""
+
+    store = InMemoryTaskStore()
+
+    with pytest.raises(ValueError):
+        if operation == "update":
+            store.update_task(
+                0,
+                title="Invalid",
+            )
+        else:
+            store.delete_task(0)
