@@ -1590,6 +1590,148 @@ Self-analysis: No findings found.
 Exit code: 0
 ```
 
+## Gerçek OSV Fixture ve Offline Entegrasyon
+
+Dependency scanner'ın production katmanları, resmî OSV verisinden hazırlanmış
+yerel bir fixture ve örnek requirements dosyasıyla uçtan uca doğrulanmıştır.
+
+Fixture dosyaları:
+
+```text
+tests/fixtures/osv/fastapi-0.109.0.json
+tests/fixtures/requirements/fastapi-vulnerable.txt
+```
+
+Entegrasyon testleri:
+
+```text
+tests/test_dependency_integration.py
+```
+
+Testler çalışma sırasında internet bağlantısı kullanmaz.
+
+### Resmî Veri Kaynağı
+
+Fixture 18 Ağustos 2026 tarihinde aşağıdaki resmî OSV query ile
+doğrulanmıştır:
+
+```text
+POST https://api.osv.dev/v1/query
+```
+
+Query payload:
+
+```json
+{
+  "package": {
+    "name": "fastapi",
+    "ecosystem": "PyPI"
+  },
+  "version": "0.109.0"
+}
+```
+
+Kullanılan gerçek advisory:
+
+- [PYSEC-2024-38](https://osv.dev/vulnerability/PYSEC-2024-38)
+- [OSV API query endpoint](https://api.osv.dev/v1/query)
+
+Fixture; parser ve source tarafından tüketilen advisory ID, details, aliases,
+affected package, GIT/ECOSYSTEM range event ve CVSS v3 alanlarını resmî
+değerleri değiştirmeden korur. Tüketilmeyen timestamp, reference ve affected
+version listeleri fixture boyutunu deterministik ve incelenebilir tutmak için
+eklenmemiştir.
+
+Fixture içindeki `_fixture` metadata nesnesi query bilgisi, capture tarihi,
+advisory bağlantısı ve projection politikasını saklar.
+
+### Gerçek Requirements Örneği
+
+```text
+fastapi==0.109.0
+```
+
+Offline entegrasyon akışı:
+
+```text
+requirements fixture
+  -> requirements parser
+  -> DependencyScanner
+  -> OsvVulnerabilitySource
+  -> fixture query client
+  -> OSV response parser
+  -> DependencyFinding
+  -> text/JSON formatter
+  -> dependency CLI runner
+```
+
+Bu akış aşağıdaki gerçek finding değerini üretir:
+
+```text
+advisory: PYSEC-2024-38
+alias: CVE-2024-24762
+package: fastapi==0.109.0
+fixed version: 0.109.1
+severity: HIGH
+source: OSV
+```
+
+### Fixed Version Düzeltmesi
+
+Gerçek OSV kaydı aynı affected package içinde önce bir `GIT`, ardından bir
+`ECOSYSTEM` range içerir. Önceki source davranışı ilk fixed event değerini
+koşulsuz seçtiği için aşağıdaki commit SHA değerini paket sürümü olarak
+raporlayabilirdi:
+
+```text
+9d34ad0ee8a0dfbbcce06f76c2d5d851085024fc
+```
+
+Fixed-version seçimi artık yalnızca:
+
+- Taranan dependency adıyla normalize edilmiş biçimde eşleşen
+- `PyPI` ecosystem değerine sahip
+- `ECOSYSTEM` range türündeki
+
+fixed event kayıtlarını değerlendirir.
+
+Doğru sonuç:
+
+```text
+0.109.1
+```
+
+Başka package, başka ecosystem ve `GIT` range fixed değerleri yok sayılır.
+Eşleşen package version fix bulunmadığında `fixed_version=None` korunur.
+
+### Entegrasyon Doğrulamaları
+
+Offline testler:
+
+- Fixture provenance ve query metadata değerlerini doğrular.
+- Requirements fixture değerini production parser ile okur.
+- OSV fixture değerini production response parser ile ayrıştırır.
+- Query package, version ve page token değerlerini doğrular.
+- Advisory ID ve CVE alias değerlerini korur.
+- ECOSYSTEM fixed version değerini seçer.
+- Commit SHA değerinin rapora sızmadığını doğrular.
+- CVSS v3 vector değerini `HIGH` severity olarak sınıflandırır.
+- Text ve JSON raporlarını doğrular.
+- CLI `any`, `high` ve `critical` eşiklerini doğrular.
+- UTF-8 JSON output dosyasını doğrular.
+- Canlı HTTP çağrısını engeller.
+
+### Test Sonuçları
+
+```text
+OSV Vulnerability Source tests: 27 passed
+Offline dependency integration tests: 13 passed
+Complete test suite: 828 passed
+Compile check: passed
+Self-analysis: No findings found.
+Exit code: 0
+```
+
 ## Navigation
 
 - [Tüm bileşenlere dön](../README.md)

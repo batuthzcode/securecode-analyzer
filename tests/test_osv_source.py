@@ -346,8 +346,8 @@ def test_default_message_contains_advisory_id() -> None:
     assert "OSV-NO-MESSAGE" in finding.message
 
 
-def test_first_fixed_range_event_is_used() -> None:
-    """The first fixed event in nested OSV order wins."""
+def test_first_matching_fixed_range_event_is_used() -> None:
+    """The first matching ecosystem fixed event wins."""
 
     vulnerability = create_vulnerability(
         affected=(
@@ -384,6 +384,121 @@ def test_first_fixed_range_event_is_used() -> None:
     )[0]
 
     assert finding.fixed_version == "2.0.0"
+
+
+def test_git_fixed_commit_is_ignored_for_package_version() -> None:
+    """A preceding GIT fix must not become a package version."""
+
+    git_commit = "9d34ad0ee8a0dfbbcce06f76c2d5d851085024fc"
+    affected_package = OsvAffectedPackage(
+        package=OsvPackage(
+            ecosystem="PyPI",
+            name="sample-package",
+        ),
+        ranges=(
+            OsvRange(
+                range_type="GIT",
+                events=(
+                    OsvRangeEvent(introduced="0"),
+                    OsvRangeEvent(fixed=git_commit),
+                ),
+            ),
+            OsvRange(
+                range_type="ECOSYSTEM",
+                events=(
+                    OsvRangeEvent(introduced="0"),
+                    OsvRangeEvent(fixed="2.0.0"),
+                ),
+            ),
+        ),
+    )
+    vulnerability = create_vulnerability(
+        affected=(affected_package,)
+    )
+    source = OsvVulnerabilitySource(
+        FakeOsvQueryClient(
+            OsvQueryResponse(
+                vulnerabilities=(vulnerability,)
+            )
+        )
+    )
+
+    finding = source.find_vulnerabilities(
+        create_dependency()
+    )[0]
+
+    assert finding.fixed_version == "2.0.0"
+    assert finding.fixed_version != git_commit
+
+
+@pytest.mark.parametrize(
+    ("package_name", "ecosystem"),
+    [
+        ("another-package", "PyPI"),
+        ("sample-package", "npm"),
+    ],
+)
+def test_unrelated_fixed_version_is_ignored(
+    package_name: str,
+    ecosystem: str,
+) -> None:
+    """A fixed version must belong to the scanned PyPI package."""
+
+    vulnerability = create_vulnerability(
+        affected=(
+            create_affected_package(
+                OsvRangeEvent(fixed="99.0.0"),
+                package_name=package_name,
+                ecosystem=ecosystem,
+            ),
+            create_affected_package(
+                OsvRangeEvent(fixed="2.0.0"),
+            ),
+        )
+    )
+    source = OsvVulnerabilitySource(
+        FakeOsvQueryClient(
+            OsvQueryResponse(
+                vulnerabilities=(vulnerability,)
+            )
+        )
+    )
+
+    finding = source.find_vulnerabilities(
+        create_dependency()
+    )[0]
+
+    assert finding.fixed_version == "2.0.0"
+
+
+def test_missing_matching_pypi_fixed_event_returns_none() -> None:
+    """Unrelated fixed events should leave the fix unknown."""
+
+    vulnerability = create_vulnerability(
+        affected=(
+            create_affected_package(
+                OsvRangeEvent(fixed="99.0.0"),
+                package_name="another-package",
+            ),
+            create_affected_package(
+                OsvRangeEvent(fixed="88.0.0"),
+                ecosystem="npm",
+            ),
+        )
+    )
+    source = OsvVulnerabilitySource(
+        FakeOsvQueryClient(
+            OsvQueryResponse(
+                vulnerabilities=(vulnerability,)
+            )
+        )
+    )
+
+    finding = source.find_vulnerabilities(
+        create_dependency()
+    )[0]
+
+    assert finding.fixed_version is None
 
 
 def test_missing_fixed_event_returns_none() -> None:
