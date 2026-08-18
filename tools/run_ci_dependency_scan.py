@@ -16,7 +16,7 @@ from dependency_scanner import (
 from dependency_scanner.runner import (
     main as dependency_cli_main,
 )
-from tools.osv_fixture import (
+from .osv_fixture import (
     FixtureOsvQueryClient,
     OsvFixtureError,
 )

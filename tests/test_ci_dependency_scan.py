@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import io
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -95,6 +98,60 @@ def test_ci_scan_matches_baseline_without_http(
     )
 
     assert exit_code == 0
+    assert output_path.read_text(encoding="utf-8") == (
+        _BASELINE_PATH.read_text(encoding="utf-8")
+    )
+
+
+def test_ci_scan_module_entrypoint_runs_without_root_pythonpath(
+    tmp_path: Path,
+) -> None:
+    """The workflow command should resolve the tools package on Linux."""
+
+    output_path = tmp_path / "dependency-scan.json"
+    environment = os.environ.copy()
+    pythonpath_entries = [str(_REPOSITORY_ROOT / "src")]
+
+    for entry in environment.get("PYTHONPATH", "").split(
+        os.pathsep
+    ):
+        if not entry:
+            continue
+
+        resolved_entry = Path(entry).resolve()
+        if resolved_entry in {
+            _REPOSITORY_ROOT.resolve(),
+            (_REPOSITORY_ROOT / "src").resolve(),
+        }:
+            continue
+
+        pythonpath_entries.append(entry)
+
+    environment["PYTHONPATH"] = os.pathsep.join(
+        pythonpath_entries
+    )
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "tools.run_ci_dependency_scan",
+            "--requirements",
+            str(_REQUIREMENTS_PATH),
+            "--fixture",
+            str(_FIXTURE_PATH),
+            "--output",
+            str(output_path),
+            "--fail-on",
+            "critical",
+        ],
+        cwd=_REPOSITORY_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
     assert output_path.read_text(encoding="utf-8") == (
         _BASELINE_PATH.read_text(encoding="utf-8")
     )

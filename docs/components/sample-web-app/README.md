@@ -386,13 +386,13 @@ reports/sample-app/dependency-scan.json
 İki raporu production analyzer/scanner katmanlarından yeniden üretmek için:
 
 ```powershell
-python tools/generate_sample_app_reports.py
+python -m tools.generate_sample_app_reports
 ```
 
 Checked-in artifact'ların güncel olduğunu dosya yazmadan doğrulamak için:
 
 ```powershell
-python tools/generate_sample_app_reports.py --check
+python -m tools.generate_sample_app_reports --check
 ```
 
 Generator static analyzer'ı doğrudan çalıştırır. Dependency baseline için
@@ -439,7 +439,7 @@ repository-relative `/` biçimindedir.
 
    ```powershell
    Get-Content reports/sample-app/dependency-scan.json
-   python tools/generate_sample_app_reports.py --check
+   python -m tools.generate_sample_app_reports --check
    ```
 
 Demo sonunda Flask runtime requirements dosyasının yalnızca `Flask==3.1.3`
@@ -548,10 +548,10 @@ New frontend test cases: 18 passed
 New security demo test cases: 4 passed
 New integration report test cases: 6 passed
 New CI workflow test cases: 13 passed
-New offline dependency CI test cases: 5 passed
+New offline dependency CI test cases: 6 passed
 New Python 3.11 compatibility test cases: 1 passed
 Sample app targeted suite: 149 passed
-Complete test suite: 996 passed
+Complete test suite: 997 passed
 Compile check: passed
 Sample app analysis: 5 expected findings
 Analyzer source self-analysis: no findings

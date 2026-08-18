@@ -18,7 +18,7 @@ from static_analyzer.default_factory import (
 from static_analyzer.formatters import (
     format_findings_json,
 )
-from tools.osv_fixture import FixtureOsvQueryClient
+from .osv_fixture import FixtureOsvQueryClient
 
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]

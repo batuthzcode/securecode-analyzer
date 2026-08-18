@@ -1738,7 +1738,7 @@ Backlog 5.3 kapsamında dependency scanner production runner'ı deterministik
 bir CI komutuna bağlanmıştır:
 
 ```powershell
-python tools/run_ci_dependency_scan.py `
+python -m tools.run_ci_dependency_scan `
   --requirements sample_app/requirements-vulnerable.txt `
   --fixture tests/fixtures/osv/fastapi-0.109.0.json `
   --output reports/ci/dependency-scan.json `
@@ -1767,9 +1767,9 @@ checked-in dependency baseline ile byte düzeyinde karşılaştırılır.
 Güncel doğrulama:
 
 ```text
-Offline dependency CI tests: 5 passed
+Offline dependency CI tests: 6 passed
 CI workflow contract tests: 13 passed
-Complete test suite: 996 passed
+Complete test suite: 997 passed
 Live HTTP requests: disabled
 ```
 

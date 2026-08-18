@@ -113,7 +113,7 @@ paralel çalışabilir. Aşağıdaki komut production dependency runner'ını ye
 OSV verisiyle çalıştırır:
 
 ```text
-python tools/run_ci_dependency_scan.py
+python -m tools.run_ci_dependency_scan
 ```
 
 Workflow girdileri açıkça sabitlenmiştir:
@@ -169,7 +169,7 @@ checked-in baseline ile birebir aynı olmalıdır.
 Offline dependency gate'ini yerelde çalıştırmak için:
 
 ```powershell
-python tools/run_ci_dependency_scan.py `
+python -m tools.run_ci_dependency_scan `
   --requirements sample_app/requirements-vulnerable.txt `
   --fixture tests/fixtures/osv/fastapi-0.109.0.json `
   --output reports/ci/dependency-scan.json `
@@ -220,9 +220,9 @@ Doğrulanan mevcut sonuç:
 
 ```text
 CI workflow contract tests: 13 passed
-Offline dependency CI tests: 5 passed
+Offline dependency CI tests: 6 passed
 Python 3.11 compatibility tests: 1 passed
-Complete test suite: 996 passed
+Complete test suite: 997 passed
 Workflow YAML parse check: passed
 ```
 

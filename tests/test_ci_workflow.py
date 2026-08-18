@@ -215,7 +215,7 @@ def test_dependency_scan_job_uses_offline_critical_gate() -> None:
 
     workflow = _workflow_text()
 
-    assert "python tools/run_ci_dependency_scan.py" in workflow
+    assert "python -m tools.run_ci_dependency_scan" in workflow
     assert (
         "--requirements "
         "sample_app/requirements-vulnerable.txt"

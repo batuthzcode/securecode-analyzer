@@ -116,7 +116,7 @@ jobs:
 
       - name: Run offline OSV dependency gate
         run: |
-          python tools/run_ci_dependency_scan.py \
+          python -m tools.run_ci_dependency_scan \
             --requirements sample_app/requirements-vulnerable.txt \
             --fixture tests/fixtures/osv/fastapi-0.109.0.json \
             --output reports/ci/dependency-scan.json \
