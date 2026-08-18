@@ -1179,6 +1179,10 @@ Sub-task’ler:
 * API bağımlılığını yaz.
 * Güvenli sürüm bilgisinin her zaman bulunmayabileceğini yaz.
 
+**Durum:** Tamamlandı. Cross-platform kurulum, iki CLI'ın text/JSON ve
+severity-gate kullanımı, canlı/yerel OSV ayrımı, exit code sözleşmeleri ve
+bilinen sınırlamalar root [`README.md`](../README.md) içinde belgelenmiştir.
+
 ## Backlog 5.7 — Son teknik dokümantasyon
 
 **Öncelik:** P1
