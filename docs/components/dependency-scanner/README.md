@@ -1453,6 +1453,143 @@ Self-analysis: No findings found.
 Exit code: 0
 ```
 
+## Uygulanan Dependency Scan CLI
+
+Dependency scanner orchestration ve formatter katmanlarını çalıştıran bağımsız
+bir command-line interface eklenmiştir.
+
+Console command:
+
+```text
+securecode-dependency-scan
+```
+
+Mevcut `securecode-analyzer` static analysis komutu değişmeden korunmuştur.
+
+Oluşturulan dosyalar:
+
+```text
+src/dependency_scanner/cli.py
+src/dependency_scanner/default_factory.py
+src/dependency_scanner/runner.py
+tests/test_dependency_cli.py
+tests/test_dependency_runner.py
+```
+
+### Temel Kullanım
+
+Bir requirements dosyasını OSV üzerinden taramak için:
+
+```powershell
+securecode-dependency-scan requirements.txt
+```
+
+JSON çıktısı almak için:
+
+```powershell
+securecode-dependency-scan requirements.txt --format json
+```
+
+Raporu UTF-8 dosyasına yazmak için:
+
+```powershell
+securecode-dependency-scan requirements.txt `
+    --format json `
+    --output reports/dependencies.json
+```
+
+`--output` kullanılmadığında rapor stdout'a yazılır. Output dosyasının parent
+klasörü otomatik oluşturulmaz. Requirements input dosyasının output hedefi
+olarak kullanılması, input verisinin ezilmesini önlemek için reddedilir.
+
+### Desteklenen Parametreler
+
+```text
+requirements_file
+--format text|json
+--output PATH
+--fail-on any|low|medium|high|critical
+--source osv
+--timeout SECONDS
+```
+
+Varsayılan değerler:
+
+```text
+format: text
+output: stdout
+fail-on: any
+source: osv
+timeout: 10.0
+```
+
+Timeout pozitif ve finite bir sayı olmalıdır. İlk CLI sürümünde yalnızca OSV
+vulnerability source desteklenmektedir.
+
+### Severity Eşiği
+
+Varsayılan `--fail-on any`, `unknown` dahil bütün finding değerlerinde exit
+code `1` üretir.
+
+Belirli bir qualitative severity eşiği seçilebilir:
+
+```powershell
+securecode-dependency-scan requirements.txt --fail-on high
+```
+
+Eşik sırası:
+
+```text
+low < medium < high < critical
+```
+
+Örneğin `--fail-on high`, `HIGH` ve `CRITICAL` finding değerlerinde exit code
+`1`; `UNKNOWN`, `LOW` ve `MEDIUM` finding değerlerinde exit code `0` üretir.
+
+### Exit Code Politikası
+
+```text
+0: Tarama başarılı ve seçilen eşiği karşılayan finding yok
+1: Tarama başarılı ve seçilen eşiği karşılayan finding var
+2: Kullanıcı, dosya, parse, source veya lookup hatası var
+```
+
+Bir veya daha fazla dependency lookup işlemi başarısız olduğunda exit code
+`2`, finding exit code değerinden önceliklidir. Başarılı lookup finding
+değerleri ve başarısız lookup kayıtları aynı kısmi raporda korunur.
+
+Fatal requirements veya output dosyası hataları stderr'e aşağıdaki biçimde
+yazılır:
+
+```text
+Error: <message>
+```
+
+### Default Component Yapısı
+
+CLI default factory aşağıdaki component zincirini her çağrıda yeniden kurar:
+
+```text
+OsvQueryClient
+  -> OsvVulnerabilitySource
+    -> DependencyScanner
+```
+
+`--timeout` değeri doğrudan OSV query client'a aktarılır. Runner mevcut
+scanner ve formatter davranışlarını yeniden kullanır; requirements parsing,
+HTTP response işleme veya CVSS hesaplama sorumluluklarını tekrar uygulamaz.
+
+### Test Sonuçları
+
+```text
+Dependency CLI argument tests: 37 passed
+Dependency runner and factory tests: 47 passed
+Complete test suite: 811 passed
+Compile check: passed
+Self-analysis: No findings found.
+Exit code: 0
+```
+
 ## Navigation
 
 - [Tüm bileşenlere dön](../README.md)
