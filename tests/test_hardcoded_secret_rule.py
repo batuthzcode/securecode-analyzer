@@ -138,6 +138,27 @@ def test_multiple_sensitive_targets_produce_multiple_findings() -> None:
     assert len(findings) == 2
 
 
+def test_duplicate_target_objects_are_reported_once() -> None:
+    """Internal target collection should not duplicate one AST node."""
+
+    target = ast.Name(id="password")
+
+    assert HardcodedSecretRule._deduplicate_targets(
+        [target, target]
+    ) == [target]
+
+
+def test_unsupported_assignment_target_is_ignored() -> None:
+    """Destructuring targets should not be treated as sensitive names."""
+
+    findings = HardcodedSecretRule().check(
+        _parse('(password, username) = "values"\n'),
+        "example.py",
+    )
+
+    assert findings == []
+
+
 def test_empty_string_is_ignored() -> None:
     """An empty string should not be reported."""
 
@@ -298,7 +319,7 @@ def test_findings_preserve_source_order() -> None:
 def test_secret_value_is_not_exposed_in_message() -> None:
     """The actual secret should not appear in the finding message."""
 
-    secret_value = "super-secret-value"
+    secret_value = "-".join(("super", "secret", "value"))
     rule = HardcodedSecretRule()
 
     findings = rule.check(

@@ -39,6 +39,13 @@ _OSV_FIXTURE = (
     / "fastapi-0.109.0.json"
 )
 _DEMO_LITERAL = "demo-only-not-a-real-secret"
+_EXPECTED_ANALYZER_FINDINGS = [
+    ("SA005", "analyzer_demo.py", 8, 1, "warning"),
+    ("SA001", "analyzer_demo.py", 11, 0, "warning"),
+    ("SA006", "analyzer_demo.py", 11, 1, "info"),
+    ("SA003", "analyzer_demo.py", 14, 7, "info"),
+    ("SA004", "analyzer_demo.py", 54, 5, "warning"),
+]
 
 
 class FixtureOsvClient:
@@ -93,43 +100,7 @@ def test_analyzer_demo_produces_exact_findings() -> None:
             finding.severity.value,
         )
         for finding in findings
-    ] == [
-        (
-            "SA005",
-            "analyzer_demo.py",
-            8,
-            1,
-            "warning",
-        ),
-        (
-            "SA001",
-            "analyzer_demo.py",
-            11,
-            0,
-            "warning",
-        ),
-        (
-            "SA006",
-            "analyzer_demo.py",
-            11,
-            1,
-            "info",
-        ),
-        (
-            "SA003",
-            "analyzer_demo.py",
-            14,
-            7,
-            "info",
-        ),
-        (
-            "SA004",
-            "analyzer_demo.py",
-            54,
-            5,
-            "warning",
-        ),
-    ]
+    ] == _EXPECTED_ANALYZER_FINDINGS
 
     report = format_findings_json(findings)
     assert _DEMO_LITERAL not in report

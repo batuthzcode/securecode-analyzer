@@ -69,6 +69,30 @@ def test_scope_changed_score_is_capped_at_ten() -> None:
     assert calculate_cvss_v3_base_score(vector) == 10.0
 
 
+@pytest.mark.parametrize(
+    ("privileges", "scope", "expected_score"),
+    [
+        ("L", "U", 8.8),
+        ("L", "C", 9.9),
+        ("H", "U", 7.2),
+        ("H", "C", 9.1),
+    ],
+)
+def test_privilege_weight_accounts_for_scope(
+    privileges: str,
+    scope: str,
+    expected_score: float,
+) -> None:
+    """Low and high privileges use their scope-specific CVSS weights."""
+
+    vector = (
+        f"CVSS:3.1/AV:N/AC:L/PR:{privileges}/UI:N/"
+        f"S:{scope}/C:H/I:H/A:H"
+    )
+
+    assert calculate_cvss_v3_base_score(vector) == expected_score
+
+
 def test_zero_impact_returns_zero_score() -> None:
     """A vector without any impact has a zero base score."""
 

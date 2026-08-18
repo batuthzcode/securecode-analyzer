@@ -15,6 +15,74 @@ from dependency_scanner import (
 
 PayloadFactory = Callable[[object], object]
 
+_FULL_NESTED_PAYLOAD = {
+    "vulns": [
+        {
+            "id": "OSV-2026-1",
+            "summary": "Summary",
+            "details": "Details",
+            "aliases": [
+                "CVE-2026-0001",
+                "GHSA-aaaa-bbbb-cccc",
+            ],
+            "severity": [
+                {
+                    "type": "CVSS_V3",
+                    "score": "9.8",
+                },
+            ],
+            "affected": [
+                {
+                    "package": {
+                        "ecosystem": "PyPI",
+                        "name": "demo-package",
+                    },
+                    "ranges": [
+                        {
+                            "type": "ECOSYSTEM",
+                            "events": [
+                                {"introduced": "0"},
+                                {
+                                    "fixed": "2.0.0",
+                                    "last_affected": "1.9.9",
+                                    "limit": "3.0.0",
+                                },
+                            ],
+                        },
+                    ],
+                    "versions": ["1.0.0", "1.5.0"],
+                    "severity": [
+                        {
+                            "type": "CVSS_V3",
+                            "score": "7.5",
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+    "next_page_token": "page-2",
+}
+
+_ORDERED_DUPLICATE_PAYLOAD = {
+    "vulns": [
+        {
+            "id": "OSV-B",
+            "aliases": ["CVE-Z", "CVE-Z", "CVE-A"],
+            "affected": [
+                {
+                    "package": {
+                        "ecosystem": "PyPI",
+                        "name": "demo-package",
+                    },
+                    "versions": ["2.0", "2.0", "1.0"],
+                },
+            ],
+        },
+        {"id": "OSV-A"},
+    ],
+}
+
 
 def _vulnerability(
     **values: object,
@@ -101,61 +169,7 @@ def test_parse_empty_response() -> None:
 def test_parse_full_nested_response() -> None:
     """Parse all supported nested OSV response fields."""
 
-    result = parse_osv_query_response(
-        {
-            "vulns": [
-                {
-                    "id": "OSV-2026-1",
-                    "summary": "Summary",
-                    "details": "Details",
-                    "aliases": [
-                        "CVE-2026-0001",
-                        "GHSA-aaaa-bbbb-cccc",
-                    ],
-                    "severity": [
-                        {
-                            "type": "CVSS_V3",
-                            "score": "9.8",
-                        },
-                    ],
-                    "affected": [
-                        {
-                            "package": {
-                                "ecosystem": "PyPI",
-                                "name": "demo-package",
-                            },
-                            "ranges": [
-                                {
-                                    "type": "ECOSYSTEM",
-                                    "events": [
-                                        {
-                                            "introduced": "0",
-                                        },
-                                        {
-                                            "fixed": "2.0.0",
-                                            "last_affected": "1.9.9",
-                                            "limit": "3.0.0",
-                                        },
-                                    ],
-                                },
-                            ],
-                            "versions": [
-                                "1.0.0",
-                                "1.5.0",
-                            ],
-                            "severity": [
-                                {
-                                    "type": "CVSS_V3",
-                                    "score": "7.5",
-                                },
-                            ],
-                        },
-                    ],
-                },
-            ],
-            "next_page_token": "page-2",
-        }
-    )
+    result = parse_osv_query_response(_FULL_NESTED_PAYLOAD)
 
     vulnerability = result.vulnerabilities[0]
     affected = vulnerability.affected[0]
@@ -217,33 +231,7 @@ def test_ignore_unknown_fields() -> None:
 def test_preserve_order_and_duplicates() -> None:
     """Preserve source order and duplicate values."""
 
-    result = parse_osv_query_response(
-        {
-            "vulns": [
-                {
-                    "id": "OSV-B",
-                    "aliases": [
-                        "CVE-Z",
-                        "CVE-Z",
-                        "CVE-A",
-                    ],
-                    "affected": [
-                        {
-                            "package": _package(),
-                            "versions": [
-                                "2.0",
-                                "2.0",
-                                "1.0",
-                            ],
-                        },
-                    ],
-                },
-                {
-                    "id": "OSV-A",
-                },
-            ],
-        }
-    )
+    result = parse_osv_query_response(_ORDERED_DUPLICATE_PAYLOAD)
 
     assert tuple(
         item.advisory_id

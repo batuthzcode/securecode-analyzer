@@ -45,6 +45,17 @@ def test_empty_source_returns_no_findings() -> None:
     assert findings == []
 
 
+def test_synthetic_handler_without_body_is_ignored() -> None:
+    """Incomplete AST handlers should fail safely without a finding."""
+
+    handler = ast.ExceptHandler(type=None, name=None, body=[])
+    handler.lineno = 1
+    handler.col_offset = 0
+    tree = ast.Module(body=[handler], type_ignores=[])
+
+    assert EmptyExceptRule().check(tree, "example.py") == []
+
+
 def test_typed_except_with_only_pass_is_detected() -> None:
     """A typed except containing only pass should be reported."""
 

@@ -149,6 +149,19 @@ def test_dependency_rejects_empty_name(
         )
 
 
+def test_dependency_rejects_non_string_name() -> None:
+    """Dependency text fields should fail with a controlled error."""
+
+    with pytest.raises(ValueError, match="name must be a string"):
+        Dependency(
+            name=object(),  # type: ignore[arg-type]
+            version="1.0.0",
+            operator="==",
+            source_file="requirements.txt",
+            line_number=1,
+        )
+
+
 @pytest.mark.parametrize(
     "version",
     [
@@ -452,6 +465,19 @@ def test_dependency_finding_rejects_empty_alias(
             message="Affected dependency.",
             source=create_source(),
             aliases=aliases,
+        )
+
+
+def test_dependency_finding_rejects_non_tuple_aliases() -> None:
+    """Aliases should use the immutable tuple model contract."""
+
+    with pytest.raises(ValueError, match="aliases must be a tuple"):
+        DependencyFinding(
+            dependency=create_dependency(),
+            advisory_id="OSV-EXAMPLE",
+            message="Affected dependency.",
+            source=create_source(),
+            aliases=["CVE-2099-0001"],  # type: ignore[arg-type]
         )
 
 
