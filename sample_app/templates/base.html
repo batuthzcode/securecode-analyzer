@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="A focused task workspace for the SecureCode Analyzer demo."
+    >
+    <title>{% block title %}Tasks{% endblock %} · SecureCode Analyzer</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    >
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+
+    <header class="site-header">
+      <div class="shell topbar">
+        <a
+          class="brand"
+          href="{{ url_for('index') }}"
+          aria-label="{{ application_name }} home"
+        >
+          <span class="brand-mark" aria-hidden="true">S</span>
+          <span>
+            <strong>SecureCode</strong>
+            <small>Analyzer sample</small>
+          </span>
+        </a>
+        <span class="environment-badge">In-memory demo</span>
+      </div>
+    </header>
+
+    <main id="main-content" class="shell page-shell">
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="shell site-footer">
+      <p>Built to exercise static analysis and dependency scanning.</p>
+      <p>Demo data resets when the application restarts.</p>
+    </footer>
+  </body>
+</html>

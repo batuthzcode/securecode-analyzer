@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Edit task {{ task.id }}{% endblock %}
+
+{% block content %}
+  <div class="edit-page">
+    <a class="back-link" href="{{ url_for('index') }}">
+      <span aria-hidden="true">←</span>
+      Back to tasks
+    </a>
+
+    <section class="panel edit-panel" aria-labelledby="edit-title">
+      <div class="section-heading edit-heading">
+        <div>
+          <p class="eyebrow">Task {{ task.id }}</p>
+          <h1 id="edit-title">Refine this task.</h1>
+          <p>Keep the action precise and its review status current.</p>
+        </div>
+        <span
+          class="status-badge{% if task.completed %} status-complete{% else %} status-pending{% endif %}"
+        >
+          {% if task.completed %}Completed{% else %}Pending{% endif %}
+        </span>
+      </div>
+
+      {% if error %}
+        <div class="alert" role="alert">
+          <strong>We could not update this task.</strong>
+          <span>{{ error }}</span>
+        </div>
+      {% endif %}
+
+      <form
+        class="task-form edit-form"
+        action="{{ url_for('edit_task', task_id=task.id) }}"
+        method="post"
+      >
+        <div class="field-group">
+          <label for="edit-title-field">Title</label>
+          <input
+            id="edit-title-field"
+            name="title"
+            type="text"
+            value="{{ form_values.title }}"
+            required
+          >
+        </div>
+
+        <div class="field-group">
+          <label for="edit-description">Description</label>
+          <textarea
+            id="edit-description"
+            name="description"
+            rows="6"
+          >{{ form_values.description }}</textarea>
+        </div>
+
+        <div class="field-group">
+          <label for="edit-completed">Status</label>
+          <select id="edit-completed" name="completed">
+            <option
+              value="false"
+              {% if form_values.completed == "false" %}selected{% endif %}
+            >
+              Pending
+            </option>
+            <option
+              value="true"
+              {% if form_values.completed == "true" %}selected{% endif %}
+            >
+              Completed
+            </option>
+          </select>
+        </div>
+
+        <div class="form-actions">
+          <button class="button button-primary" type="submit">
+            Save changes
+          </button>
+          <a class="button button-secondary" href="{{ url_for('index') }}">
+            Cancel
+          </a>
+        </div>
+      </form>
+    </section>
+
+    <section class="danger-zone" aria-labelledby="danger-title">
+      <div>
+        <h2 id="danger-title">Remove this task</h2>
+        <p>This removes it from the in-memory queue immediately.</p>
+      </div>
+      <form
+        action="{{ url_for('delete_task_form', task_id=task.id) }}"
+        method="post"
+      >
+        <button class="button button-danger" type="submit">
+          Delete task
+        </button>
+      </form>
+    </section>
+  </div>
+{% endblock %}

@@ -4,8 +4,17 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from flask import Flask, Response, current_app, request
+from flask import (
+    Flask,
+    Response,
+    current_app,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 
+from sample_app.models import Task
 from sample_app.store import (
     InMemoryTaskStore,
     create_demo_tasks,
@@ -114,17 +123,24 @@ def _register_routes(app: Flask) -> None:
         view_func=_delete_task,
         methods=["DELETE"],
     )
+    app.add_url_rule(
+        "/tasks/<int:task_id>/edit",
+        endpoint="edit_task",
+        view_func=_edit_task,
+        methods=["GET", "POST"],
+    )
+    app.add_url_rule(
+        "/tasks/<int:task_id>/delete",
+        endpoint="delete_task_form",
+        view_func=_delete_task_form,
+        methods=["POST"],
+    )
 
 
-def _index() -> dict[str, object]:
-    """Return application details and current tasks."""
+def _index() -> str:
+    """Render the browser task workspace."""
 
-    return {
-        "application": _APPLICATION_NAME,
-        "tasks": _serialize_tasks(
-            _get_task_store()
-        ),
-    }
+    return _render_index()
 
 
 def _list_tasks() -> dict[str, object]:
@@ -137,7 +153,8 @@ def _list_tasks() -> dict[str, object]:
     }
 
 
-def _create_task() -> tuple[dict[str, object], int]:
+def _create_task(
+) -> Response | tuple[dict[str, object], int] | tuple[str, int]:
     """Validate one request and create an incomplete task."""
 
     try:
@@ -149,13 +166,19 @@ def _create_task() -> tuple[dict[str, object], int]:
             task_request.description,
         )
     except TaskRequestError as error:
-        return _task_error_response(error)
+        return _create_task_error_response(error)
     except ValueError as error:
-        return _task_error_response(
+        return _create_task_error_response(
             TaskRequestError(
                 code="invalid_task",
                 message=str(error),
             )
+        )
+
+    if _wants_html_response():
+        return redirect(
+            url_for("index"),
+            code=303,
         )
 
     return {"task": task.to_dict()}, 201
@@ -222,6 +245,78 @@ def _delete_task(
     return current_app.response_class(status=204)
 
 
+def _edit_task(
+    task_id: int,
+) -> Response | str | tuple[str, int]:
+    """Render or process the browser task edit form."""
+
+    task_store = _get_task_store()
+
+    try:
+        current_task = task_store.get_task(task_id)
+    except ValueError:
+        return _html_task_not_found_response(task_id)
+
+    if current_task is None:
+        return _html_task_not_found_response(task_id)
+
+    if request.method == "GET":
+        return _render_edit(current_task)
+
+    try:
+        task_request = parse_update_task_request(
+            request
+        )
+        updated_task = task_store.update_task(
+            task_id,
+            title=task_request.title,
+            description=task_request.description,
+            completed=task_request.completed,
+        )
+    except TaskRequestError as error:
+        return _render_edit_error(
+            current_task,
+            error,
+        )
+    except ValueError as error:
+        return _render_edit_error(
+            current_task,
+            TaskRequestError(
+                code="invalid_task",
+                message=str(error),
+            ),
+        )
+
+    if updated_task is None:
+        return _html_task_not_found_response(task_id)
+
+    return redirect(
+        url_for("index"),
+        code=303,
+    )
+
+
+def _delete_task_form(
+    task_id: int,
+) -> Response | tuple[str, int]:
+    """Process one browser delete form."""
+
+    try:
+        deleted_task = _get_task_store().delete_task(
+            task_id
+        )
+    except ValueError:
+        return _html_task_not_found_response(task_id)
+
+    if deleted_task is None:
+        return _html_task_not_found_response(task_id)
+
+    return redirect(
+        url_for("index"),
+        code=303,
+    )
+
+
 def _serialize_tasks(
     task_store: InMemoryTaskStore,
 ) -> list[dict[str, object]]:
@@ -231,6 +326,139 @@ def _serialize_tasks(
         task.to_dict()
         for task in task_store.list_tasks()
     ]
+
+
+def _render_index(
+    *,
+    error: str | None = None,
+    form_values: Mapping[str, str] | None = None,
+) -> str:
+    """Render the task list, counts, and create form."""
+
+    tasks = _get_task_store().list_tasks()
+    completed_count = sum(
+        task.completed
+        for task in tasks
+    )
+
+    return render_template(
+        "index.html",
+        application_name=_APPLICATION_NAME,
+        tasks=tasks,
+        task_counts={
+            "total": len(tasks),
+            "completed": completed_count,
+            "pending": len(tasks) - completed_count,
+        },
+        error=error,
+        form_values=(
+            form_values
+            if form_values is not None
+            else {
+                "title": "",
+                "description": "",
+            }
+        ),
+    )
+
+
+def _render_edit(
+    task: Task,
+    *,
+    error: str | None = None,
+    form_values: Mapping[str, str] | None = None,
+) -> str:
+    """Render one task edit form."""
+
+    return render_template(
+        "edit.html",
+        application_name=_APPLICATION_NAME,
+        task=task,
+        error=error,
+        form_values=(
+            form_values
+            if form_values is not None
+            else {
+                "title": task.title,
+                "description": task.description,
+                "completed": (
+                    "true"
+                    if task.completed
+                    else "false"
+                ),
+            }
+        ),
+    )
+
+
+def _create_task_error_response(
+    error: TaskRequestError,
+) -> tuple[dict[str, object], int] | tuple[str, int]:
+    """Return a JSON or browser create error."""
+
+    if not _wants_html_response():
+        return _task_error_response(error)
+
+    return _render_index(
+        error=str(error),
+        form_values={
+            "title": request.form.get("title", ""),
+            "description": request.form.get(
+                "description",
+                "",
+            ),
+        },
+    ), error.status_code
+
+
+def _render_edit_error(
+    task: Task,
+    error: TaskRequestError,
+) -> tuple[str, int]:
+    """Render a controlled browser edit error."""
+
+    return _render_edit(
+        task,
+        error=str(error),
+        form_values={
+            "title": request.form.get(
+                "title",
+                task.title,
+            ),
+            "description": request.form.get(
+                "description",
+                task.description,
+            ),
+            "completed": request.form.get(
+                "completed",
+                (
+                    "true"
+                    if task.completed
+                    else "false"
+                ),
+            ),
+        },
+    ), error.status_code
+
+
+def _html_task_not_found_response(
+    task_id: int,
+) -> tuple[str, int]:
+    """Render the missing-task error in the workspace."""
+
+    return _render_index(
+        error=f"Task {task_id} was not found."
+    ), 404
+
+
+def _wants_html_response() -> bool:
+    """Return whether one non-JSON client prefers HTML."""
+
+    return (
+        not request.is_json
+        and request.accept_mimetypes["text/html"]
+        > request.accept_mimetypes["application/json"]
+    )
 
 
 def _task_error_response(
