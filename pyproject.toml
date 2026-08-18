@@ -21,3 +21,4 @@ where = ["src"]
 testpaths = ["tests"]
 [project.scripts]
 securecode-analyzer = "static_analyzer.runner:main"
+securecode-dependency-scan = "dependency_scanner.runner:main"
