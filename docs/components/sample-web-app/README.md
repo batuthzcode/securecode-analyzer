@@ -548,8 +548,9 @@ New frontend test cases: 18 passed
 New security demo test cases: 4 passed
 New integration report test cases: 6 passed
 New CI workflow test cases: 7 passed
+New Python 3.11 compatibility test cases: 1 passed
 Sample app targeted suite: 149 passed
-Complete test suite: 984 passed
+Complete test suite: 985 passed
 Compile check: passed
 Sample app analysis: 5 expected findings
 Analyzer source self-analysis: no findings

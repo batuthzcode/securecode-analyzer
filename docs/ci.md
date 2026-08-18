@@ -90,6 +90,12 @@ Workflow sözleşmesi de normal test paketi içindedir:
 python -m pytest tests/test_ci_workflow.py -q
 ```
 
+Minimum Python syntax sözleşmesini doğrulamak için:
+
+```powershell
+python -m pytest tests/test_python_compatibility.py -q
+```
+
 ## Sözleşme Testleri
 
 `tests/test_ci_workflow.py` aşağıdaki değerleri korur:
@@ -104,11 +110,17 @@ python -m pytest tests/test_ci_workflow.py -q
 - Pip upgrade, dev install ve pytest komut sırası
 - Ubuntu runner ve 10 dakikalık timeout
 
+`tests/test_python_compatibility.py`, `src`, `sample_app`, `tools` ve `tests`
+altındaki bütün Python dosyalarını desteklenen en düşük sürüm olan Python
+3.11 grameriyle ayrıştırır. Böylece daha yeni bir yorumlayıcıda yerel olarak
+geçen Python 3.12+ söz dizimi değişiklikleri CI'a ulaşmadan tespit edilir.
+
 Doğrulanan mevcut sonuç:
 
 ```text
 CI workflow contract tests: 7 passed
-Complete test suite: 984 passed
+Python 3.11 compatibility tests: 1 passed
+Complete test suite: 985 passed
 Workflow YAML parse check: passed
 ```
 

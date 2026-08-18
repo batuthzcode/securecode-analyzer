@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import TypeAlias
 
 from static_analyzer.models import Finding
 from static_analyzer.rules.base import BaseRule
@@ -10,7 +11,7 @@ from static_analyzer.rules.base_text import BaseTextRule
 from static_analyzer.source_reader import SourceFile
 
 
-type AnalysisRule = BaseRule | BaseTextRule
+AnalysisRule: TypeAlias = BaseRule | BaseTextRule
 
 
 class AnalysisEngine:
