@@ -23,6 +23,9 @@ from dependency_scanner.osv_parser import (
     OsvResponseParseError,
     parse_osv_query_response,
 )
+from dependency_scanner.osv_source import (
+    OsvVulnerabilitySource,
+)
 from dependency_scanner.package_normalizer import (
     normalize_package_name,
 )
@@ -50,6 +53,7 @@ __all__ = [
     "OsvResponseParseError",
     "OsvSeverity",
     "OsvVulnerability",
+    "OsvVulnerabilitySource",
     "RequirementsParseError",
     "VulnerabilitySeverity",
     "VulnerabilitySource",

@@ -4067,3 +4067,42 @@ OSV query client:
 - [Tüm bileşenlere dön](../README.md)
 - [Proje dokümantasyonuna dön](../../README.md)
 - [Projenin ana sayfasına dön](../../../README.md)
+## OSV Vulnerability Source Gereksinimleri
+
+OSV sorgu sonuçlarını DependencyFinding modellerine dönüştüren
+OsvVulnerabilitySource katmanı eklenecektir.
+
+Dosyalar:
+
+- src/dependency_scanner/osv_source.py
+- tests/test_osv_source.py
+- src/dependency_scanner/__init__.py güncellenecek
+
+Public API:
+
+- OsvVulnerabilitySource
+- find_vulnerabilities(dependency) -> tuple[DependencyFinding, ...]
+
+Davranış:
+
+- Dependency adı ve sürümü OsvQueryClient ile sorgulanacak.
+- Her OSV vulnerability bir DependencyFinding oluşturacak.
+- advisory_id ve aliases korunacak.
+- message için önce summary, sonra details kullanılacak.
+- İkisi de yoksa advisory ID içeren varsayılan mesaj kullanılacak.
+- İlk fixed range event fixed_version olarak kullanılacak.
+- Fixed version yoksa None kullanılacak.
+- Severity şimdilik VulnerabilitySeverity.UNKNOWN olacak.
+- next_page_token varsa sonraki sayfa sorgulanacak.
+- Tüm sayfalardaki bulgular tek tuple içinde döndürülecek.
+- OsvQueryError caller'a aynen aktarılacak.
+
+Advisory source:
+
+AdvisorySource(name="OSV", url="https://osv.dev/")
+
+Testler gerçek internet bağlantısı kullanmayacak.
+
+Bu katman HTTP request oluşturmayacak, JSON parse etmeyecek,
+requirements dosyası okumayacak, CVSS yorumlamayacak ve
+terminal çıktısı üretmeyecek.
