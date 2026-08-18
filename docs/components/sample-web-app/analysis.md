@@ -697,14 +697,14 @@ veri checked-in baseline'ın deterministikliğini değiştirmemelidir.
 Tek repository aracı iki raporu birlikte üretmelidir:
 
 ```powershell
-python tools/generate_sample_app_reports.py
+python -m tools.generate_sample_app_reports
 ```
 
 `--check` modu dosya yazmadan güncellik kontrolü yapmalı ve missing veya stale
 artifact için exit code `1` döndürmelidir:
 
 ```powershell
-python tools/generate_sample_app_reports.py --check
+python -m tools.generate_sample_app_reports --check
 ```
 
 ### Demo Sırası

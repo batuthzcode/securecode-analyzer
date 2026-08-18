@@ -60,9 +60,9 @@ Mevcut özellikler:
 * Ayrı ve runtime dışı vulnerable dependency fixture'ı
 * Portable static-analysis ve dependency-scan JSON baseline'ları
 * Offline report generator ve drift check
-* Pull Request ve `main` push için pytest ve statik analiz CI job'ları
+* Pull Request ve `main` push için test, static ve dependency CI job'ları
 
-Sıradaki aşama dependency scanner ve report artifact CI job'larıdır.
+Sıradaki aşama security report artifact upload job'udur.
 
 ## Kurulum
 
@@ -386,13 +386,13 @@ reports/sample-app/dependency-scan.json
 İki raporu production analyzer/scanner katmanlarından yeniden üretmek için:
 
 ```powershell
-python tools/generate_sample_app_reports.py
+python -m tools.generate_sample_app_reports
 ```
 
 Checked-in artifact'ların güncel olduğunu dosya yazmadan doğrulamak için:
 
 ```powershell
-python tools/generate_sample_app_reports.py --check
+python -m tools.generate_sample_app_reports --check
 ```
 
 Generator static analyzer'ı doğrudan çalıştırır. Dependency baseline için
@@ -439,7 +439,7 @@ repository-relative `/` biçimindedir.
 
    ```powershell
    Get-Content reports/sample-app/dependency-scan.json
-   python tools/generate_sample_app_reports.py --check
+   python -m tools.generate_sample_app_reports --check
    ```
 
 Demo sonunda Flask runtime requirements dosyasının yalnızca `Flask==3.1.3`
@@ -547,10 +547,11 @@ New update/delete test cases: 54 passed
 New frontend test cases: 18 passed
 New security demo test cases: 4 passed
 New integration report test cases: 6 passed
-New CI workflow test cases: 10 passed
+New CI workflow test cases: 13 passed
+New offline dependency CI test cases: 6 passed
 New Python 3.11 compatibility test cases: 1 passed
 Sample app targeted suite: 149 passed
-Complete test suite: 988 passed
+Complete test suite: 997 passed
 Compile check: passed
 Sample app analysis: 5 expected findings
 Analyzer source self-analysis: no findings

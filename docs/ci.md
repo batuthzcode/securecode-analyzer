@@ -1,11 +1,13 @@
 # GitHub Actions CI
 
-Bu doküman Backlog 5.1 ve 5.2 kapsamındaki test ve statik analiz pipeline'ının
-gereksinimlerini, güvenlik sınırlarını ve çalışma sırasını açıklar.
+Bu doküman Backlog 5.1, 5.2 ve 5.3 kapsamındaki test, statik analiz ve
+bağımlılık tarama pipeline'ının gereksinimlerini, güvenlik sınırlarını ve
+çalışma sırasını açıklar.
 
 ## Mevcut Durum
 
-GitHub Actions test ve statik analiz workflow'u tamamlanmıştır:
+GitHub Actions test, statik analiz ve bağımlılık tarama workflow'u
+tamamlanmıştır:
 
 ```text
 .github/workflows/ci.yml
@@ -14,7 +16,9 @@ GitHub Actions test ve statik analiz workflow'u tamamlanmıştır:
 Workflow Pull Request değişikliklerinde ve `main` branch push olaylarında
 Python 3.11 test paketini çalıştırır. Test gate'i geçtikten sonra proje
 kaynaklarını ve kontrollü demo uygulamasını ayrı bir static-analysis job'unda
-tarar. Sıradaki aşama dependency scanner ve report artifact job'larıdır.
+tarar. Buna paralel dependency-scan job'u, checked-in OSV fixture ile kritik
+güvenlik açığı gate'ini çalıştırır. Sıradaki aşama report artifact upload
+job'udur.
 
 ## Trigger Sözleşmesi
 
@@ -35,9 +39,9 @@ permissions:
   contents: read
 ```
 
-Checkout sonrasında credential persistence kapalıdır. Test ve statik analiz
-job'ları `ubuntu-latest` runner üzerinde en fazla 10 dakika çalışır. Aynı
-workflow ve Git ref için yeni bir run başladığında önceki run iptal edilir.
+Checkout sonrasında credential persistence kapalıdır. Üç job da
+`ubuntu-latest` runner üzerinde en fazla 10 dakika çalışır. Aynı workflow ve
+Git ref için yeni bir run başladığında önceki run iptal edilir.
 
 Bu job'lar secret, write permission, deployment environment veya external
 service credential kullanmaz.
@@ -102,6 +106,40 @@ Exit code veya baseline değişirse job başarısız olur.
 Bu aşamada `reports/ci` yalnızca job workspace'inde tutulur. Artifact upload
 Backlog 5.4 kapsamında eklenecektir.
 
+## Bağımlılık Tarama Job Akışı
+
+`dependency-scan` job'u test job'una bağlıdır ve statik analiz job'uyla
+paralel çalışabilir. Aşağıdaki komut production dependency runner'ını yerel
+OSV verisiyle çalıştırır:
+
+```text
+python -m tools.run_ci_dependency_scan
+```
+
+Workflow girdileri açıkça sabitlenmiştir:
+
+```text
+requirements: sample_app/requirements-vulnerable.txt
+OSV fixture: tests/fixtures/osv/fastapi-0.109.0.json
+report: reports/ci/dependency-scan.json
+fail-on: critical
+```
+
+`tools/osv_fixture.py`, fixture metadata'sındaki package, ecosystem ve version
+değerlerini doğrular ve yalnızca aynı query için cevap verir. Canlı HTTP
+client oluşturulmaz. Fixture bulunamazsa, geçersizse, query eşleşmezse veya
+scan error üretirse komut fail-closed davranarak exit code `2` döndürür.
+
+Checked-in gerçek OSV kaydı `PYSEC-2024-38` / `CVE-2024-24762` için `HIGH`
+severity üretir. CI eşiği `CRITICAL` olduğundan bu kontrollü bulgu raporlanır
+ancak job'u başarısız yapmaz. Aynı veri `--fail-on high` ile exit code `1`
+üretir; bu davranış testlerle korunur.
+
+Üretilen JSON, `reports/sample-app/dependency-scan.json` baseline'ı ile byte
+düzeyinde karşılaştırılır. Ardından offline CI ve production-layer dependency
+entegrasyon testleri çalıştırılır. Böylece ağ erişilebilirliği pipeline
+sonucunu etkilemez ve fixture drift'i sessizce kabul edilmez.
+
 ## Yerel Eşdeğer
 
 CI test adımını yerelde doğrulamak için:
@@ -127,6 +165,19 @@ python -m pytest tests/test_sample_app_security_demo.py -q
 
 Demo komutunun beklenen exit code değeri `1` olmalıdır. Üretilen demo JSON'u
 checked-in baseline ile birebir aynı olmalıdır.
+
+Offline dependency gate'ini yerelde çalıştırmak için:
+
+```powershell
+python -m tools.run_ci_dependency_scan `
+  --requirements sample_app/requirements-vulnerable.txt `
+  --fixture tests/fixtures/osv/fastapi-0.109.0.json `
+  --output reports/ci/dependency-scan.json `
+  --fail-on critical
+```
+
+Başarılı kontrollü tarama exit code `0` üretir. Report, gerçek `HIGH` bulguyu
+korur; `--fail-on high` kullanıldığında aynı komut exit code `1` döndürür.
 
 Workflow sözleşmesi de normal test paketi içindedir:
 
@@ -156,6 +207,9 @@ python -m pytest tests/test_python_compatibility.py -q
 - Test job'una bağlı statik analiz job'u
 - `src`, `tools` ve `sample_app` JSON rapor yolları
 - Kontrollü demo exit code ve baseline doğrulaması
+- Test job'una bağlı offline dependency-scan job'u
+- Açık requirements, fixture, output ve `critical` eşik değerleri
+- Dependency baseline ve entegrasyon testi doğrulaması
 
 `tests/test_python_compatibility.py`, `src`, `sample_app`, `tools` ve `tests`
 altındaki bütün Python dosyalarını desteklenen en düşük sürüm olan Python
@@ -165,18 +219,18 @@ geçen Python 3.12+ söz dizimi değişiklikleri CI'a ulaşmadan tespit edilir.
 Doğrulanan mevcut sonuç:
 
 ```text
-CI workflow contract tests: 10 passed
+CI workflow contract tests: 13 passed
+Offline dependency CI tests: 6 passed
 Python 3.11 compatibility tests: 1 passed
-Complete test suite: 988 passed
+Complete test suite: 997 passed
 Workflow YAML parse check: passed
 ```
 
 ## Sonraki Güvenlik Job'ları
 
-Backlog 5.1 ve 5.2 tamamlanmıştır. Sonraki aşamalar:
+Backlog 5.1, 5.2 ve 5.3 tamamlanmıştır. Sonraki aşama:
 
-1. Offline OSV fixture-backed dependency scan gate'i
-2. Static ve dependency JSON raporlarını workflow artifact olarak yükleme
+1. Static ve dependency JSON raporlarını workflow artifact olarak yükleme
 
 Bu ayrım her güvenlik gate'inin davranışını bağımsız olarak incelemeyi sağlar.
 
