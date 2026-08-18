@@ -195,11 +195,14 @@ Tamamlanan foundation çalışmaları:
 * Jinja ana sayfa ve task edit template'lerinin eklenmesi
 * Browser form redirect ve HTML hata akışlarının eklenmesi
 * Responsive temel stylesheet'in eklenmesi
+* İzole static analyzer demo modülünün eklenmesi
+* Ayrı vulnerable requirements fixture'ının eklenmesi
 
 Sıradaki geliştirmeler:
 
-* Kontrollü analiz örneklerinin eklenmesi
-* Gerçek advisory için ayrı vulnerable requirements fixture'ının hazırlanması
+* Static analyzer entegrasyon raporunun üretilmesi
+* Dependency scanner entegrasyon raporunun üretilmesi
+* Uçtan uca demo sırasının belgelenmesi
 
 ## Flask Foundation Teknik Tasarımı
 
@@ -756,6 +759,107 @@ Tek stylesheet aşağıdaki davranışları sağlar:
 - Delete redirect, missing task 404 ve GET ile delete edilememe
 - Form action/link URL değerleri
 - Mevcut JSON API regresyon paketi
+
+## Kontrollü Güvenlik Demo Teknik Tasarımı
+
+### Dosya Yerleşimi
+
+```text
+sample_app/
+├── analyzer_demo.py
+├── requirements.txt
+└── requirements-vulnerable.txt
+
+tests/
+├── fixtures/osv/fastapi-0.109.0.json
+└── test_sample_app_security_demo.py
+```
+
+`requirements.txt` çalışan Flask uygulamasının güvenli ve güncel dependency
+girdisidir. `requirements-vulnerable.txt` yalnızca scanner input fixture'ıdır.
+
+### Analyzer Demo Modülü
+
+`analyzer_demo.py` herhangi bir route, template, factory veya package export
+tarafından import edilmez. Python dosyası syntactically valid kalır; varsayılan
+analyzer onu AST ve source comment tokenları üzerinden inceler.
+
+Tek bir camelCase fonksiyon kontrollü olarak:
+
+- 50 satırdan uzun tutulur (`SA001`).
+- Bir TODO comment içerir (`SA003`).
+- Bir `except ValueError: pass` bloğu içerir (`SA004`).
+- snake_case dışı adıyla `SA006` üretir.
+
+Modül seviyesindeki hassas isimli sabit, açıkça sahte demo text değeriyle
+`SA005` üretir. Kural finding mesajı literal değeri serialize etmez.
+
+Project analyzer bulguları dosya, satır, sütun ve rule ID değerlerine göre
+sıralar. Beklenen çıktı sırası:
+
+```text
+SA005 -> SA001 -> SA006 -> SA003 -> SA004
+```
+
+Deterministik konumlar:
+
+```text
+SA005 line 8,  column 1
+SA001 line 11, column 0
+SA006 line 11, column 1
+SA003 line 14, column 7
+SA004 line 54, column 5
+```
+
+### Vulnerable Requirements Ayrımı
+
+Demo fixture:
+
+```text
+fastapi==0.109.0
+```
+
+Bu sürüm OSV `PYSEC-2024-38` kaydındaki PyPI ECOSYSTEM range içinde affected
+olarak listelenir ve `0.109.1` sürümünde düzeltilir. Advisory yalnızca
+form-data parsing kullanıldığında ilgili ReDoS riskini açıklar.
+
+Fixture normal kurulum komutlarında referans edilmez. Bu nedenle vulnerable
+FastAPI veya transitif `python-multipart` sample Flask process'ine yüklenmez.
+
+### Offline Advisory Doğrulaması
+
+Yeni sample-app security demo testi mevcut resmî projection fixture'ını
+yeniden kullanır:
+
+```text
+tests/fixtures/osv/fastapi-0.109.0.json
+```
+
+Test akışı:
+
+```text
+sample_app/requirements-vulnerable.txt
+  -> production requirements parser
+  -> fixture-backed OSV query client
+  -> OsvVulnerabilitySource
+  -> DependencyScanner
+  -> one HIGH DependencyFinding
+```
+
+Canlı ağ çağrısı yapılmaz. Fixture provenance ve advisory alanlarının kendi
+entegrasyon testleri korunur.
+
+### Test Sözleşmesi
+
+Security demo testleri:
+
+- Exact analyzer finding sayısı, rule ID, severity ve line değerlerini
+  doğrular.
+- Raporun fake secret literal değerini içermediğini doğrular.
+- `sample_app` import sonrasında demo modülünün yüklenmediğini doğrular.
+- Safe ve vulnerable requirements dosyalarının ayrımını doğrular.
+- Offline scan sonucunda advisory, alias, fixed version ve severity alanlarını
+  doğrular.
 
 ## Navigation
 
