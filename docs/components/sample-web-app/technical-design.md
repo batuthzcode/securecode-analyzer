@@ -190,10 +190,11 @@ Tamamlanan foundation çalışmaları:
 * In-memory store ve demo verisinin eklenmesi
 * JSON ana sayfa endpoint'inin eklenmesi
 * Temel uygulama testlerinin yazılması
+* JSON task create, list, partial update ve delete rotalarının eklenmesi
+* JSON/form request doğrulaması ve kontrollü API hatalarının eklenmesi
 
 Sıradaki geliştirmeler:
 
-* Görev update ve delete rotalarının geliştirilmesi
 * HTML şablonlarının hazırlanması
 * HTML form yönlendirmelerinin eklenmesi
 * Kontrollü analiz örneklerinin eklenmesi
@@ -255,7 +256,8 @@ instance'ları birbirinden izole kalır.
 `sample_app/task_requests.py`:
 
 - JSON ve form content type seçimini yapar.
-- Create request alanlarını doğrular.
+- Create ve update request alanlarını doğrular.
+- JSON ve form boolean değerlerini açık bir sözleşmeyle ayrıştırır.
 - Beklenen istemci hatalarını kontrollü modele dönüştürür.
 
 ### İlk Route
@@ -475,6 +477,164 @@ HTTP entegrasyon testleri en az aşağıdaki durumları kapsar:
 
 Testler resmî Flask test client `json=` ve `data=` parametrelerini kullanır;
 gerçek HTTP sunucusu veya ağ bağlantısı başlatılmaz.
+
+## Task Update ve Delete Teknik Tasarımı
+
+### Route Kaydı
+
+```text
+PUT    /tasks/<int:task_id> -> update_task(task_id)
+DELETE /tasks/<int:task_id> -> delete_task(task_id)
+```
+
+Flask `int` converter path değerini integer olarak view fonksiyonuna aktarır.
+Store doğrulaması pozitif ID sözleşmesini korumaya devam eder.
+
+### Store Update
+
+Store public update yöntemi:
+
+```python
+def update_task(
+    task_id: int,
+    *,
+    title: str | None = None,
+    description: str | None = None,
+    completed: bool | None = None,
+) -> Task | None:
+    ...
+```
+
+Akış:
+
+```text
+validate task_id
+  -> find current Task
+  -> return None when missing
+  -> select provided or current field values
+  -> construct a new validated Task
+  -> replace dictionary value for the same key
+  -> return updated Task
+```
+
+Var olan dictionary key'e yeni değer atanması insertion order'ı değiştirmez.
+Yeni Task başarıyla oluşturulmadan store'a atama yapılmaz; validation hatası
+state değerini korur.
+
+### Store Delete
+
+Store public delete yöntemi:
+
+```python
+def delete_task(task_id: int) -> Task | None:
+    ...
+```
+
+Yöntem kaldırılan Task değerini, bulunamayan ID için `None` döndürür.
+`_next_id` delete sırasında değiştirilmez; böylece silinen kimlikler yeniden
+kullanılmaz.
+
+### Update Request Modeli
+
+```python
+@dataclass(frozen=True, slots=True)
+class UpdateTaskRequest:
+    title: str | None = None
+    description: str | None = None
+    completed: bool | None = None
+```
+
+Parser explicit `null` değerlerini reddettiği için `None` yalnızca alanın
+payload içinde bulunmadığını ve mevcut değerin korunacağını ifade eder.
+
+### Boolean Parsing
+
+JSON payload için:
+
+```text
+true  -> True
+false -> False
+```
+
+String, integer ve null JSON değerleri reddedilir.
+
+Form payload için normalize edilmiş token tabloları kullanılır:
+
+```text
+{"true", "1", "on", "yes"}   -> True
+{"false", "0", "off", "no"} -> False
+```
+
+Genel `bool(value)` dönüşümü kullanılmaz; örneğin `bool("false")` değerinin
+yanlışlıkla `True` üretmesi engellenir.
+
+### Update Route Akışı
+
+```text
+positive task_id
+  -> current task lookup
+  -> 404 when missing
+  -> parse_update_task_request()
+  -> store.update_task()
+  -> {"task": updated.to_dict()}
+  -> HTTP 200
+```
+
+Task modelinden gelen `ValueError`, create endpoint'iyle aynı
+`invalid_task` HTTP 400 JSON yanıtına dönüştürülür.
+
+### Delete Route Akışı
+
+```text
+positive task_id
+  -> store.delete_task()
+  -> 404 when missing
+  -> empty Flask Response
+  -> HTTP 204
+```
+
+DELETE route request body parse etmez.
+
+### Not Found Hatası
+
+Update ve delete aynı helper üzerinden aşağıdaki hatayı üretir:
+
+```json
+{
+  "error": {
+    "code": "task_not_found",
+    "message": "Task 99 was not found."
+  }
+}
+```
+
+Bu hata HTTP 404 durum kodunu taşır.
+
+### Test Stratejisi
+
+Store unit testleri:
+
+- Tek alan ve çoklu alan update
+- Immutable eski snapshot'ın değişmemesi
+- Update sırasında insertion order korunması
+- Missing task update/delete
+- Validation hatasında state korunması
+- Başarılı delete
+- Delete sonrasında ID yeniden kullanılmaması
+
+HTTP entegrasyon testleri:
+
+- JSON ve form PUT
+- Title, description ve completed partial update
+- JSON boolean strict validation
+- Bütün desteklenen form boolean tokenları
+- Boş payload ve bilinmeyen alanlar
+- Geçersiz text alanları
+- Missing task için update/delete 404
+- Başarılı delete 204 ve boş body
+- Delete sonucunun ana sayfa ve listede görünmesi
+- Silinen ID sonrasında monotonic create
+- Update/delete için desteklenmeyen HTTP yöntemleri
 
 ## Navigation
 
