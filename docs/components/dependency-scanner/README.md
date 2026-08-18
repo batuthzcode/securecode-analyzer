@@ -1044,6 +1044,97 @@ Self-analysis: No findings found.
 Exit code: 0
 ```
 
+## Uygulanan OSV Vulnerability Source
+
+Dependency scanner bileşenine OSV query sonuçlarını ortak
+`DependencyFinding` modellerine dönüştüren vulnerability source katmanı
+eklenmiştir.
+
+Oluşturulan dosyalar:
+
+```text
+src/dependency_scanner/osv_source.py
+tests/test_osv_source.py
+```
+
+### Public API
+
+```python
+from dependency_scanner import (
+    OsvVulnerabilitySource,
+)
+```
+
+Örnek kullanım:
+
+```python
+source = OsvVulnerabilitySource()
+
+findings = source.find_vulnerabilities(
+    dependency
+)
+```
+
+Source varsayılan olarak mevcut `OsvQueryClient` sınıfını kullanır. Unit
+testlerde veya farklı çalışma ortamlarında uyumlu bir query client constructor
+üzerinden verilebilir.
+
+### Finding Dönüşümü
+
+Her OSV vulnerability kaydı bir `DependencyFinding` değerine dönüştürülür.
+
+Alan eşlemeleri:
+
+```text
+advisory_id → advisory_id
+aliases → aliases
+summary → message
+ilk fixed range event → fixed_version
+```
+
+`summary` bulunmadığında `details` mesaj olarak kullanılır. Her ikisi de
+bulunmadığında advisory ID içeren varsayılan bir mesaj oluşturulur.
+
+Source bilgisi:
+
+```python
+AdvisorySource(
+    name="OSV",
+    url="https://osv.dev/",
+)
+```
+
+Severity mapping sonraki geliştirme aşamasına bırakılmıştır. Bu aşamada bütün
+bulgular `VulnerabilitySeverity.UNKNOWN` değeriyle oluşturulur.
+
+### Pagination ve Hata Yönetimi
+
+Response içindeki `next_page_token` değeri kullanılarak bütün OSV sayfaları
+sorgulanır. Sayfalardaki bulgular sıraları korunarak tek tuple içinde
+birleştirilir.
+
+`OsvQueryError` source katmanında gizlenmez veya başka bir hata türüne
+dönüştürülmez; çağıran katmana aynen aktarılır.
+
+Source katmanı:
+
+- HTTP request oluşturmaz.
+- JSON response ayrıştırmaz.
+- Requirements dosyası okumaz.
+- Paket adı normalize etmez.
+- CVSS severity yorumlamaz.
+- Terminal çıktısı veya exit code üretmez.
+
+### Test Sonuçları
+
+```text
+OSV Vulnerability Source tests: 14 passed
+Complete test suite: 615 passed
+Compile check: passed
+Self-analysis: No findings found.
+Exit code: 0
+```
+
 ## Navigation
 
 - [Tüm bileşenlere dön](../README.md)
