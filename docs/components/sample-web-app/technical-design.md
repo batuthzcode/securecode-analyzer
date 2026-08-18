@@ -193,9 +193,9 @@ Tamamlanan foundation çalışmaları:
 
 Sıradaki geliştirmeler:
 
-* CRUD rotalarının geliştirilmesi
+* Görev update ve delete rotalarının geliştirilmesi
 * HTML şablonlarının hazırlanması
-* Form kontrollerinin eklenmesi
+* HTML form yönlendirmelerinin eklenmesi
 * Kontrollü analiz örneklerinin eklenmesi
 * Gerçek advisory için ayrı vulnerable requirements fixture'ının hazırlanması
 
@@ -236,8 +236,9 @@ instance'ları birbirinden izole kalır.
 `sample_app/app.py`:
 
 - Flask factory fonksiyonunu içerir.
-- Ana sayfa route'unu kaydeder.
+- Ana sayfa ve task route'larını kaydeder.
 - Uygulama instance'ına bağlı store'u güvenli şekilde çözer.
+- Domain sonuçlarını JSON response değerlerine dönüştürür.
 
 `sample_app/models.py`:
 
@@ -250,6 +251,12 @@ instance'ları birbirinden izole kalır.
 - Sıralı listeleme ve ID ile sorgulama sağlar.
 - Artan görev kimliği üretir.
 - Başlangıç demo verisini oluşturur.
+
+`sample_app/task_requests.py`:
+
+- JSON ve form content type seçimini yapar.
+- Create request alanlarını doğrular.
+- Beklenen istemci hatalarını kontrollü modele dönüştürür.
 
 ### İlk Route
 
@@ -332,6 +339,142 @@ Flask test client testleri:
 
 Flask geliştirme sunucusu test sırasında açılmaz; bütün HTTP kontrolleri
 Flask test client ile process içinde çalışır.
+
+## Task List ve Create Teknik Tasarımı
+
+### Route Kaydı
+
+Uygulama factory aşağıdaki iki route'u aynı app instance'ına kaydeder:
+
+```text
+GET  /tasks -> list_tasks()
+POST /tasks -> create_task()
+```
+
+Route fonksiyonları module-level mutable veri kullanmaz. Her istek store'u
+mevcut application context içindeki `app.extensions` kaydından çözer.
+
+### Listeleme Akışı
+
+```text
+GET /tasks
+  -> current app store
+  -> list_tasks()
+  -> Task.to_dict()
+  -> {"tasks": [...]}
+  -> HTTP 200
+```
+
+Response için yeni dictionary/list değerleri üretilir. Store'un internal
+dictionary değeri veya mutable view nesnesi istemciye aktarılmaz.
+
+### Oluşturma Akışı
+
+```text
+POST /tasks
+  -> content type selection
+  -> JSON or form payload
+  -> allowed field validation
+  -> title/description type validation
+  -> InMemoryTaskStore.create_task()
+  -> Task.to_dict()
+  -> {"task": {...}}
+  -> HTTP 201
+```
+
+Request parser HTTP payload sözleşmesini doğrular. Task modeli domain
+doğrulamasını ve whitespace normalizasyonunu yapmaya devam eder.
+
+### Content Type Seçimi
+
+JSON istekleri Flask `request.is_json` ve `request.get_json(silent=True)`
+ile okunur. `silent=True`, bozuk JSON için framework HTML hata sayfası yerine
+uygulamanın kontrollü JSON hata sözleşmesini üretmesini sağlar.
+
+Form isteklerinde yalnızca aşağıdaki mimetype değerleri desteklenir:
+
+```text
+application/x-www-form-urlencoded
+multipart/form-data
+```
+
+Başka content type değerleri payload parse edilmeden HTTP 415 ile
+reddedilir.
+
+### Request Veri Modeli
+
+Parse edilen geçerli değer aşağıdaki internal veri modeline dönüştürülür:
+
+```python
+@dataclass(frozen=True, slots=True)
+class CreateTaskRequest:
+    title: str
+    description: str = ""
+```
+
+Bu model HTTP request ile Task domain modeli arasındaki sınırı açık tutar.
+`id` ve `completed` alanları create request modelinde bulunmaz.
+
+### Hata Modeli
+
+Request parser beklenen istemci hataları için kontrollü bir
+`TaskRequestError` üretir. Hata aşağıdaki bilgileri taşır:
+
+```text
+code
+message
+status_code
+```
+
+Route bu hatayı aşağıdaki JSON biçimine dönüştürür:
+
+```json
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "Request body must contain a valid JSON object."
+  }
+}
+```
+
+Task modelinden gelen beklenen `ValueError` değerleri `invalid_task` ve HTTP
+400 olarak eşlenir. Beklenmeyen exception değerleri yakalanmaz; test modunda
+gizlenmeden yükselir.
+
+### Alan Politikası
+
+Allowed field kümesi:
+
+```text
+title
+description
+```
+
+Payload içinde başka bir alan bulunduğunda alan adları sıralanarak hata
+mesajına eklenir. Bu yaklaşım testleri deterministik tutar ve mass-assignment
+benzeri istem dışı alan aktarımını engeller.
+
+### Test Stratejisi
+
+HTTP entegrasyon testleri en az aşağıdaki durumları kapsar:
+
+- Dolu görev listesi
+- Boş görev listesi
+- Insertion order korunması
+- JSON ile görev oluşturma
+- Form ile görev oluşturma
+- Opsiyonel description varsayılanı
+- Text alanlarının normalizasyonu
+- Oluşturulan görevin `/tasks` ve `/` yanıtında görünmesi
+- Eksik ve geçersiz title
+- Geçersiz description
+- Bozuk ve object olmayan JSON
+- Desteklenmeyen content type
+- Bilinmeyen alanlar
+- Geçersiz isteğin store ve ID sırasını değiştirmemesi
+
+Testler resmî Flask test client `json=` ve `data=` parametrelerini kullanır;
+gerçek HTTP sunucusu veya ağ bağlantısı başlatılmaz.
 
 ## Navigation
 

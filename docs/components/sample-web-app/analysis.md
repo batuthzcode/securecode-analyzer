@@ -104,10 +104,11 @@ Aşağıdaki özellikler proje kapsamı dışındadır:
 
 ## Mevcut Durum
 
-Temel Flask uygulaması, Task modeli ve in-memory store tamamlanmıştır.
+Temel Flask uygulaması, Task modeli, in-memory store ve görev
+listeleme/oluşturma endpoint'leri tamamlanmıştır.
 
-Sıradaki geliştirme adımları CRUD işlemleri, minimal frontend ve kontrollü
-analiz örnekleridir.
+Sıradaki geliştirme adımları görev güncelleme/silme işlemleri, minimal
+frontend ve kontrollü analiz örnekleridir.
 
 ## Flask Uygulama İskeleti Gereksinimleri
 
@@ -196,6 +197,125 @@ sample-app optional dependency grupları Flask 3.1 serisini destekleyecektir.
 6. Store yeni görevlerde deterministik ve artan ID üretmelidir.
 7. Hedefli sample-app testleri ve mevcut tam test paketi geçmelidir.
 8. Uygulama kaynakları compile kontrolünden geçmelidir.
+
+## Görev Listeleme ve Oluşturma Gereksinimleri
+
+Bu aşama proje planındaki `Task 4.2.1` ve `Task 4.2.2` kapsamını
+gerçekleştirecektir. Görev güncelleme, silme ve HTML form yönlendirmeleri
+sonraki aşamalarda eklenecektir.
+
+### Görev Listeleme
+
+```text
+GET /tasks
+```
+
+Endpoint, uygulama instance'ına bağlı store içindeki görevleri insertion
+order ile JSON olarak döndürmelidir.
+
+Başarılı yanıt HTTP 200 olmalıdır:
+
+```json
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Review analyzer report",
+      "description": "Inspect the latest static analysis findings.",
+      "completed": false
+    }
+  ]
+}
+```
+
+Store boş olduğunda `tasks` alanı boş liste olmalıdır. Boş liste hata olarak
+değerlendirilmemelidir.
+
+### Görev Oluşturma
+
+```text
+POST /tasks
+```
+
+Endpoint aşağıdaki iki içerik türünü kabul etmelidir:
+
+- `application/json`
+- `application/x-www-form-urlencoded` veya `multipart/form-data`
+
+Desteklenen alanlar:
+
+- `title`: Zorunlu
+- `description`: Opsiyonel, varsayılan boş string
+
+Yeni görev her zaman `completed=false` olarak oluşturulmalıdır. İstemci `id`
+veya `completed` değeri belirleyememelidir.
+
+Başarılı oluşturma HTTP 201 ve aşağıdaki gövdeyi üretmelidir:
+
+```json
+{
+  "task": {
+    "id": 3,
+    "title": "Prepare release notes",
+    "description": "Summarize analyzer changes.",
+    "completed": false
+  }
+}
+```
+
+Oluşturulan görev aynı app instance'ındaki sonraki listeleme ve ana sayfa
+yanıtlarında görünmelidir.
+
+### İstek Doğrulaması
+
+Aşağıdaki istekler reddedilmelidir:
+
+- Desteklenmeyen content type
+- Bozuk JSON
+- JSON object yerine array, scalar veya `null`
+- Eksik `title`
+- String olmayan `title` veya `description`
+- Kırpıldıktan sonra boş kalan `title`
+- `title` ve `description` dışındaki alanlar
+
+İstemci hataları JSON gövdesiyle döndürülmelidir:
+
+```json
+{
+  "error": {
+    "code": "invalid_task",
+    "message": "title must not be empty."
+  }
+}
+```
+
+HTTP durumları:
+
+- Geçersiz body veya alan: 400 Bad Request
+- Desteklenmeyen content type: 415 Unsupported Media Type
+
+Geçersiz oluşturma isteği store'u değiştirmemeli ve sonraki görev ID
+değerini tüketmemelidir.
+
+### Güvenlik Sınırları
+
+- İstemciden gelen `id` kabul edilmez; ID yalnızca store tarafından üretilir.
+- İstemciden gelen `completed` kabul edilmez; yeni görev incomplete başlar.
+- Bilinmeyen alanlar sessizce saklanmaz veya modele aktarılmaz.
+- Hata yanıtlarında traceback veya framework iç ayrıntısı bulunmaz.
+- Endpoint authentication sağlamaz ve üretim API'si olarak sunulmaz.
+
+### Kabul Kriterleri
+
+1. `GET /tasks` dolu ve boş store sonuçlarını HTTP 200 ile döndürmelidir.
+2. JSON ve form create istekleri HTTP 201 üretmelidir.
+3. Başarılı create sonucu aynı store içinde listelenebilmelidir.
+4. Başlık ve açıklama Task modeliyle normalize edilmelidir.
+5. Bütün geçersiz body/alan durumları tutarlı JSON hata üretmelidir.
+6. Unsupported media type HTTP 415 olmalıdır.
+7. Geçersiz istek store veya ID sırasını değiştirmemelidir.
+8. Mevcut ana sayfa ve factory izolasyonu korunmalıdır.
+9. Hedefli ve tam test paketi geçmelidir.
 
 ## Navigation
 
