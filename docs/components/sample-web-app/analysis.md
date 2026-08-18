@@ -104,9 +104,98 @@ Aşağıdaki özellikler proje kapsamı dışındadır:
 
 ## Mevcut Durum
 
-Bu bileşen şu anda analiz ve teknik tasarım aşamasındadır.
+Temel Flask uygulaması, Task modeli ve in-memory store tamamlanmıştır.
 
-Geliştirme sırasında önce temel Flask uygulaması, ardından CRUD işlemleri ve analiz örnekleri eklenecektir.
+Sıradaki geliştirme adımları CRUD işlemleri, minimal frontend ve kontrollü
+analiz örnekleridir.
+
+## Flask Uygulama İskeleti Gereksinimleri
+
+Bu aşama proje planındaki `Task 4.1.1` ve `Task 4.1.2` kapsamını
+gerçekleştirecektir. CRUD endpoint'leri, HTML arayüzü ve bilerek problemli
+analiz örnekleri sonraki aşamalarda eklenecektir.
+
+### Paket ve Çalıştırma Yapısı
+
+Uygulama, repository kökünde import edilebilir `sample_app` Python paketi
+olarak bulunacaktır. Flask'ın uygulama factory yaklaşımı kullanılacak ve
+paket aşağıdaki komutla çalıştırılabilecektir:
+
+```powershell
+flask --app sample_app run --debug
+```
+
+Factory fonksiyonu:
+
+- `create_app()` adıyla paket arayüzünden erişilebilir olmalıdır.
+- Test yapılandırmasını dışarıdan kabul etmelidir.
+- Her çağrıda ayrı bir Flask uygulaması oluşturmalıdır.
+- Global, uygulamalar arasında paylaşılan görev listesi oluşturmamalıdır.
+- Testlerde özel bir in-memory store enjekte edilmesine izin vermelidir.
+
+### İlk Ana Sayfa Sözleşmesi
+
+Frontend eklenene kadar `GET /` endpoint'i JSON yanıtı döndürecektir.
+
+Yanıt en az aşağıdaki alanları içermelidir:
+
+```json
+{
+  "application": "SecureCode Analyzer Sample App",
+  "tasks": []
+}
+```
+
+`tasks` alanı o uygulama instance'ına ait store içindeki görevleri sıralı
+olarak içermelidir. Endpoint yalnızca `GET` ve `HEAD` yöntemlerini kabul
+etmelidir.
+
+### Task Modeli
+
+Her `Task` nesnesi aşağıdaki alanları taşımalıdır:
+
+- `id`: Sıfırdan büyük, gerçek bir integer değer
+- `title`: Kırpıldıktan sonra boş olmayan string
+- `description`: Kırpılmış string; boş olabilir
+- `completed`: Gerçek bir boolean değer
+
+Model:
+
+- Oluşturulduktan sonra değiştirilemez olmalıdır.
+- Dinamik attribute eklenmesini engellemek için slot kullanmalıdır.
+- JSON uyumlu dictionary çıktısı üretebilmelidir.
+- Geçersiz değerleri kontrollü `ValueError` ile reddetmelidir.
+
+### In-Memory Store
+
+`InMemoryTaskStore` aşağıdaki davranışları sağlamalıdır:
+
+- Başlangıç görevlerini ID sırasını koruyarak kabul etmelidir.
+- Aynı ID'ye sahip iki başlangıç görevini reddetmelidir.
+- Görevleri dışarıya immutable tuple olarak sunmalıdır.
+- ID ile görev sorgulanmasına izin vermelidir.
+- Yeni görevler için mevcut en büyük ID'den başlayan artan ID üretmelidir.
+- Her uygulama factory çağrısında bağımsız olarak oluşturulmalıdır.
+
+Uygulamanın ilk açılışında iki güvenli demo görevi bulunacaktır. Bu veriler
+gerçek kullanıcı bilgisi, parola veya anahtar içermemelidir.
+
+### Flask Bağımlılığı
+
+Sample app çalışma gereksinimi tam sürüm sabitlemesiyle ayrı bir
+`sample_app/requirements.txt` dosyasında tutulacaktır. Projenin geliştirme ve
+sample-app optional dependency grupları Flask 3.1 serisini destekleyecektir.
+
+### Kabul Kriterleri
+
+1. `create_app()` test yapılandırmasıyla uygulama oluşturmalıdır.
+2. `GET /` HTTP 200 ve beklenen JSON yapısını döndürmelidir.
+3. İki ayrı factory çağrısı aynı mutable store'u paylaşmamalıdır.
+4. Task modeli bütün alanlarını doğrulamalıdır.
+5. Store duplicate ID değerini reddetmelidir.
+6. Store yeni görevlerde deterministik ve artan ID üretmelidir.
+7. Hedefli sample-app testleri ve mevcut tam test paketi geçmelidir.
+8. Uygulama kaynakları compile kontrolünden geçmelidir.
 
 ## Navigation
 

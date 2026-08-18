@@ -18,11 +18,14 @@ Uygulama temel CRUD işlemlerini destekleyecek ve ilk sürümde verileri bellekt
 
 ## Klasör Yapısı
 
-Planlanan temel klasör yapısı aşağıdaki gibidir:
+Temel klasör yapısı aşağıdaki gibidir:
 
 ```text
-sample-web-app/
+sample_app/
+├── __init__.py
 ├── app.py
+├── models.py
+├── store.py
 ├── requirements.txt
 ├── templates/
 │   ├── index.html
@@ -180,13 +183,155 @@ Aşağıdaki özellikler kapsam dışındadır:
 
 ## Gelecek Geliştirmeler
 
-* Flask uygulamasının oluşturulması
+Tamamlanan foundation çalışmaları:
+
+* Flask application factory oluşturulması
+* Immutable Task modelinin geliştirilmesi
+* In-memory store ve demo verisinin eklenmesi
+* JSON ana sayfa endpoint'inin eklenmesi
+* Temel uygulama testlerinin yazılması
+
+Sıradaki geliştirmeler:
+
 * CRUD rotalarının geliştirilmesi
 * HTML şablonlarının hazırlanması
 * Form kontrollerinin eklenmesi
 * Kontrollü analiz örneklerinin eklenmesi
-* `requirements.txt` test dosyasının hazırlanması
-* Temel uygulama testlerinin yazılması
+* Gerçek advisory için ayrı vulnerable requirements fixture'ının hazırlanması
+
+## Flask Foundation Teknik Tasarımı
+
+### Uygulama Factory
+
+Paketin public giriş noktası aşağıdaki imzaya sahip olacaktır:
+
+```python
+def create_app(
+    test_config: Mapping[str, object] | None = None,
+    *,
+    task_store: InMemoryTaskStore | None = None,
+) -> Flask:
+    ...
+```
+
+Factory:
+
+1. Yeni bir `Flask` instance'ı oluşturur.
+2. Varsa test yapılandırmasını uygular.
+3. Enjekte edilen store'u veya demo verili yeni store'u seçer.
+4. Store'u `app.extensions` içinde uygulama instance'ına bağlar.
+5. Route kayıtlarını gerçekleştirir.
+6. Hazır Flask uygulamasını döndürür.
+
+Store'un `app.extensions` altında tutulması module-level mutable state
+oluşmasını engeller. Böylece testler ve aynı process içindeki farklı uygulama
+instance'ları birbirinden izole kalır.
+
+### Modül Sorumlulukları
+
+`sample_app/__init__.py`:
+
+- Public `create_app`, model ve store arayüzünü dışa aktarır.
+
+`sample_app/app.py`:
+
+- Flask factory fonksiyonunu içerir.
+- Ana sayfa route'unu kaydeder.
+- Uygulama instance'ına bağlı store'u güvenli şekilde çözer.
+
+`sample_app/models.py`:
+
+- Immutable ve doğrulanan `Task` veri modelini içerir.
+- JSON uyumlu `to_dict()` dönüşümünü sağlar.
+
+`sample_app/store.py`:
+
+- In-memory görev koleksiyonunu yönetir.
+- Sıralı listeleme ve ID ile sorgulama sağlar.
+- Artan görev kimliği üretir.
+- Başlangıç demo verisini oluşturur.
+
+### İlk Route
+
+Frontend geliştirilene kadar ana route aşağıdaki geçici JSON sözleşmesini
+kullanır:
+
+```text
+GET /
+```
+
+Başarılı yanıt:
+
+```json
+{
+  "application": "SecureCode Analyzer Sample App",
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Review analyzer report",
+      "description": "Inspect the latest static analysis findings.",
+      "completed": false
+    }
+  ]
+}
+```
+
+Flask JSON provider response serialization işlemini üstlenir. Route doğrudan
+store'un mutable iç yapısını döndürmez; her görevin `to_dict()` sonucunu yeni
+bir listede üretir.
+
+### Veri Modeli ve Store Sınırları
+
+`Task`, `dataclass(frozen=True, slots=True)` olarak uygulanır. Güncelleme
+aşamasında var olan instance değiştirilmez; yeni bir Task değeri oluşturulup
+store içindeki kayıt değiştirilir.
+
+Store görevleri insertion order koruyan dictionary içinde saklar. Python
+dictionary sırası deterministik listeleme sağlar. `_next_id` değeri başlangıç
+görevlerindeki en büyük ID artı bir olarak hesaplanır.
+
+Store public yöntemleri:
+
+```text
+list_tasks() -> tuple[Task, ...]
+get_task(task_id: int) -> Task | None
+create_task(title: str, description: str = "") -> Task
+```
+
+Update ve delete store yöntemleri CRUD aşamasında eklenecektir.
+
+### Bağımlılık Politikası
+
+`sample_app/requirements.txt`, uygulamanın doğrudan çalıştırma bağımlılığını
+tam sürümle sabitler. Root `pyproject.toml` içinde:
+
+- `sample-app` extra grubu sample uygulamayı çalıştırmak için kullanılır.
+- `dev` extra grubu test paketinin Flask testlerini çalıştırabilmesini sağlar.
+
+Flask yalnızca analyzer CLI araçlarını kullanan kurulumlar için zorunlu ana
+bağımlılık yapılmaz.
+
+### Test Stratejisi
+
+Unit testler:
+
+- Task normalizasyonu ve serialization
+- Geçersiz ID, title, description ve completed değerleri
+- Model immutability ve slot kullanımı
+- Boş ve başlangıç verili store davranışı
+- Duplicate ID koruması
+- Sıralı listeleme ve artan ID üretimi
+
+Flask test client testleri:
+
+- Factory yapılandırması
+- Store injection
+- Ana sayfa JSON sözleşmesi
+- Uygulama instance izolasyonu
+- Desteklenmeyen HTTP yöntemi için 405 sonucu
+
+Flask geliştirme sunucusu test sırasında açılmaz; bütün HTTP kontrolleri
+Flask test client ile process içinde çalışır.
 
 ## Navigation
 
