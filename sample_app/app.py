@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from flask import Flask, current_app
+from flask import Flask, current_app, request
 
 from sample_app.store import (
     InMemoryTaskStore,
     create_demo_tasks,
+)
+from sample_app.task_requests import (
+    TaskRequestError,
+    parse_create_task_request,
 )
 
 
@@ -77,18 +81,92 @@ def _get_task_store() -> InMemoryTaskStore:
 
 
 def _register_routes(app: Flask) -> None:
-    """Register foundation routes on one application."""
+    """Register task routes on one application."""
 
-    @app.get("/")
-    def index() -> dict[str, object]:
-        """Return application details and current tasks."""
+    app.add_url_rule(
+        "/",
+        endpoint="index",
+        view_func=_index,
+        methods=["GET"],
+    )
+    app.add_url_rule(
+        "/tasks",
+        endpoint="list_tasks",
+        view_func=_list_tasks,
+        methods=["GET"],
+    )
+    app.add_url_rule(
+        "/tasks",
+        endpoint="create_task",
+        view_func=_create_task,
+        methods=["POST"],
+    )
 
-        task_store = _get_task_store()
 
-        return {
-            "application": _APPLICATION_NAME,
-            "tasks": [
-                task.to_dict()
-                for task in task_store.list_tasks()
-            ],
+def _index() -> dict[str, object]:
+    """Return application details and current tasks."""
+
+    return {
+        "application": _APPLICATION_NAME,
+        "tasks": _serialize_tasks(
+            _get_task_store()
+        ),
+    }
+
+
+def _list_tasks() -> dict[str, object]:
+    """Return all tasks in store order."""
+
+    return {
+        "tasks": _serialize_tasks(
+            _get_task_store()
+        )
+    }
+
+
+def _create_task() -> tuple[dict[str, object], int]:
+    """Validate one request and create an incomplete task."""
+
+    try:
+        task_request = parse_create_task_request(
+            request
+        )
+        task = _get_task_store().create_task(
+            task_request.title,
+            task_request.description,
+        )
+    except TaskRequestError as error:
+        return _task_error_response(error)
+    except ValueError as error:
+        return _task_error_response(
+            TaskRequestError(
+                code="invalid_task",
+                message=str(error),
+            )
+        )
+
+    return {"task": task.to_dict()}, 201
+
+
+def _serialize_tasks(
+    task_store: InMemoryTaskStore,
+) -> list[dict[str, object]]:
+    """Return JSON-compatible task snapshots."""
+
+    return [
+        task.to_dict()
+        for task in task_store.list_tasks()
+    ]
+
+
+def _task_error_response(
+    error: TaskRequestError,
+) -> tuple[dict[str, object], int]:
+    """Convert an expected request error to JSON."""
+
+    return {
+        "error": {
+            "code": error.code,
+            "message": str(error),
         }
+    }, error.status_code
