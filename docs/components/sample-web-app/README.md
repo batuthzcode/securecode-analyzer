@@ -47,10 +47,13 @@ Mevcut özellikler:
 * Uygulama instance'ına özel `InMemoryTaskStore`
 * Güvenli ve deterministik başlangıç demo verisi
 * Geçici JSON ana sayfa endpoint'i
+* JSON görev listeleme endpoint'i
+* JSON ve form verisiyle görev oluşturma endpoint'i
+* Kontrollü JSON doğrulama hataları
 * Flask test client ile model, store ve HTTP testleri
 
-CRUD endpoint'leri, HTML/CSS arayüzü ve bilerek problemli güvenlik analiz
-örnekleri sonraki aşamalarda eklenecektir.
+Görev güncelleme/silme endpoint'leri, HTML/CSS arayüzü ve bilerek problemli
+güvenlik analiz örnekleri sonraki aşamalarda eklenecektir.
 
 ## Kurulum
 
@@ -131,6 +134,97 @@ GET /
 Ana endpoint salt okunurdur. `POST /` gibi desteklenmeyen yöntemler HTTP 405
 üretir.
 
+## Görev Listeleme API'si
+
+```text
+GET /tasks
+```
+
+Yanıt, store içindeki görevleri oluşturulma sırasıyla döndürür:
+
+```json
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Review analyzer report",
+      "description": "Inspect the latest static analysis findings.",
+      "completed": false
+    }
+  ]
+}
+```
+
+Boş store için HTTP 200 ve `{"tasks": []}` döner.
+
+## Görev Oluşturma API'si
+
+```text
+POST /tasks
+```
+
+JSON örneği:
+
+```powershell
+$body = @{
+    title = "Prepare release notes"
+    description = "Summarize analyzer changes."
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+    -Method Post `
+    -Uri http://127.0.0.1:5000/tasks `
+    -ContentType application/json `
+    -Body $body
+```
+
+Form örneği:
+
+```powershell
+Invoke-RestMethod `
+    -Method Post `
+    -Uri http://127.0.0.1:5000/tasks `
+    -ContentType application/x-www-form-urlencoded `
+    -Body @{
+        title = "Prepare release notes"
+        description = "Summarize analyzer changes."
+    }
+```
+
+Başarılı istek HTTP 201 döndürür:
+
+```json
+{
+  "task": {
+    "id": 3,
+    "title": "Prepare release notes",
+    "description": "Summarize analyzer changes.",
+    "completed": false
+  }
+}
+```
+
+Create endpoint'inde yalnızca `title` ve `description` kabul edilir. `id` ve
+`completed` store tarafından yönetilir ve istemciden alınmaz.
+
+## API Hataları
+
+Geçersiz alan ve body hataları HTTP 400, desteklenmeyen content type HTTP 415
+üretir. Bütün beklenen create hataları JSON olarak döner:
+
+```json
+{
+  "error": {
+    "code": "invalid_task",
+    "message": "title must not be empty."
+  }
+}
+```
+
+Desteklenmeyen alanlar reddedilir; bozuk JSON veya object olmayan JSON body
+store'a aktarılmaz. Geçersiz istek görev listesini değiştirmez ve yeni görev
+ID değerini tüketmez.
+
 ## Foundation Mimarisi
 
 ```text
@@ -141,6 +235,7 @@ sample_app/app.py
   -> create_app()
   -> Flask route registration
   -> app.extensions store binding
+  -> list/create response mapping
 
 sample_app/models.py
   -> immutable Task model
@@ -150,6 +245,11 @@ sample_app/store.py
   -> ordered in-memory storage
   -> ID lookup and generation
   -> deterministic demo tasks
+
+sample_app/task_requests.py
+  -> JSON/form content type selection
+  -> create field validation
+  -> controlled request errors
 ```
 
 Module-level mutable görev listesi kullanılmaz. Her `create_app()` çağrısı
@@ -190,14 +290,16 @@ Hedefli testler:
 ```powershell
 pytest tests/test_sample_app_models.py `
   tests/test_sample_app_store.py `
-  tests/test_sample_app.py -q
+  tests/test_sample_app.py `
+  tests/test_sample_app_task_routes.py -q
 ```
 
 Doğrulama sonucu:
 
 ```text
-Sample app foundation: 40 passed
-Complete test suite: 868 passed
+Task route tests: 27 passed
+Sample app targeted suite: 67 passed
+Complete test suite: 895 passed
 Compile check: passed
 Sample app self-analysis: no findings
 Analyzer source self-analysis: no findings
