@@ -1,13 +1,13 @@
 # GitHub Actions CI
 
-Bu doküman Backlog 5.1, 5.2 ve 5.3 kapsamındaki test, statik analiz ve
-bağımlılık tarama pipeline'ının gereksinimlerini, güvenlik sınırlarını ve
-çalışma sırasını açıklar.
+Bu doküman Backlog 5.1, 5.2, 5.3 ve 5.4 kapsamındaki test, statik analiz,
+bağımlılık tarama ve rapor artifact pipeline'ının gereksinimlerini, güvenlik
+sınırlarını ve çalışma sırasını açıklar.
 
 ## Mevcut Durum
 
-GitHub Actions test, statik analiz ve bağımlılık tarama workflow'u
-tamamlanmıştır:
+GitHub Actions test, statik analiz, bağımlılık tarama ve güvenlik raporu
+saklama workflow'u tamamlanmıştır:
 
 ```text
 .github/workflows/ci.yml
@@ -17,8 +17,8 @@ Workflow Pull Request değişikliklerinde ve `main` branch push olaylarında
 Python 3.11 test paketini çalıştırır. Test gate'i geçtikten sonra proje
 kaynaklarını ve kontrollü demo uygulamasını ayrı bir static-analysis job'unda
 tarar. Buna paralel dependency-scan job'u, checked-in OSV fixture ile kritik
-güvenlik açığı gate'ini çalıştırır. Sıradaki aşama report artifact upload
-job'udur.
+güvenlik açığı gate'ini çalıştırır. İki güvenlik job'u ürettikleri doğrulanmış
+JSON raporlarını 14 günlük GitHub Actions artifact'ları olarak saklar.
 
 ## Trigger Sözleşmesi
 
@@ -43,8 +43,9 @@ Checkout sonrasında credential persistence kapalıdır. Üç job da
 `ubuntu-latest` runner üzerinde en fazla 10 dakika çalışır. Aynı workflow ve
 Git ref için yeni bir run başladığında önceki run iptal edilir.
 
-Bu job'lar secret, write permission, deployment environment veya external
-service credential kullanmaz.
+Bu job'lar secret, repository write permission, deployment environment veya
+harici service credential kullanmaz. Artifact upload, GitHub Actions'ın job
+çalışma bağlamındaki yerleşik artifact servisini kullanır.
 
 ## Action Pinleri
 
@@ -55,6 +56,7 @@ commit SHA değerleri kullanılır:
 |---|---|---|
 | `actions/checkout` | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
 | `actions/setup-python` | `v7.0.0` | `5fda3b95a4ea91299a34e894583c3862153e4b97` |
+| `actions/upload-artifact` | `v7.0.1` | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` |
 
 Yorumdaki release etiketi bakım sırasında SHA provenance değerinin kolayca
 kontrol edilmesini sağlar.
@@ -63,6 +65,7 @@ Resmî release kaynakları:
 
 - [actions/checkout v7.0.1](https://github.com/actions/checkout/releases/tag/v7.0.1)
 - [actions/setup-python v7.0.0](https://github.com/actions/setup-python/releases/tag/v7.0.0)
+- [actions/upload-artifact v7.0.1](https://github.com/actions/upload-artifact/releases/tag/v7.0.1)
 
 ## Test Job Akışı
 
@@ -103,9 +106,6 @@ modeli `INFO`, `WARNING` ve `ERROR` seviyelerini kullandığından `HIGH` ve
 karşılaştırılır; ardından kontrollü demo entegrasyon testleri çalıştırılır.
 Exit code veya baseline değişirse job başarısız olur.
 
-Bu aşamada `reports/ci` yalnızca job workspace'inde tutulur. Artifact upload
-Backlog 5.4 kapsamında eklenecektir.
-
 ## Bağımlılık Tarama Job Akışı
 
 `dependency-scan` job'u test job'una bağlıdır ve statik analiz job'uyla
@@ -139,6 +139,33 @@ ancak job'u başarısız yapmaz. Aynı veri `--fail-on high` ile exit code `1`
 düzeyinde karşılaştırılır. Ardından offline CI ve production-layer dependency
 entegrasyon testleri çalıştırılır. Böylece ağ erişilebilirliği pipeline
 sonucunu etkilemez ve fixture drift'i sessizce kabul edilmez.
+
+## Güvenlik Raporu Artifact Akışı
+
+Raporlar üretildikleri job'dan doğrudan yüklenir. Böylece ayrı bir aggregation
+job'u, job'lar arası geçici indirme veya genişletilmiş token izni gerekmez.
+
+Her workflow attempt'i aşağıdaki iki artifact'ı oluşturur:
+
+| Artifact | İçerik |
+|---|---|
+| `static-analysis-reports-${{ github.run_attempt }}` | `static-analysis-src.json`, `static-analysis-tools.json`, `static-analysis-sample-app.json` |
+| `dependency-scan-report-${{ github.run_attempt }}` | `dependency-scan.json` |
+
+Artifact adından `github.run_attempt` kullanılması, aynı workflow run'ı yeniden
+çalıştırıldığında immutable artifact adlarının çakışmasını önler.
+
+Upload öncesinde her gerekli dosya Bash `-s` kontrolüyle hem varlık hem boş
+olmama açısından doğrulanır. Doğrulama ve upload adımları `!cancelled()`
+koşuluyla normal başarıda ve önceki adım başarısız olduğunda çalışır; iptal
+edilmiş run için eksik veya yarım artifact yayınlanmaz. Gerekli dosya eksik ya
+da boşsa job başarısız kalır. `if-no-files-found: error` aynı davranışı action
+seviyesinde ikinci kez korur ve `continue-on-error` kullanılmaz.
+
+Her iki artifact 14 gün saklanır. Yalnızca makine tarafından okunabilir JSON
+raporları yüklenir; source checkout, dependency cache, log veya credential
+artifact kapsamına alınmaz. Upload action'ı diğer resmî action'lar gibi tam
+commit SHA değerine sabitlenmiştir.
 
 ## Yerel Eşdeğer
 
@@ -200,7 +227,7 @@ python -m pytest tests/test_python_compatibility.py -q
 - Salt-okunur repository permission
 - Checkout credential persistence yasağı
 - Concurrency cancellation
-- İki action için tam 40 karakterli SHA ve release etiketi
+- Üç action için tam 40 karakterli SHA ve release etiketi
 - Python 3.11 ve pip cache yapılandırması
 - Pip upgrade, dev install ve pytest komut sırası
 - Ubuntu runner ve 10 dakikalık timeout
@@ -210,6 +237,9 @@ python -m pytest tests/test_python_compatibility.py -q
 - Test job'una bağlı offline dependency-scan job'u
 - Açık requirements, fixture, output ve `critical` eşik değerleri
 - Dependency baseline ve entegrasyon testi doğrulaması
+- İki güvenlik artifact'ının ayrı, attempt-safe adları ve kesin dosya kapsamı
+- Eksik/boş rapor için fail-closed kontrol ve `if-no-files-found: error`
+- 14 günlük sınırlı saklama süresi ve iptal edilen run upload yasağı
 
 `tests/test_python_compatibility.py`, `src`, `sample_app`, `tools` ve `tests`
 altındaki bütün Python dosyalarını desteklenen en düşük sürüm olan Python
@@ -219,18 +249,18 @@ geçen Python 3.12+ söz dizimi değişiklikleri CI'a ulaşmadan tespit edilir.
 Doğrulanan mevcut sonuç:
 
 ```text
-CI workflow contract tests: 13 passed
+CI workflow contract tests: 16 passed
 Offline dependency CI tests: 6 passed
 Python 3.11 compatibility tests: 1 passed
-Complete test suite: 997 passed
+Complete test suite: 1000 passed
 Workflow YAML parse check: passed
 ```
 
 ## Sonraki Güvenlik Job'ları
 
-Backlog 5.1, 5.2 ve 5.3 tamamlanmıştır. Sonraki aşama:
+Backlog 5.1, 5.2, 5.3 ve 5.4 tamamlanmıştır. Sonraki aşama:
 
-1. Static ve dependency JSON raporlarını workflow artifact olarak yükleme
+1. Backlog 5.5 kapsamında eksik test ve self-analysis kapsamını tamamlama
 
 Bu ayrım her güvenlik gate'inin davranışını bağımsız olarak incelemeyi sağlar.
 

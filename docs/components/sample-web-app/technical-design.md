@@ -202,11 +202,12 @@ Tamamlanan foundation çalışmaları:
 * Tek komutlu report generator ve drift check'in eklenmesi
 * Uçtan uca demo sırasının belgelenmesi
 * GitHub Actions pytest foundation workflow'unun eklenmesi
+* Analyzer ve offline dependency scanner CI gate'lerinin eklenmesi
+* JSON security report artifact upload adımlarının eklenmesi
 
 Sıradaki geliştirmeler:
 
-* Analyzer ve dependency scanner CI adımlarının eklenmesi
-* JSON security report artifact upload adımının eklenmesi
+* Eksik test ve self-analysis kapsamının tamamlanması
 
 ## Flask Foundation Teknik Tasarımı
 

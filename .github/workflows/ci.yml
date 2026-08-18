@@ -92,6 +92,35 @@ jobs:
             reports/sample-app/static-analysis.json
           python -m pytest tests/test_sample_app_security_demo.py -q
 
+      - name: Verify static analysis reports
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          reports=(
+            reports/ci/static-analysis-src.json
+            reports/ci/static-analysis-tools.json
+            reports/ci/static-analysis-sample-app.json
+          )
+
+          for report in "${reports[@]}"; do
+            if [ ! -s "$report" ]; then
+              echo "Required report is missing or empty: $report"
+              exit 1
+            fi
+          done
+
+      - name: Upload static analysis reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: static-analysis-reports-${{ github.run_attempt }}
+          path: |
+            reports/ci/static-analysis-src.json
+            reports/ci/static-analysis-tools.json
+            reports/ci/static-analysis-sample-app.json
+          if-no-files-found: error
+          retention-days: 14
+
   dependency-scan:
     name: Dependency scan
     needs: test
@@ -130,3 +159,23 @@ jobs:
           python -m pytest \
             tests/test_ci_dependency_scan.py \
             tests/test_dependency_integration.py -q
+
+      - name: Verify dependency report
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          report=reports/ci/dependency-scan.json
+
+          if [ ! -s "$report" ]; then
+            echo "Required report is missing or empty: $report"
+            exit 1
+          fi
+
+      - name: Upload dependency report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dependency-scan-report-${{ github.run_attempt }}
+          path: reports/ci/dependency-scan.json
+          if-no-files-found: error
+          retention-days: 14

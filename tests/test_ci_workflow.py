@@ -12,7 +12,7 @@ _WORKFLOW_PATH = (
 )
 _ACTION_PATTERN = re.compile(
     r"uses: "
-    r"(?P<action>actions/(?:checkout|setup-python))"
+    r"(?P<action>actions/(?:checkout|setup-python|upload-artifact))"
     r"@(?P<sha>[0-9a-f]{40})"
     r" # (?P<version>v[0-9]+\.[0-9]+\.[0-9]+)"
 )
@@ -85,6 +85,10 @@ def test_official_actions_are_pinned_to_expected_commits() -> None:
         "actions/setup-python": (
             "5fda3b95a4ea91299a34e894583c3862153e4b97",
             "v7.0.0",
+        ),
+        "actions/upload-artifact": (
+            "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+            "v7.0.1",
         ),
     }
 
@@ -242,3 +246,59 @@ def test_dependency_scan_job_validates_offline_report() -> None:
     assert "reports/sample-app/dependency-scan.json" in workflow
     assert "tests/test_ci_dependency_scan.py" in workflow
     assert "tests/test_dependency_integration.py -q" in workflow
+
+
+def test_static_analysis_reports_are_uploaded() -> None:
+    """All static JSON reports should share one bounded artifact."""
+
+    workflow = _workflow_text()
+
+    assert "name: Verify static analysis reports" in workflow
+    assert "name: Upload static analysis reports" in workflow
+    assert (
+        "name: static-analysis-reports-"
+        "${{ github.run_attempt }}"
+        in workflow
+    )
+    assert (
+        "path: |\n"
+        "            reports/ci/static-analysis-src.json\n"
+        "            reports/ci/static-analysis-tools.json\n"
+        "            reports/ci/static-analysis-sample-app.json\n"
+        in workflow
+    )
+
+
+def test_dependency_report_is_uploaded() -> None:
+    """The CVE JSON report should have its own bounded artifact."""
+
+    workflow = _workflow_text()
+
+    assert "name: Verify dependency report" in workflow
+    assert "name: Upload dependency report" in workflow
+    assert (
+        "name: dependency-scan-report-"
+        "${{ github.run_attempt }}"
+        in workflow
+    )
+    assert "path: reports/ci/dependency-scan.json" in workflow
+
+
+def test_report_uploads_fail_closed_with_bounded_retention() -> None:
+    """Missing reports should fail and artifacts should expire."""
+
+    workflow = _workflow_text()
+    upload_action = (
+        "actions/upload-artifact@"
+        "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a "
+        "# v7.0.1"
+    )
+
+    assert workflow.count(upload_action) == 2
+    assert workflow.count("if: ${{ !cancelled() }}") == 4
+    assert workflow.count("if-no-files-found: error") == 2
+    assert workflow.count("retention-days: 14") == 2
+    assert workflow.count(
+        'echo "Required report is missing or empty: $report"'
+    ) == 2
+    assert "continue-on-error: true" not in workflow
