@@ -60,9 +60,9 @@ Mevcut özellikler:
 * Ayrı ve runtime dışı vulnerable dependency fixture'ı
 * Portable static-analysis ve dependency-scan JSON baseline'ları
 * Offline report generator ve drift check
-* Pull Request ve `main` push için pytest ve statik analiz CI job'ları
+* Pull Request ve `main` push için test, static ve dependency CI job'ları
 
-Sıradaki aşama dependency scanner ve report artifact CI job'larıdır.
+Sıradaki aşama security report artifact upload job'udur.
 
 ## Kurulum
 
@@ -547,10 +547,11 @@ New update/delete test cases: 54 passed
 New frontend test cases: 18 passed
 New security demo test cases: 4 passed
 New integration report test cases: 6 passed
-New CI workflow test cases: 10 passed
+New CI workflow test cases: 13 passed
+New offline dependency CI test cases: 5 passed
 New Python 3.11 compatibility test cases: 1 passed
 Sample app targeted suite: 149 passed
-Complete test suite: 988 passed
+Complete test suite: 996 passed
 Compile check: passed
 Sample app analysis: 5 expected findings
 Analyzer source self-analysis: no findings

@@ -1732,6 +1732,47 @@ Self-analysis: No findings found.
 Exit code: 0
 ```
 
+## Offline CI Dependency Gate
+
+Backlog 5.3 kapsamında dependency scanner production runner'ı deterministik
+bir CI komutuna bağlanmıştır:
+
+```powershell
+python tools/run_ci_dependency_scan.py `
+  --requirements sample_app/requirements-vulnerable.txt `
+  --fixture tests/fixtures/osv/fastapi-0.109.0.json `
+  --output reports/ci/dependency-scan.json `
+  --fail-on critical
+```
+
+Komut aşağıdaki production katmanlarını değiştirmeden kullanır:
+
+```text
+dependency CLI runner
+  -> DependencyScanner
+  -> OsvVulnerabilitySource
+  -> metadata-validated fixture query client
+  -> dependency JSON formatter
+```
+
+Fixture query client yalnızca metadata'da kayıtlı `fastapi==0.109.0` PyPI
+query değerini kabul eder ve HTTP çağrısı yapmaz. Eksik veya geçersiz fixture
+operational exit code `2` ile gate'i kapalı tutar.
+
+CI eşiği `CRITICAL` olarak belirlenmiştir. Fixture'daki gerçek `HIGH`
+`PYSEC-2024-38` bulgusu JSON raporunda korunur ve exit code `0` üretir. Aynı
+scan `--fail-on high` seçeneğiyle exit code `1` döndürür. Üretilen report,
+checked-in dependency baseline ile byte düzeyinde karşılaştırılır.
+
+Güncel doğrulama:
+
+```text
+Offline dependency CI tests: 5 passed
+CI workflow contract tests: 13 passed
+Complete test suite: 996 passed
+Live HTTP requests: disabled
+```
+
 ## Navigation
 
 - [Tüm bileşenlere dön](../README.md)
