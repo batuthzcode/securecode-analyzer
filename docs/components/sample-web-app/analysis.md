@@ -104,10 +104,12 @@ Aşağıdaki özellikler proje kapsamı dışındadır:
 
 ## Mevcut Durum
 
-Temel Flask uygulaması, Task modeli, in-memory store, JSON CRUD endpoint'leri
-ve minimal Jinja/CSS frontend tamamlanmıştır.
+Temel Flask uygulaması, Task modeli, in-memory store, JSON CRUD endpoint'leri,
+minimal Jinja/CSS frontend ve kontrollü güvenlik demo fixture'ları
+tamamlanmıştır.
 
-Sıradaki geliştirme adımı kontrollü analiz örneklerinin eklenmesidir.
+Sıradaki geliştirme adımı uçtan uca analyzer ve dependency scan raporlarının
+üretilmesidir.
 
 ## Flask Uygulama İskeleti Gereksinimleri
 
@@ -539,6 +541,104 @@ Olmayan edit/delete task ID değeri HTML içinde anlaşılır hata ve HTTP 404
 8. Tarayıcı form hataları HTML ve doğru 400/404 durumuyla dönmelidir.
 9. Mevcut JSON CRUD API testleri geçmeye devam etmelidir.
 10. Hedefli ve tam test paketi geçmelidir.
+
+## Kontrollü Güvenlik Demo Gereksinimleri
+
+Bu aşama proje planındaki `Task 4.4.1` ve `Task 4.4.2` kapsamını
+gerçekleştirecektir. Amaç analyzer ve dependency scanner çıktılarını gerçekçi,
+deterministik ve güvenli fixture değerleriyle göstermek; çalışan Flask
+uygulamasına bilinen riskli davranış eklemek değildir.
+
+### Statik Analiz Demo Dosyası
+
+Kontrollü örnekler tek bir dosyada tutulmalıdır:
+
+```text
+sample_app/analyzer_demo.py
+```
+
+Dosya Flask application factory, route veya package public interface'i
+tarafından import edilmemelidir. Demo kodu yalnızca static analyzer tarafından
+metin ve AST olarak okunmalıdır.
+
+Beklenen bulgular:
+
+| Rule ID | Kontrollü örnek | Beklenen adet |
+|---|---|---:|
+| `SA001` | 50 satır sınırını aşan tek fonksiyon | 1 |
+| `SA003` | Tek TODO comment tokenı | 1 |
+| `SA004` | Yalnızca `pass` içeren tek except handler | 1 |
+| `SA005` | Hassas isimli değişkene açıkça sahte demo string ataması | 1 |
+| `SA006` | snake_case kullanmayan tek fonksiyon adı | 1 |
+
+`SA002` long class bulgusu oluşmamalıdır. Toplam beklenen bulgu sayısı tam
+olarak 5 olmalı; beklenmeyen ek bulgu test hatası sayılmalıdır.
+
+### Sahte Secret Sınırı
+
+Hardcoded-secret örneği gerçek parola, token, erişim anahtarı veya geçerli
+credential biçimi içermemelidir. Değer açık biçimde `demo-only` ve
+`not-a-real-secret` anlamı taşımalıdır.
+
+Analyzer raporu secret literal değerini içermemeli; yalnızca genel
+`Possible hardcoded secret found.` mesajını üretmelidir.
+
+### Vulnerable Dependency Fixture
+
+Bilinen vulnerable package normal uygulama bağımlılık dosyasına
+eklenmemelidir. Ayrı fixture kullanılmalıdır:
+
+```text
+sample_app/requirements-vulnerable.txt
+```
+
+Fixture tek aktif bağımlılık içermelidir:
+
+```text
+fastapi==0.109.0
+```
+
+Seçim gerekçesi:
+
+- OSV advisory: `PYSEC-2024-38`
+- Alias: `CVE-2024-24762`
+- Severity: `HIGH`, CVSS 3.1 skoru 7.5
+- Affected demo sürümü: `0.109.0`
+- İlk fixed ecosystem sürümü: `0.109.1`
+- Risk: form-data okuma akışında `python-multipart` Content-Type parsing
+  kaynaklı ReDoS
+
+Resmî kaynaklar:
+
+- [OSV PYSEC-2024-38](https://osv.dev/vulnerability/PYSEC-2024-38)
+- [FastAPI 0.109.0 on PyPI](https://pypi.org/project/fastapi/0.109.0/)
+- [FastAPI 0.109.1 release](https://github.com/tiangolo/fastapi/releases/tag/0.109.1)
+
+### Runtime İzolasyonu
+
+Normal çalışma bağımlılığı `sample_app/requirements.txt` içinde yalnızca
+güncel Flask sürümü olarak kalmalıdır. Vulnerable fixture:
+
+- Uygulamayı çalıştırmak için kurulmayacaktır.
+- Sample app tarafından import edilmeyecektir.
+- Yalnızca dependency scanner demo input'u olacaktır.
+- Testlerde canlı ağ yerine repository içindeki resmî OSV projection
+  fixture'ıyla eşleştirilecektir.
+
+Bu izolasyon nedeniyle FastAPI advisory riski çalışan Flask demo sürecine
+taşınmaz.
+
+### Kabul Kriterleri
+
+1. Analyzer demo dosyası tam olarak beş beklenen rule finding üretmelidir.
+2. Rule ID, severity, dosya ve satır numaraları deterministik olmalıdır.
+3. Secret literal analyzer raporunda görünmemelidir.
+4. Demo modülü çalışan sample app tarafından import edilmemelidir.
+5. Vulnerable requirements fixture production parser ile okunmalıdır.
+6. Offline OSV verisi `PYSEC-2024-38`, `CVE-2024-24762`, `HIGH` ve
+   `0.109.1` değerlerini üretmelidir.
+7. Normal sample app requirements dosyası vulnerable package içermemelidir.
+8. Tam test paketi ve analyzer kaynak self-analysis kontrolü geçmelidir.
 
 ## Navigation
 

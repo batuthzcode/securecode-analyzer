@@ -38,7 +38,8 @@ Kullanıcı tarafından web arayüzünden girilen görev bilgileri.
 
 ## Mevcut Durum
 
-Flask CRUD uygulaması ve minimal frontend tamamlanmıştır.
+Flask CRUD uygulaması, minimal frontend ve kontrollü güvenlik demo fixture'ları
+tamamlanmıştır.
 
 Mevcut özellikler:
 
@@ -55,8 +56,10 @@ Mevcut özellikler:
 * Browser create/edit/delete formları ve `303` yönlendirmeleri
 * Responsive, erişilebilir temel CSS
 * Flask test client ile model, store, API ve frontend testleri
+* Beş deterministik static analyzer bulgusu
+* Ayrı ve runtime dışı vulnerable dependency fixture'ı
 
-Bilerek problemli güvenlik analiz örnekleri sonraki aşamada eklenecektir.
+Sıradaki aşama analyzer ve dependency scanner entegrasyon raporlarıdır.
 
 ## Kurulum
 
@@ -86,6 +89,14 @@ Flask==3.1.3
 
 Flask yalnızca analyzer araçlarını kullanan kurulumların zorunlu ana
 bağımlılığı değildir.
+
+Vulnerable dependency fixture normal uygulama kurulumu için kullanılmamalıdır:
+
+```text
+sample_app/requirements-vulnerable.txt
+```
+
+Bu dosya yalnızca dependency scanner demosunun girdisidir.
 
 ## Çalıştırma
 
@@ -301,6 +312,65 @@ Olmayan bir görev update veya delete edilmeye çalışıldığında HTTP 404 d�
 }
 ```
 
+## Kontrollü Static Analyzer Demo
+
+Bilerek problemli örneklerin tamamı çalışan Flask kodundan ayrılmıştır:
+
+```text
+sample_app/analyzer_demo.py
+```
+
+Demo modülü application factory veya package interface tarafından import
+edilmez. Analyzer komutu:
+
+```powershell
+securecode-analyzer sample_app --format text
+```
+
+Beklenen tam bulgu seti:
+
+| Rule | Satır | Severity | Örnek |
+|---|---:|---|---|
+| `SA005` | 8 | warning | Açıkça sahte hardcoded secret |
+| `SA001` | 11 | warning | 65 satırlık fonksiyon |
+| `SA006` | 11 | info | camelCase fonksiyon adı |
+| `SA003` | 14 | info | TODO comment |
+| `SA004` | 54 | warning | Pass-only except handler |
+
+Toplam tam olarak 5 finding beklenir. Secret finding raporu yalnızca genel
+mesajı içerir; sahte literal değeri rapora yazılmaz.
+
+## Vulnerable Dependency Demo
+
+Scanner fixture değeri:
+
+```text
+fastapi==0.109.0
+```
+
+Canlı OSV taraması:
+
+```powershell
+securecode-dependency-scan `
+  sample_app/requirements-vulnerable.txt `
+  --source osv `
+  --format json
+```
+
+Beklenen finding:
+
+```text
+advisory: PYSEC-2024-38
+alias: CVE-2024-24762
+severity: HIGH
+fixed version: 0.109.1
+```
+
+FastAPI `0.109.0` normal `sample_app/requirements.txt` dosyasında bulunmaz,
+kurulmaz ve Flask uygulaması tarafından import edilmez. Offline testler aynı
+finding değerini checked-in OSV projection fixture'ıyla ağ kullanmadan
+doğrular.
+
 ## Foundation Mimarisi
 
 ```text
@@ -333,6 +403,12 @@ sample_app/templates/
 
 sample_app/static/style.css
   -> responsive layout, controls and task status styling
+
+sample_app/analyzer_demo.py
+  -> isolated, intentional static analyzer findings
+
+sample_app/requirements-vulnerable.txt
+  -> demo-only vulnerable dependency scanner input
 ```
 
 Module-level mutable görev listesi kullanılmaz. Her `create_app()` çağrısı
@@ -378,7 +454,8 @@ pytest tests/test_sample_app_models.py `
   tests/test_sample_app.py `
   tests/test_sample_app_task_routes.py `
   tests/test_sample_app_update_delete_routes.py `
-  tests/test_sample_app_frontend.py -q
+  tests/test_sample_app_frontend.py `
+  tests/test_sample_app_security_demo.py -q
 ```
 
 Doğrulama sonucu:
@@ -387,10 +464,11 @@ Doğrulama sonucu:
 Task route tests: 27 passed
 New update/delete test cases: 54 passed
 New frontend test cases: 18 passed
-Sample app targeted suite: 139 passed
-Complete test suite: 967 passed
+New security demo test cases: 4 passed
+Sample app targeted suite: 143 passed
+Complete test suite: 971 passed
 Compile check: passed
-Sample app self-analysis: no findings
+Sample app analysis: 5 expected findings
 Analyzer source self-analysis: no findings
 ```
 
@@ -407,6 +485,8 @@ yaklaşımını kullanır:
 * [Flask Templates](https://flask.palletsprojects.com/en/stable/tutorial/templates/)
 * [Flask Static Files](https://flask.palletsprojects.com/en/stable/tutorial/static/)
 * [Flask 3.1.3 on PyPI](https://pypi.org/project/Flask/3.1.3/)
+* [OSV PYSEC-2024-38](https://osv.dev/vulnerability/PYSEC-2024-38)
+* [FastAPI 0.109.0 on PyPI](https://pypi.org/project/fastapi/0.109.0/)
 
 ## Navigation
 
