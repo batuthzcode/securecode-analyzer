@@ -104,11 +104,10 @@ Aşağıdaki özellikler proje kapsamı dışındadır:
 
 ## Mevcut Durum
 
-Temel Flask uygulaması, Task modeli, in-memory store ve JSON görev
-listeleme/oluşturma/güncelleme/silme endpoint'leri tamamlanmıştır.
+Temel Flask uygulaması, Task modeli, in-memory store, JSON CRUD endpoint'leri
+ve minimal Jinja/CSS frontend tamamlanmıştır.
 
-Sıradaki geliştirme adımları minimal frontend ve kontrollü analiz
-örnekleridir.
+Sıradaki geliştirme adımı kontrollü analiz örneklerinin eklenmesidir.
 
 ## Flask Uygulama İskeleti Gereksinimleri
 
@@ -449,6 +448,96 @@ Olmayan görevin update/delete işlemi store'u değiştirmemelidir.
 7. Başarılı delete HTTP 204 ve boş body döndürmelidir.
 8. Silinen ID yeniden kullanılmamalıdır.
 9. Geçersiz update/delete store state değerini değiştirmemelidir.
+10. Hedefli ve tam test paketi geçmelidir.
+
+## Minimal Frontend Gereksinimleri
+
+Bu aşama proje planındaki `Task 4.3.1` ve `Task 4.3.2` kapsamını
+gerçekleştirecektir. Frontend mevcut Flask/Jinja yapısı içinde çalışacak ve
+ayrı bir JavaScript uygulaması veya üretim dağıtımı eklemeyecektir.
+
+### Ana Sayfa
+
+```text
+GET /
+```
+
+Geçici JSON ana sayfa sözleşmesinin yerini HTML sayfası almalıdır. JSON görev
+listesi `GET /tasks` üzerinden erişilebilir kalmalıdır.
+
+Ana sayfa:
+
+- Uygulama adını ve kısa amacını göstermelidir.
+- Toplam, tamamlanan ve bekleyen görev sayılarını göstermelidir.
+- Görevleri store insertion order sırasıyla listelemelidir.
+- Her görev için title, description ve completed durumunu göstermelidir.
+- Store boşsa anlaşılır bir empty state göstermelidir.
+- Yeni görev için title ve description alanlarını içeren form sunmalıdır.
+- Her görev için edit bağlantısı ve delete formu sunmalıdır.
+
+### Tarayıcı Form Akışları
+
+Tarayıcı HTML yanıtını tercih ettiğinde aşağıdaki form rotaları
+kullanılmalıdır:
+
+```text
+POST     /tasks
+GET/POST /tasks/<task_id>/edit
+POST     /tasks/<task_id>/delete
+```
+
+Başarılı create, update ve delete işlemleri `303 See Other` ile ana sayfaya
+yönlendirilmelidir. Bu Post/Redirect/Get akışı sayfa yenilemesinde formun
+tekrar gönderilmesini önlemelidir.
+
+API uyumluluğu korunmalıdır:
+
+- JSON create istekleri HTTP 201 JSON döndürmeye devam etmelidir.
+- Programmatic form istekleri HTML açıkça tercih edilmediğinde mevcut JSON
+  sözleşmesini korumalıdır.
+- `PUT /tasks/<id>` ve `DELETE /tasks/<id>` değişmeden kalmalıdır.
+
+### Form Doğrulaması ve Hatalar
+
+Create ve edit formları mevcut request parser ve Task model doğrulamasını
+yeniden kullanmalıdır. Ayrı ve daha zayıf bir doğrulama yolu
+oluşturulmamalıdır.
+
+Geçersiz tarayıcı formu:
+
+- Kontrollü hata mesajını HTML içinde göstermelidir.
+- Uygun HTTP 400 durum kodunu korumalıdır.
+- Kullanıcının girdiği güvenli text alanlarını formda korumalıdır.
+- Store state veya ID sırasını değiştirmemelidir.
+
+Olmayan edit/delete task ID değeri HTML içinde anlaşılır hata ve HTTP 404
+üretmelidir.
+
+### Güvenlik ve Erişilebilirlik Sınırları
+
+- Kullanıcı text değerleri yalnızca Jinja autoescape açıkken render
+  edilmelidir.
+- Template içinde kullanıcı girdisi `safe` filtresiyle işaretlenmemelidir.
+- Form alanlarının görünür label değerleri olmalıdır.
+- Klavye focus durumu görünür olmalıdır.
+- Durum bilgisi yalnızca renkle aktarılmamalıdır.
+- Delete işlemi yalnızca POST formuyla tetiklenmelidir; GET state
+  değiştirmemelidir.
+- CSS dar ekranlarda yatay taşma oluşturmamalıdır.
+- Harici font, script veya görsel bağımlılığı eklenmemelidir.
+
+### Kabul Kriterleri
+
+1. Ana sayfa HTTP 200 ve `text/html` döndürmelidir.
+2. Dolu ve boş store HTML görünümleri test edilmelidir.
+3. Jinja kullanıcı text değerlerini HTML escape etmelidir.
+4. Stylesheet Flask static endpoint'i üzerinden yüklenebilmelidir.
+5. Tarayıcı create formu başarılı durumda HTTP 303 üretmelidir.
+6. Edit sayfası mevcut değerleri göstermeli ve update formu HTTP 303
+   üretmelidir.
+7. Delete formu görevi kaldırmalı ve HTTP 303 üretmelidir.
+8. Tarayıcı form hataları HTML ve doğru 400/404 durumuyla dönmelidir.
+9. Mevcut JSON CRUD API testleri geçmeye devam etmelidir.
 10. Hedefli ve tam test paketi geçmelidir.
 
 ## Navigation
