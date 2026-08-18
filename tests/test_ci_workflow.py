@@ -137,10 +137,6 @@ def test_static_analysis_job_waits_for_tests() -> None:
         "    runs-on: ubuntu-latest\n"
         "    timeout-minutes: 10\n"
     ) in workflow
-    assert workflow.count("persist-credentials: false") == 2
-    assert workflow.count('python-version: "3.11"') == 2
-    assert workflow.count("actions/checkout@") == 2
-    assert workflow.count("actions/setup-python@") == 2
 
 
 def test_static_analysis_job_writes_project_json_reports() -> None:
@@ -194,3 +190,55 @@ def test_static_analysis_job_validates_controlled_demo() -> None:
         "tests/test_sample_app_security_demo.py -q"
         in workflow
     )
+
+
+def test_dependency_scan_job_waits_for_tests() -> None:
+    """The offline vulnerability gate should follow the test job."""
+
+    workflow = _workflow_text()
+
+    assert (
+        "  dependency-scan:\n"
+        "    name: Dependency scan\n"
+        "    needs: test\n"
+        "    runs-on: ubuntu-latest\n"
+        "    timeout-minutes: 10\n"
+    ) in workflow
+    assert workflow.count("persist-credentials: false") == 3
+    assert workflow.count('python-version: "3.11"') == 3
+    assert workflow.count("actions/checkout@") == 3
+    assert workflow.count("actions/setup-python@") == 3
+
+
+def test_dependency_scan_job_uses_offline_critical_gate() -> None:
+    """CI should use recorded OSV data and a critical threshold."""
+
+    workflow = _workflow_text()
+
+    assert "python tools/run_ci_dependency_scan.py" in workflow
+    assert (
+        "--requirements "
+        "sample_app/requirements-vulnerable.txt"
+        in workflow
+    )
+    assert (
+        "--fixture "
+        "tests/fixtures/osv/fastapi-0.109.0.json"
+        in workflow
+    )
+    assert (
+        "--output reports/ci/dependency-scan.json"
+        in workflow
+    )
+    assert "--fail-on critical" in workflow
+
+
+def test_dependency_scan_job_validates_offline_report() -> None:
+    """Generated dependency data should match its tested baseline."""
+
+    workflow = _workflow_text()
+
+    assert "reports/ci/dependency-scan.json" in workflow
+    assert "reports/sample-app/dependency-scan.json" in workflow
+    assert "tests/test_ci_dependency_scan.py" in workflow
+    assert "tests/test_dependency_integration.py -q" in workflow
