@@ -4599,3 +4599,210 @@ Dependency scan formatter katmanı:
 - Terminale veya dosyaya yazmaz.
 - CLI argument ayrıştırmaz.
 - Exit code hesaplamaz.
+
+## Dependency Scan CLI Gereksinimleri
+
+Dependency scanner orchestration ve formatter katmanlarını son kullanıcıya
+açan bağımsız bir command-line interface eklenecektir.
+
+Oluşturulacak dosyalar:
+
+- `src/dependency_scanner/cli.py`
+- `src/dependency_scanner/default_factory.py`
+- `src/dependency_scanner/runner.py`
+- `tests/test_dependency_cli.py`
+- `tests/test_dependency_runner.py`
+
+Güncellenecek dosya:
+
+- `pyproject.toml`
+
+Console script:
+
+```text
+securecode-dependency-scan
+```
+
+mevcut static analyzer komutundan bağımsız olacaktır.
+
+### CLI Argument Modeli
+
+`DependencyCliArguments` immutable bir dataclass olacaktır:
+
+```python
+@dataclass(frozen=True, slots=True)
+class DependencyCliArguments:
+    requirements_file: Path
+    output_format: str
+    output_path: Path | None
+    fail_on: str
+    source: str
+    timeout: float
+```
+
+Parser aşağıdaki argument değerlerini destekleyecektir:
+
+- Zorunlu requirements dosya yolu
+- `--format text|json`
+- Opsiyonel `--output PATH`
+- `--fail-on any|low|medium|high|critical`
+- `--source osv`
+- Pozitif ve finite sayı gerektiren `--timeout SECONDS`
+
+Varsayılan değerler:
+
+```text
+format: text
+output: stdout
+fail-on: any
+source: osv
+timeout: 10.0
+```
+
+Parser dosya sistemine veya internete erişmeyecektir. Dosyanın varlığı ve
+içeriği runner/scanner katmanında değerlendirilecektir.
+
+### Default Factory
+
+`create_default_dependency_scanner()`:
+
+1. Seçilen source adını doğrulayacaktır.
+2. Timeout değeriyle `OsvQueryClient` oluşturacaktır.
+3. Client değerini `OsvVulnerabilitySource` içine aktaracaktır.
+4. Source değerini `DependencyScanner` içine aktaracaktır.
+
+İlk sürümde yalnızca `osv` source adı desteklenecektir.
+
+### Runner Akışı
+
+`run_cli()` aşağıdaki sırayı uygulayacaktır:
+
+1. Argument değerlerini ayrıştırır.
+2. Output yolunun requirements dosyasıyla aynı olmadığını doğrular.
+3. Default veya enjekte edilmiş scanner factory değerini çağırır.
+4. Requirements dosyasını bir kez tarar.
+5. Seçilen text veya JSON formatter değerini bir kez çağırır.
+6. Raporu stdout ya da output dosyasına yazar.
+7. Scan sonucu ve fail-on eşiğine göre exit code döndürür.
+
+Formatter çıktısı zaten newline ile bitmediği için runner hedef stream veya
+dosyaya tam olarak bir trailing newline ekleyecektir.
+
+### Output Dosyası
+
+`--output` verilmediğinde rapor stdout'a yazılacaktır.
+
+`--output PATH` verildiğinde:
+
+- Rapor UTF-8 olarak dosyaya yazılacaktır.
+- Mevcut dosya açık kullanıcı isteği doğrultusunda değiştirilecektir.
+- Stdout boş kalacaktır.
+- Parent klasör otomatik oluşturulmayacaktır.
+- Requirements input dosyasıyla aynı hedef kesinlikle reddedilecektir.
+
+Dosya yazma hataları kontrollü operational error olacaktır.
+
+### Exit Code Politikası
+
+Exit code değerleri:
+
+```text
+0: başarılı tarama ve fail-on eşiğini karşılayan finding yok
+1: başarılı tarama ve fail-on eşiğini karşılayan en az bir finding var
+2: kullanıcı, dosya, parse, source veya kısmi lookup hatası var
+```
+
+Lookup error bulunduğunda finding değerleri de bulunsa exit code `2`
+öncelikli olacaktır. Kısmi sonuç raporu yine üretilecektir.
+
+`--fail-on any`, severity değeri `unknown` dahil bütün finding değerlerinde
+exit code `1` üretecektir.
+
+Diğer eşikler aşağıdaki severity sırasını kullanacaktır:
+
+```text
+low < medium < high < critical
+```
+
+`unknown` yalnızca `any` eşiğini karşılayacaktır.
+
+### Hata Yönetimi
+
+`main()` aşağıdaki beklenen hataları stderr'e `Error: ...` biçiminde yazacak
+ve exit code `2` döndürecektir:
+
+- Requirements dosyasının bulunamaması veya okunamaması
+- Requirements path değerinin directory olması
+- UTF-8 decode hatası
+- `RequirementsParseError`
+- `OsvQueryError`
+- Geçersiz veya tehlikeli output hedefi
+- Output dosyası yazma hatası
+
+Argparse kullanım ve help `SystemExit` davranışı korunacaktır. Beklenmeyen
+programlama hataları gizlenmeden caller'a aktarılacaktır.
+
+### Test Gereksinimleri
+
+CLI parser için en az aşağıdaki durumlar test edilecektir:
+
+- Immutable ve slots argument modeli
+- Program adı ve açıklaması
+- Requirements path dönüşümü
+- Bütün varsayılan değerler
+- Text ve JSON formatları
+- Output path
+- Bütün fail-on seçenekleri
+- Yalnızca OSV source desteği
+- Pozitif integer ve float timeout
+- Sıfır, negatif, boolean olmayan string, NaN ve infinity timeout reddi
+- Eksik requirements yolu
+- Bilinmeyen argument ve help davranışı
+- Parser'ın dosya sistemine erişmemesi
+
+Default factory için en az aşağıdaki durumlar test edilecektir:
+
+- Dependency scanner oluşturulması
+- OSV source oluşturulması
+- Timeout değerinin OSV client'a aktarılması
+- Her çağrıda yeni component değerleri
+- Geçersiz source değerinin reddedilmesi
+
+Runner için en az aşağıdaki durumlar test edilecektir:
+
+- Argument değerlerinin parser'a aktarılması
+- Factory source ve timeout değerleri
+- Requirements path değerinin scanner'a aktarılması
+- Default ve explicit text format
+- JSON format
+- Stdout'a tam bir trailing newline
+- UTF-8 output dosyası ve boş stdout
+- Eksik parent output klasörü
+- Input dosyasının output olarak kullanılmasının reddedilmesi
+- Temiz scan exit code `0`
+- Her finding için varsayılan exit code `1`
+- Bütün fail-on severity sınırları
+- Unknown severity davranışı
+- Lookup error öncelikli exit code `2`
+- Kısmi finding ve error raporu
+- Fatal file, parser ve source hataları
+- Operational error stderr biçimi
+- Beklenmeyen hataların aktarılması
+- Argparse `SystemExit` davranışı
+- Result ve nested modellerin değiştirilmemesi
+- Console script entrypoint
+
+Unit testlerde gerçek internet bağlantısı kullanılmayacaktır.
+
+### Sorumluluk Sınırları
+
+Dependency scan CLI:
+
+- Requirements satırlarını yeniden ayrıştırmaz.
+- OSV request payload oluşturmaz.
+- HTTP response ayrıştırmaz.
+- Advisory finding oluşturmaz.
+- CVSS score hesaplamaz.
+- Retry veya cache uygulamaz.
+- Parent output klasörünü otomatik oluşturmaz.
+- Static analyzer CLI davranışını değiştirmez.
