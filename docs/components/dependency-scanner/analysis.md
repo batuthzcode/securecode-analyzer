@@ -4106,3 +4106,141 @@ Testler gerçek internet bağlantısı kullanmayacak.
 Bu katman HTTP request oluşturmayacak, JSON parse etmeyecek,
 requirements dosyası okumayacak, CVSS yorumlamayacak ve
 terminal çıktısı üretmeyecek.
+
+## OSV CVSS v3 Severity Mapping Gereksinimleri
+
+OSV vulnerability kayıtlarındaki CVSS v3 vektörlerini ortak
+`VulnerabilitySeverity` değerlerine dönüştüren katman eklenecektir.
+
+Dosyalar:
+
+- `src/dependency_scanner/osv_severity.py`
+- `tests/test_osv_severity.py`
+- `src/dependency_scanner/osv_source.py` güncellenecek
+- `tests/test_osv_source.py` güncellenecek
+- `src/dependency_scanner/__init__.py` güncellenecek
+
+Public API:
+
+- `CvssV3VectorError`
+- `calculate_cvss_v3_base_score(vector) -> float`
+- `classify_cvss_score(score) -> VulnerabilitySeverity`
+
+### Desteklenen CVSS Sürümleri
+
+Bu aşamada OSV `CVSS_V3` kayıtları içindeki aşağıdaki vektör sürümleri
+desteklenecektir:
+
+- `CVSS:3.0`
+- `CVSS:3.1`
+
+CVSS v2, CVSS v4 ve Ubuntu priority kayıtları bu aşamada puanlanmayacak ve
+tek başlarına bulunduğunda `VulnerabilitySeverity.UNKNOWN` üretilecektir.
+
+### Vektör Doğrulaması
+
+CVSS v3 vektörü:
+
+- String ve boş olmayan bir değer olmalıdır.
+- `CVSS:3.0` veya `CVSS:3.1` önekiyle başlamalıdır.
+- Bütün base metric değerlerini içermelidir: `AV`, `AC`, `PR`, `UI`, `S`,
+  `C`, `I`, `A`.
+- Metric sırası serbest olmalıdır.
+- Aynı metric birden fazla kez bulunmamalıdır.
+- Bilinmeyen metric veya geçersiz metric değeri içermemelidir.
+- Geçerli temporal ve environmental metric değerlerini içerebilir; base score
+  hesabında yalnızca base metric değerleri kullanılacaktır.
+
+Geçersiz vektör doğrudan public hesaplama API'sine verildiğinde
+`CvssV3VectorError` üretilecektir.
+
+### Base Score Hesabı
+
+CVSS v3.0 ve v3.1 base score hesabı FIRST tarafından tanımlanan:
+
+- Impact Sub-Score
+- Impact
+- Exploitability
+- Scope
+- Roundup
+
+kurallarını uygulayacaktır.
+
+Sonuç `0.0` ile `10.0` arasında, tek ondalık basamaklı `float` olacaktır.
+Roundup işlemi kayan nokta sapmalarına karşı deterministik uygulanacaktır.
+
+### Qualitative Severity Dönüşümü
+
+FIRST qualitative severity aralıkları kullanılacaktır:
+
+```text
+0.0       -> UNKNOWN
+0.1-3.9   -> LOW
+4.0-6.9   -> MEDIUM
+7.0-8.9   -> HIGH
+9.0-10.0  -> CRITICAL
+```
+
+Ortak modelde `NONE` değeri bulunmadığı için CVSS `0.0` sonucu
+`VulnerabilitySeverity.UNKNOWN` olarak temsil edilecektir.
+
+`classify_cvss_score()` yalnızca sonlu ve `0.0` ile `10.0` arasında sayısal
+değerleri kabul edecektir. Geçersiz değerler `ValueError` üretecektir.
+
+### OSV Severity Seçimi
+
+`OsvVulnerabilitySource`, sorgulanan dependency için:
+
+1. `PyPI` ecosystem değerine ve normalize edilmiş paket adına göre eşleşen
+   `affected` kayıtlarındaki paket düzeyi severity değerlerini arayacaktır.
+2. Eşleşen paket düzeyi severity yoksa vulnerability düzeyi severity
+   değerlerini kullanacaktır.
+3. İlgili kayıtlardaki geçerli `CVSS_V3` vektörlerini puanlayacaktır.
+4. Birden fazla geçerli CVSS v3 kaydı varsa en yüksek base score'u
+   kullanacaktır.
+5. Geçerli CVSS v3 kaydı yoksa `VulnerabilitySeverity.UNKNOWN`
+   kullanacaktır.
+
+Paket düzeyi severity, OSV şemasındaki paket özelinde severity anlamına uygun
+olarak vulnerability düzeyi severity değerinden öncelikli olacaktır.
+
+OSV source geçersiz CVSS vektörü nedeniyle sorguyu veya finding üretimini
+durdurmayacaktır. `CvssV3VectorError` source sınırında yakalanacak ve sıradaki
+uygun severity kaydı değerlendirilecektir.
+
+### Test Gereksinimleri
+
+En az aşağıdaki durumlar test edilecektir:
+
+- CVSS v3.0 ve v3.1 vektörleri
+- Scope unchanged ve scope changed hesapları
+- Metric sırasından bağımsız ayrıştırma
+- Geçerli optional metric kabulü
+- Eksik base metric
+- Duplicate metric
+- Bilinmeyen metric
+- Geçersiz metric değeri
+- Geçersiz sürüm ve bozuk vektör
+- FIRST qualitative severity sınırları
+- Sayısal olmayan, sonlu olmayan ve aralık dışı score değerleri
+- Vulnerability düzeyi severity
+- Eşleşen PyPI paketine özel severity önceliği
+- Eşleşmeyen paket severity değerinin kullanılmaması
+- Birden fazla CVSS v3 kaydında en yüksek geçerli score seçimi
+- Geçersiz CVSS vektöründe güvenli `UNKNOWN` fallback
+- CVSS v2, CVSS v4 ve Ubuntu kayıtlarında `UNKNOWN` fallback
+
+Testler gerçek internet bağlantısı kullanmayacaktır.
+
+### Sorumluluk Sınırları
+
+Bu özellik:
+
+- CVSS v2 hesaplamaz.
+- CVSS v4 hesaplamaz.
+- Ubuntu priority yorumlamaz.
+- Temporal veya environmental score hesaplamaz.
+- OSV HTTP isteği göndermez.
+- OSV JSON response ayrıştırmaz.
+- Dependency sürüm aralığı karşılaştırmaz.
+- Terminal çıktısı veya exit code üretmez.

@@ -13,7 +13,16 @@ from dependency_scanner.models import (
 from dependency_scanner.osv_client import OsvQueryClient
 from dependency_scanner.osv_models import (
     OsvQueryResponse,
+    OsvSeverity,
     OsvVulnerability,
+)
+from dependency_scanner.osv_severity import (
+    CvssV3VectorError,
+    calculate_cvss_v3_base_score,
+    classify_cvss_score,
+)
+from dependency_scanner.package_normalizer import (
+    normalize_package_name,
 )
 
 
@@ -100,7 +109,10 @@ def _create_finding(
         advisory_id=vulnerability.advisory_id,
         message=_select_message(vulnerability),
         source=_OSV_ADVISORY_SOURCE,
-        severity=VulnerabilitySeverity.UNKNOWN,
+        severity=_find_severity(
+            dependency,
+            vulnerability,
+        ),
         fixed_version=_find_fixed_version(
             vulnerability
         ),
@@ -137,3 +149,66 @@ def _find_fixed_version(
                     return event.fixed
 
     return None
+
+
+def _find_severity(
+    dependency: Dependency,
+    vulnerability: OsvVulnerability,
+) -> VulnerabilitySeverity:
+    """Return the highest valid relevant CVSS v3 severity."""
+
+    scores: list[float] = []
+
+    for severity in _select_severity_records(
+        dependency,
+        vulnerability,
+    ):
+        if severity.severity_type != "CVSS_V3":
+            continue
+
+        try:
+            score = calculate_cvss_v3_base_score(
+                severity.score
+            )
+        except CvssV3VectorError:
+            continue
+
+        scores.append(score)
+
+    if not scores:
+        return VulnerabilitySeverity.UNKNOWN
+
+    return classify_cvss_score(max(scores))
+
+
+def _select_severity_records(
+    dependency: Dependency,
+    vulnerability: OsvVulnerability,
+) -> tuple[OsvSeverity, ...]:
+    """Select package-specific or vulnerability-wide severity data."""
+
+    dependency_name = normalize_package_name(
+        dependency.name
+    )
+    package_severity: list[OsvSeverity] = []
+
+    for affected_package in vulnerability.affected:
+        package = affected_package.package
+
+        if package.ecosystem != "PyPI":
+            continue
+
+        if (
+            normalize_package_name(package.name)
+            != dependency_name
+        ):
+            continue
+
+        package_severity.extend(
+            affected_package.severity
+        )
+
+    if package_severity:
+        return tuple(package_severity)
+
+    return vulnerability.severity

@@ -1104,8 +1104,9 @@ AdvisorySource(
 )
 ```
 
-Severity mapping sonraki geliştirme aşamasına bırakılmıştır. Bu aşamada bütün
-bulgular `VulnerabilitySeverity.UNKNOWN` değeriyle oluşturulur.
+Geçerli OSV `CVSS_V3` kayıtları artık CVSS v3 base score hesabıyla ortak
+`VulnerabilitySeverity` değerlerine dönüştürülür. Desteklenmeyen veya geçersiz
+severity kayıtlarında `VulnerabilitySeverity.UNKNOWN` kullanılır.
 
 ### Pagination ve Hata Yönetimi
 
@@ -1122,7 +1123,7 @@ Source katmanı:
 - JSON response ayrıştırmaz.
 - Requirements dosyası okumaz.
 - Paket adı normalize etmez.
-- CVSS severity yorumlamaz.
+- CVSS formülünü kendi içinde uygulamaz; ortak severity yardımcısını kullanır.
 - Terminal çıktısı veya exit code üretmez.
 
 ### Test Sonuçları
@@ -1130,6 +1131,97 @@ Source katmanı:
 ```text
 OSV Vulnerability Source tests: 14 passed
 Complete test suite: 615 passed
+Compile check: passed
+Self-analysis: No findings found.
+Exit code: 0
+```
+
+## Uygulanan OSV CVSS v3 Severity Mapping
+
+Dependency scanner bileşenine OSV severity kayıtlarındaki CVSS v3
+vektörlerini puanlayan ve ortak finding severity değerlerine dönüştüren katman
+eklenmiştir.
+
+Oluşturulan dosyalar:
+
+```text
+src/dependency_scanner/osv_severity.py
+tests/test_osv_severity.py
+```
+
+### Public API
+
+```python
+from dependency_scanner import (
+    CvssV3VectorError,
+    calculate_cvss_v3_base_score,
+    classify_cvss_score,
+)
+```
+
+Base score hesabı:
+
+```python
+score = calculate_cvss_v3_base_score(
+    "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+)
+
+assert score == 9.8
+```
+
+Qualitative severity dönüşümü:
+
+```python
+severity = classify_cvss_score(score)
+
+assert severity is VulnerabilitySeverity.CRITICAL
+```
+
+### Desteklenen Davranış
+
+CVSS `3.0` ve `3.1` base vektörleri FIRST formülüne göre hesaplanır. Bütün
+base metric değerleri zorunludur; metric sırası serbesttir ve duplicate,
+bilinmeyen veya geçersiz metric değerleri reddedilir.
+
+Geçerli temporal ve environmental metric değerleri kabul edilir ancak bu API
+yalnızca base score hesapladığı için puanı değiştirmez.
+
+Qualitative severity aralıkları:
+
+```text
+0.0       -> UNKNOWN
+0.1-3.9   -> LOW
+4.0-6.9   -> MEDIUM
+7.0-8.9   -> HIGH
+9.0-10.0  -> CRITICAL
+```
+
+Ortak severity modelinde `NONE` bulunmadığı için CVSS `0.0` sonucu `UNKNOWN`
+olarak temsil edilir.
+
+### OSV Source Entegrasyonu
+
+`OsvVulnerabilitySource`, sorgulanan dependency ile aynı normalize edilmiş
+ada ve `PyPI` ecosystem değerine sahip `affected` kaydındaki paket özelinde
+severity değerini öncelikli kullanır. Paket özelinde severity bulunmazsa
+vulnerability düzeyi severity kayıtları değerlendirilir.
+
+Birden fazla geçerli `CVSS_V3` kaydı varsa en yüksek base score seçilir.
+Geçersiz vektörler finding üretimini durdurmaz; desteklenen geçerli bir kayıt
+yoksa severity `UNKNOWN` kalır.
+
+Bu aşamada aşağıdaki OSV severity türleri puanlanmaz:
+
+- `CVSS_V2`
+- `CVSS_V4`
+- `Ubuntu`
+
+### Test Sonuçları
+
+```text
+OSV CVSS v3 severity tests: 31 passed
+OSV Vulnerability Source tests: 23 passed
+Complete test suite: 655 passed
 Compile check: passed
 Self-analysis: No findings found.
 Exit code: 0
