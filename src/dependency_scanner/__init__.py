@@ -40,8 +40,14 @@ from dependency_scanner.requirements_parser import (
     parse_requirements_file,
     parse_requirements_text,
 )
+from dependency_scanner.scanner import (
+    DependencyScanError,
+    DependencyScanner,
+    DependencyScanResult,
+)
 from dependency_scanner.vulnerability_source import (
     VulnerabilitySource,
+    VulnerabilitySourceError,
 )
 
 __all__ = [
@@ -49,6 +55,9 @@ __all__ = [
     "CvssV3VectorError",
     "Dependency",
     "DependencyFinding",
+    "DependencyScanError",
+    "DependencyScanner",
+    "DependencyScanResult",
     "OsvAffectedPackage",
     "OsvPackage",
     "OsvQueryClient",
@@ -63,6 +72,7 @@ __all__ = [
     "RequirementsParseError",
     "VulnerabilitySeverity",
     "VulnerabilitySource",
+    "VulnerabilitySourceError",
     "calculate_cvss_v3_base_score",
     "classify_cvss_score",
     "normalize_package_name",
