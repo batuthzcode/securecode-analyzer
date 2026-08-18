@@ -1340,6 +1340,119 @@ Self-analysis: No findings found.
 Exit code: 0
 ```
 
+## Uygulanan Dependency Scan Formatters
+
+Dependency scan sonuçlarını insan tarafından okunabilir text ve makine
+tarafından okunabilir JSON belgelerine dönüştüren formatter katmanı
+eklenmiştir.
+
+Oluşturulan dosyalar:
+
+```text
+src/dependency_scanner/formatters/__init__.py
+src/dependency_scanner/formatters/text.py
+src/dependency_scanner/formatters/json.py
+tests/test_dependency_text_formatter.py
+tests/test_dependency_json_formatter.py
+```
+
+### Public API
+
+Her iki formatter paket seviyesinden import edilebilir:
+
+```python
+from dependency_scanner import (
+    format_dependency_scan_json,
+    format_dependency_scan_text,
+)
+```
+
+Formatter'lar tamamlanmış bir `DependencyScanResult` kabul eder ve string
+değer döndürür:
+
+```python
+text_report = format_dependency_scan_text(result)
+json_report = format_dependency_scan_json(result)
+```
+
+Geçersiz result türleri `ValueError` ile reddedilir.
+
+### Text Çıktısı
+
+Text formatter finding değerlerinde severity, advisory kimliği, dependency,
+kaynak konumu, mesaj, advisory source ve varsa düzeltilmiş sürüm ile alias
+değerlerini gösterir:
+
+```text
+[HIGH] OSV-EXAMPLE sample-package==1.0.0 requirements.txt:2 - Example vulnerability. | source=OSV | fixed=2.0.0 | aliases=CVE-2099-0001
+```
+
+Lookup hataları ayrı bir kayıt biçimi kullanır:
+
+```text
+[LOOKUP ERROR] OSV sample-package==1.0.0 requirements.txt:2 - Service unavailable.
+```
+
+Finding kayıtları kendi sıralarıyla önce, lookup error kayıtları kendi
+sıralarıyla sonra gösterilir. Finding ve error bulunmayan sonuç okunabilir
+bir temiz tarama mesajı içerir.
+
+Her rapor scanned dependency, finding ve lookup error sayılarını doğru tekil
+ve çoğul sözcüklerle özetler:
+
+```text
+2 dependencies scanned. 1 finding. 1 lookup error.
+```
+
+### JSON Çıktısı
+
+JSON formatter aşağıdaki kararlı top-level alanları üretir:
+
+```text
+dependencies
+findings
+errors
+summary
+```
+
+Dependency ve finding kayıtları mevcut model `to_dict()` sözleşmelerini
+kullanır. Error kayıtları dependency, advisory source ve hata mesajını
+birlikte serialize eder.
+
+`summary` nesnesi:
+
+- Dependency sayısını
+- Finding sayısını
+- Error sayısını
+- Taramanın bütün lookup işlemleri için başarılı olup olmadığını
+
+içerir.
+
+JSON çıktısı iki space indentation kullanır, Unicode metni korur, collection
+sıralarını değiştirmez ve trailing newline eklemez.
+
+### Saf Formatter Davranışı
+
+Her iki formatter:
+
+- Result veya nested model değerlerini değiştirmez.
+- Terminale yazmaz.
+- Dosya oluşturmaz.
+- Dependency taraması başlatmaz.
+- HTTP isteği göndermez.
+- Exit code hesaplamaz.
+
+### Test Sonuçları
+
+```text
+Dependency text formatter tests: 22 passed
+Dependency JSON formatter tests: 16 passed
+Complete test suite: 727 passed
+Compile check: passed
+Self-analysis: No findings found.
+Exit code: 0
+```
+
 ## Navigation
 
 - [Tüm bileşenlere dön](../README.md)
