@@ -104,11 +104,11 @@ Aşağıdaki özellikler proje kapsamı dışındadır:
 
 ## Mevcut Durum
 
-Temel Flask uygulaması, Task modeli, in-memory store ve görev
-listeleme/oluşturma endpoint'leri tamamlanmıştır.
+Temel Flask uygulaması, Task modeli, in-memory store ve JSON görev
+listeleme/oluşturma/güncelleme/silme endpoint'leri tamamlanmıştır.
 
-Sıradaki geliştirme adımları görev güncelleme/silme işlemleri, minimal
-frontend ve kontrollü analiz örnekleridir.
+Sıradaki geliştirme adımları minimal frontend ve kontrollü analiz
+örnekleridir.
 
 ## Flask Uygulama İskeleti Gereksinimleri
 
@@ -316,6 +316,140 @@ değerini tüketmemelidir.
 7. Geçersiz istek store veya ID sırasını değiştirmemelidir.
 8. Mevcut ana sayfa ve factory izolasyonu korunmalıdır.
 9. Hedefli ve tam test paketi geçmelidir.
+
+## Görev Güncelleme ve Silme Gereksinimleri
+
+Bu aşama proje planındaki `Task 4.2.3` ve `Task 4.2.4` kapsamını
+gerçekleştirecektir. HTML edit sayfası ve form redirect davranışı minimal
+frontend aşamasında eklenecektir.
+
+### Görev Güncelleme
+
+```text
+PUT /tasks/<task_id>
+```
+
+Endpoint var olan görevin aşağıdaki alanlarından bir veya daha fazlasını
+güncellemelidir:
+
+- `title`
+- `description`
+- `completed`
+
+Update kısmi alan değişikliğine izin verir. Payload içinde bulunmayan alanlar
+mevcut değerlerini korur. `id` hiçbir zaman değiştirilemez.
+
+JSON örneği:
+
+```json
+{
+  "title": "Review final report",
+  "completed": true
+}
+```
+
+Başarılı yanıt HTTP 200 olmalıdır:
+
+```json
+{
+  "task": {
+    "id": 1,
+    "title": "Review final report",
+    "description": "Inspect the latest static analysis findings.",
+    "completed": true
+  }
+}
+```
+
+Update işlemi immutable `Task` modelini yerinde değiştirmemeli; aynı ID ile
+yeni bir Task değeri üretip store kaydını değiştirmelidir. Görevin insertion
+order değeri korunmalıdır.
+
+### Update İçerik Türleri
+
+Create endpoint'iyle aynı içerik türleri desteklenmelidir:
+
+- `application/json`
+- `application/x-www-form-urlencoded`
+- `multipart/form-data`
+
+JSON `completed` değeri yalnızca gerçek boolean kabul etmelidir.
+
+Form `completed` değeri büyük-küçük harf duyarsız aşağıdaki tokenları kabul
+etmelidir:
+
+```text
+true:  true, 1, on, yes
+false: false, 0, off, no
+```
+
+Başka completed değeri HTTP 400 üretmelidir.
+
+### Update Doğrulaması
+
+Aşağıdaki durumlar HTTP 400 ve kontrollü JSON hata üretmelidir:
+
+- Boş update object veya boş form
+- Bilinmeyen alan
+- `id` alanı
+- String olmayan `title` veya `description`
+- Kırpıldıktan sonra boş kalan `title`
+- JSON içinde boolean olmayan `completed`
+- Form içinde desteklenmeyen completed tokenı
+- Bozuk veya object olmayan JSON
+
+Geçersiz update mevcut Task nesnesini veya store sırasını değiştirmemelidir.
+
+### Görev Silme
+
+```text
+DELETE /tasks/<task_id>
+```
+
+Var olan görev store'dan kaldırılmalı ve endpoint HTTP 204 No Content
+döndürmelidir. Response body boş olmalıdır.
+
+Silinen görev ID değeri yeniden kullanılmamalıdır. Sonraki create işlemi
+store'un monotonic `_next_id` değerinden devam etmelidir.
+
+### Bulunamayan Görev
+
+Update veya delete sırasında ID store içinde yoksa HTTP 404 döndürülmelidir:
+
+```json
+{
+  "error": {
+    "code": "task_not_found",
+    "message": "Task 99 was not found."
+  }
+}
+```
+
+Olmayan görevin update/delete işlemi store'u değiştirmemelidir.
+
+### Güvenlik Sınırları
+
+- Path ID yalnızca pozitif integer route değeri olmalıdır.
+- Update payload içindeki `id` ve bilinmeyen alanlar reddedilmelidir.
+- Boolean değerler truthy/falsy genel Python dönüşümüyle çevrilmemelidir.
+- Delete body içeriğine ihtiyaç duymamalıdır.
+- Hata yanıtları traceback veya internal store ayrıntısı içermemelidir.
+- Store process-local kalmalı; concurrency ve persistence bu aşamanın
+  kapsamına girmemelidir.
+
+### Kabul Kriterleri
+
+1. PUT title, description ve completed alanlarını ayrı veya birlikte
+   güncelleyebilmelidir.
+2. Eksik update alanları mevcut değerini korumalıdır.
+3. Update yeni immutable Task üretmeli ve insertion order'ı korumalıdır.
+4. JSON ve form boolean sözleşmeleri doğrulanmalıdır.
+5. Boş ve geçersiz update payload değerleri HTTP 400 üretmelidir.
+6. Olmayan task update/delete işlemleri HTTP 404 JSON döndürmelidir.
+7. Başarılı delete HTTP 204 ve boş body döndürmelidir.
+8. Silinen ID yeniden kullanılmamalıdır.
+9. Geçersiz update/delete store state değerini değiştirmemelidir.
+10. Hedefli ve tam test paketi geçmelidir.
 
 ## Navigation
 

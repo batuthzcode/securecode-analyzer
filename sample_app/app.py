@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from flask import Flask, current_app, request
+from flask import Flask, Response, current_app, request
 
 from sample_app.store import (
     InMemoryTaskStore,
@@ -13,6 +13,7 @@ from sample_app.store import (
 from sample_app.task_requests import (
     TaskRequestError,
     parse_create_task_request,
+    parse_update_task_request,
 )
 
 
@@ -101,6 +102,18 @@ def _register_routes(app: Flask) -> None:
         view_func=_create_task,
         methods=["POST"],
     )
+    app.add_url_rule(
+        "/tasks/<int:task_id>",
+        endpoint="update_task",
+        view_func=_update_task,
+        methods=["PUT"],
+    )
+    app.add_url_rule(
+        "/tasks/<int:task_id>",
+        endpoint="delete_task",
+        view_func=_delete_task,
+        methods=["DELETE"],
+    )
 
 
 def _index() -> dict[str, object]:
@@ -148,6 +161,67 @@ def _create_task() -> tuple[dict[str, object], int]:
     return {"task": task.to_dict()}, 201
 
 
+def _update_task(
+    task_id: int,
+) -> tuple[dict[str, object], int]:
+    """Validate and apply one partial task update."""
+
+    task_store = _get_task_store()
+
+    try:
+        current_task = task_store.get_task(task_id)
+    except ValueError:
+        return _task_not_found_response(task_id)
+
+    if current_task is None:
+        return _task_not_found_response(task_id)
+
+    try:
+        task_request = parse_update_task_request(
+            request
+        )
+        updated_task = task_store.update_task(
+            task_id,
+            title=task_request.title,
+            description=task_request.description,
+            completed=task_request.completed,
+        )
+    except TaskRequestError as error:
+        return _task_error_response(error)
+    except ValueError as error:
+        return _task_error_response(
+            TaskRequestError(
+                code="invalid_task",
+                message=str(error),
+            )
+        )
+
+    if updated_task is None:
+        return _task_not_found_response(task_id)
+
+    return {"task": updated_task.to_dict()}, 200
+
+
+def _delete_task(
+    task_id: int,
+) -> Response | tuple[dict[str, object], int]:
+    """Delete one task and return an empty response."""
+
+    task_store = _get_task_store()
+
+    try:
+        deleted_task = task_store.delete_task(
+            task_id
+        )
+    except ValueError:
+        return _task_not_found_response(task_id)
+
+    if deleted_task is None:
+        return _task_not_found_response(task_id)
+
+    return current_app.response_class(status=204)
+
+
 def _serialize_tasks(
     task_store: InMemoryTaskStore,
 ) -> list[dict[str, object]]:
@@ -170,3 +244,17 @@ def _task_error_response(
             "message": str(error),
         }
     }, error.status_code
+
+
+def _task_not_found_response(
+    task_id: int,
+) -> tuple[dict[str, object], int]:
+    """Return the shared missing-task response."""
+
+    return _task_error_response(
+        TaskRequestError(
+            code="task_not_found",
+            message=f"Task {task_id} was not found.",
+            status_code=404,
+        )
+    )
