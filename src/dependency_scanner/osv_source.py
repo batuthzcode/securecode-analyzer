@@ -12,6 +12,7 @@ from dependency_scanner.models import (
 )
 from dependency_scanner.osv_client import OsvQueryClient
 from dependency_scanner.osv_models import (
+    OsvAffectedPackage,
     OsvQueryResponse,
     OsvSeverity,
     OsvVulnerability,
@@ -114,6 +115,7 @@ def _create_finding(
             vulnerability,
         ),
         fixed_version=_find_fixed_version(
+            dependency,
             vulnerability
         ),
         aliases=vulnerability.aliases,
@@ -138,12 +140,22 @@ def _select_message(
 
 
 def _find_fixed_version(
+    dependency: Dependency,
     vulnerability: OsvVulnerability,
 ) -> str | None:
-    """Return the first fixed version in OSV range order."""
+    """Return the first matching PyPI ecosystem fix."""
 
     for affected_package in vulnerability.affected:
+        if not _is_matching_pypi_package(
+            dependency,
+            affected_package,
+        ):
+            continue
+
         for affected_range in affected_package.ranges:
+            if affected_range.range_type != "ECOSYSTEM":
+                continue
+
             for event in affected_range.events:
                 if event.fixed is not None:
                     return event.fixed
@@ -193,14 +205,12 @@ def _select_severity_records(
     package_severity: list[OsvSeverity] = []
 
     for affected_package in vulnerability.affected:
-        package = affected_package.package
-
-        if package.ecosystem != "PyPI":
-            continue
-
-        if (
-            normalize_package_name(package.name)
-            != dependency_name
+        if not _is_matching_pypi_package(
+            dependency,
+            affected_package,
+            normalized_dependency_name=(
+                dependency_name
+            ),
         ):
             continue
 
@@ -212,3 +222,27 @@ def _select_severity_records(
         return tuple(package_severity)
 
     return vulnerability.severity
+
+
+def _is_matching_pypi_package(
+    dependency: Dependency,
+    affected_package: OsvAffectedPackage,
+    *,
+    normalized_dependency_name: str | None = None,
+) -> bool:
+    """Return whether affected data matches the scanned PyPI package."""
+
+    package = affected_package.package
+
+    if package.ecosystem != "PyPI":
+        return False
+
+    if normalized_dependency_name is None:
+        normalized_dependency_name = (
+            normalize_package_name(dependency.name)
+        )
+
+    return (
+        normalize_package_name(package.name)
+        == normalized_dependency_name
+    )
