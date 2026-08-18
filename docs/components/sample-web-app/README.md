@@ -60,8 +60,9 @@ Mevcut özellikler:
 * Ayrı ve runtime dışı vulnerable dependency fixture'ı
 * Portable static-analysis ve dependency-scan JSON baseline'ları
 * Offline report generator ve drift check
+* Pull Request ve `main` push için temel pytest CI workflow'u
 
-Sıradaki aşama GitHub Actions CI/CD entegrasyonudur.
+Sıradaki aşama analyzer, dependency scanner ve report artifact CI job'larıdır.
 
 ## Kurulum
 
@@ -546,8 +547,9 @@ New update/delete test cases: 54 passed
 New frontend test cases: 18 passed
 New security demo test cases: 4 passed
 New integration report test cases: 6 passed
+New CI workflow test cases: 7 passed
 Sample app targeted suite: 149 passed
-Complete test suite: 977 passed
+Complete test suite: 984 passed
 Compile check: passed
 Sample app analysis: 5 expected findings
 Analyzer source self-analysis: no findings
