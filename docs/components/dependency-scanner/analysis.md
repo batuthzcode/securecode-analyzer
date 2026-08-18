@@ -4411,3 +4411,191 @@ Dependency scan orchestrator:
 - Birden fazla requirements dosyasını aynı çağrıda taramaz.
 - Terminal veya JSON raporu oluşturmaz.
 - Exit code hesaplamaz.
+
+## Dependency Scan Formatter Gereksinimleri
+
+`DependencyScanResult` değerlerini insan tarafından okunabilir text ve makine
+tarafından okunabilir JSON string çıktılarına dönüştüren formatter katmanı
+eklenecektir.
+
+Dosyalar:
+
+- `src/dependency_scanner/formatters/__init__.py`
+- `src/dependency_scanner/formatters/text.py`
+- `src/dependency_scanner/formatters/json.py`
+- `tests/test_dependency_text_formatter.py`
+- `tests/test_dependency_json_formatter.py`
+- `src/dependency_scanner/__init__.py` güncellenecek
+
+Public API:
+
+- `format_dependency_scan_text(result) -> str`
+- `format_dependency_scan_json(result) -> str`
+
+Formatter girdisi `DependencyScanResult` olmak zorundadır. Geçersiz girdi
+`ValueError` üretecektir.
+
+### Text Formatter
+
+Text formatter finding değerlerini aşağıdaki alanlarla gösterecektir:
+
+- Uppercase severity
+- Advisory ID
+- Paket adı ve sürümü
+- Requirements kaynak dosyası ve satır numarası
+- Finding mesajı
+- Advisory source adı
+- Varsa fixed version
+- Varsa aliases
+
+Örnek finding satırı:
+
+```text
+[HIGH] OSV-EXAMPLE sample-package==1.0.0 requirements.txt:2 - Example vulnerability. | source=OSV | fixed=2.0.0 | aliases=CVE-2099-0001
+```
+
+`fixed_version` bulunmadığında `fixed` alanı, aliases boş olduğunda `aliases`
+alanı satıra eklenmeyecektir.
+
+Lookup error değerleri aşağıdaki alanlarla gösterilecektir:
+
+- `[LOOKUP ERROR]` etiketi
+- Advisory source adı
+- Paket adı ve sürümü
+- Requirements kaynak dosyası ve satır numarası
+- Hata mesajı
+
+Örnek error satırı:
+
+```text
+[LOOKUP ERROR] OSV sample-package==1.0.0 requirements.txt:2 - Service unavailable.
+```
+
+Finding satırları result sırasıyla önce, error satırları result sırasıyla
+sonra gösterilecektir.
+
+Finding ve error bulunmayan sonuç:
+
+```text
+No dependency vulnerabilities found.
+```
+
+satırını içerecektir.
+
+Çıktının sonunda boş satırdan sonra aşağıdaki sayaçları içeren özet
+bulunacaktır:
+
+- Scanned dependency sayısı
+- Finding sayısı
+- Lookup error sayısı
+
+Tekil ve çoğul sözcükler gerçek sayıya göre seçilecektir.
+
+Örnek özet:
+
+```text
+2 dependencies scanned. 1 finding. 1 lookup error.
+```
+
+Text çıktısı newline karakteriyle bitmeyecektir.
+
+### JSON Formatter
+
+JSON formatter aşağıdaki top-level alanları üretecektir:
+
+```json
+{
+  "dependencies": [],
+  "findings": [],
+  "errors": [],
+  "summary": {}
+}
+```
+
+Dependency ve finding değerleri mevcut `to_dict()` metotlarıyla serialize
+edilecektir.
+
+Her error nesnesi aşağıdaki alanları içerecektir:
+
+```json
+{
+  "dependency": {},
+  "source": {},
+  "message": "Service unavailable."
+}
+```
+
+Summary nesnesi:
+
+- `dependencies`
+- `findings`
+- `errors`
+- `succeeded`
+
+alanlarını içerecektir.
+
+JSON davranışı:
+
+- Geçerli JSON string döndürülecektir.
+- İki space indentation kullanılacaktır.
+- Unicode karakterler ASCII escape değerlerine dönüştürülmeyecektir.
+- Tuple sıraları korunacaktır.
+- Çıktı newline karakteriyle bitmeyecektir.
+
+### Saf Formatter Davranışı
+
+Her iki formatter:
+
+- Girdi result veya nested model değerlerini değiştirmeyecektir.
+- Terminale yazmayacaktır.
+- Dosya oluşturmayacaktır.
+- Exit code hesaplamayacaktır.
+- Finding veya error sıralamasını değiştirmeyecektir.
+
+### Test Gereksinimleri
+
+Text formatter için en az aşağıdaki durumlar test edilecektir:
+
+- Boş başarılı sonuç
+- Dependency bulunan temiz sonuç
+- Tek finding ve bütün alanlar
+- Fixed version ve aliases bulunmayan finding
+- Bütün severity değerlerinin uppercase gösterimi
+- Birden fazla finding sırası
+- Tek ve birden fazla lookup error
+- Finding değerlerinin error değerlerinden önce gösterilmesi
+- Tekil ve çoğul summary sözcükleri
+- Newline ile bitmeyen çıktı
+- Girdi modelinin değiştirilmemesi
+- Terminal çıktısı üretilmemesi
+- Geçersiz result girdisi
+
+JSON formatter için en az aşağıdaki durumlar test edilecektir:
+
+- Boş başarılı sonuç payload değeri
+- Dependency serialization
+- Finding nested alanlarının serialization işlemi
+- Error nested alanlarının serialization işlemi
+- Summary sayaçları ve succeeded değeri
+- Finding ve error sırasının korunması
+- Unicode karakterlerin korunması
+- İki space indentation
+- Newline ile bitmeyen çıktı
+- Girdi modelinin değiştirilmemesi
+- Terminal çıktısı üretilmemesi
+- Geçersiz result girdisi
+
+Testler gerçek internet bağlantısı kullanmayacaktır.
+
+### Sorumluluk Sınırları
+
+Dependency scan formatter katmanı:
+
+- Requirements dosyası okumaz.
+- Dependency taraması başlatmaz.
+- HTTP isteği göndermez.
+- OSV response ayrıştırmaz.
+- CVSS score hesaplamaz.
+- Terminale veya dosyaya yazmaz.
+- CLI argument ayrıştırmaz.
+- Exit code hesaplamaz.

@@ -1,5 +1,9 @@
 """Public interface for dependency scanner components."""
 
+from dependency_scanner.formatters import (
+    format_dependency_scan_json,
+    format_dependency_scan_text,
+)
 from dependency_scanner.models import (
     AdvisorySource,
     Dependency,
@@ -75,6 +79,8 @@ __all__ = [
     "VulnerabilitySourceError",
     "calculate_cvss_v3_base_score",
     "classify_cvss_score",
+    "format_dependency_scan_json",
+    "format_dependency_scan_text",
     "normalize_package_name",
     "parse_osv_query_response",
     "parse_requirement_line",
