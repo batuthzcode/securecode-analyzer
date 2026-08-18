@@ -105,11 +105,11 @@ Aşağıdaki özellikler proje kapsamı dışındadır:
 ## Mevcut Durum
 
 Temel Flask uygulaması, Task modeli, in-memory store, JSON CRUD endpoint'leri,
-minimal Jinja/CSS frontend ve kontrollü güvenlik demo fixture'ları
-tamamlanmıştır.
+minimal Jinja/CSS frontend, kontrollü güvenlik fixture'ları ve uçtan uca
+entegrasyon raporları tamamlanmıştır.
 
-Sıradaki geliştirme adımı uçtan uca analyzer ve dependency scan raporlarının
-üretilmesidir.
+Sıradaki geliştirme adımı analyzer araçlarının GitHub Actions pipeline'ına
+eklenmesidir.
 
 ## Flask Uygulama İskeleti Gereksinimleri
 
@@ -639,6 +639,96 @@ taşınmaz.
    `0.109.1` değerlerini üretmelidir.
 7. Normal sample app requirements dosyası vulnerable package içermemelidir.
 8. Tam test paketi ve analyzer kaynak self-analysis kontrolü geçmelidir.
+
+## Entegrasyon Raporu Gereksinimleri
+
+Bu aşama proje planındaki `Task 4.5.1`, `Task 4.5.2` ve `Task 4.5.3`
+kapsamını gerçekleştirir. Amaç iki güvenlik aracının sample app üzerindeki
+beklenen sonuçlarını incelenebilir, yeniden üretilebilir JSON artifact'ları
+olarak repository içinde tutmaktır.
+
+### Artifact Yerleşimi
+
+İki canonical rapor aşağıdaki konumlarda bulunmalıdır:
+
+```text
+reports/sample-app/static-analysis.json
+reports/sample-app/dependency-scan.json
+```
+
+Artifact'lar timestamp veya makineye özel absolute path içermemelidir. Dosya
+yolları repository-relative ve `/` separator ile yazılmalıdır; böylece Windows
+ve Linux üretimleri aynı byte içeriğini oluşturmalıdır.
+
+### Static Analysis Baseline
+
+Static report production analyzer ve JSON formatter kullanılarak
+`sample_app` dizininden üretilmelidir. Rapor:
+
+- Tam olarak 5 finding içermelidir.
+- `SA005`, `SA001`, `SA006`, `SA003`, `SA004` sırasını korumalıdır.
+- Dosya ve satır konumlarını kontrollü demo sözleşmesiyle eşleştirmelidir.
+- Sahte secret literal değerini içermemelidir.
+- Beklenmeyen false positive içermemelidir.
+
+Analyzer findings nedeniyle canlı CLI komutunun exit code `1` döndürmesi
+beklenen demo davranışıdır; operational failure anlamına gelmez.
+
+### Dependency Scan Baseline
+
+Dependency report production requirements parser, `DependencyScanner`, OSV
+mapping katmanı ve JSON formatter üzerinden üretilmelidir. Checked-in baseline
+canlı ağ yerine provenance bilgili OSV projection fixture'ını kullanmalıdır.
+
+Rapor:
+
+- `fastapi==0.109.0` için tek dependency ve tek finding içermelidir.
+- `PYSEC-2024-38`, `CVE-2024-24762`, `HIGH` ve `0.109.1` alanlarını
+  korumalıdır.
+- Kaynağı `OSV` ve `https://osv.dev/` olarak göstermelidir.
+- Başarılı scan summary ve sıfır lookup error içermelidir.
+
+Canlı OSV taraması demo sırasında ayrıca çalıştırılabilir. Mutable upstream
+veri checked-in baseline'ın deterministikliğini değiştirmemelidir.
+
+### Yeniden Üretim ve Drift Kontrolü
+
+Tek repository aracı iki raporu birlikte üretmelidir:
+
+```powershell
+python tools/generate_sample_app_reports.py
+```
+
+`--check` modu dosya yazmadan güncellik kontrolü yapmalı ve missing veya stale
+artifact için exit code `1` döndürmelidir:
+
+```powershell
+python tools/generate_sample_app_reports.py --check
+```
+
+### Demo Sırası
+
+Uçtan uca demo aşağıdaki sırayı izlemelidir:
+
+1. Sample Flask uygulamasını çalıştır ve CRUD/frontend davranışını göster.
+2. Static analyzer'ı `sample_app` üzerinde çalıştır ve beş finding'i açıkla.
+3. Checked-in static JSON raporunu göster.
+4. Dependency scanner'ı vulnerable requirements fixture'ında çalıştır.
+5. Advisory, alias, severity, fixed version ve OSV source alanlarını açıkla.
+6. Checked-in dependency JSON raporunu göster.
+7. `--check` komutuyla iki baseline'ın güncel olduğunu doğrula.
+
+### Kabul Kriterleri
+
+1. İki canonical JSON report repository içinde bulunmalıdır.
+2. Generator farklı working directory değerlerinden aynı içeriği üretmelidir.
+3. Artifact dosya yolları platformdan bağımsız olmalıdır.
+4. Dependency baseline üretimi ağ çağrısı yapmamalıdır.
+5. `--check` stale artifact'ı değiştirmeden hata vermelidir.
+6. Testler checked-in dosyaları fresh generator çıktısıyla birebir
+   karşılaştırmalıdır.
+7. Uçtan uca demo komutları ve beklenen exit code değerleri belgelenmelidir.
+8. Tam test paketi, compile ve diff kontrolleri geçmelidir.
 
 ## Navigation
 

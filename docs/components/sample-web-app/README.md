@@ -38,8 +38,8 @@ Kullanıcı tarafından web arayüzünden girilen görev bilgileri.
 
 ## Mevcut Durum
 
-Flask CRUD uygulaması, minimal frontend ve kontrollü güvenlik demo fixture'ları
-tamamlanmıştır.
+Flask CRUD uygulaması, minimal frontend, kontrollü güvenlik fixture'ları ve
+yeniden üretilebilir entegrasyon raporları tamamlanmıştır.
 
 Mevcut özellikler:
 
@@ -58,8 +58,10 @@ Mevcut özellikler:
 * Flask test client ile model, store, API ve frontend testleri
 * Beş deterministik static analyzer bulgusu
 * Ayrı ve runtime dışı vulnerable dependency fixture'ı
+* Portable static-analysis ve dependency-scan JSON baseline'ları
+* Offline report generator ve drift check
 
-Sıradaki aşama analyzer ve dependency scanner entegrasyon raporlarıdır.
+Sıradaki aşama GitHub Actions CI/CD entegrasyonudur.
 
 ## Kurulum
 
@@ -371,6 +373,77 @@ kurulmaz ve Flask uygulaması tarafından import edilmez. Offline testler aynı
 finding değerini checked-in OSV projection fixture'ıyla ağ kullanmadan
 doğrular.
 
+## Entegrasyon Raporları
+
+Canonical JSON baseline'lar:
+
+```text
+reports/sample-app/static-analysis.json
+reports/sample-app/dependency-scan.json
+```
+
+İki raporu production analyzer/scanner katmanlarından yeniden üretmek için:
+
+```powershell
+python tools/generate_sample_app_reports.py
+```
+
+Checked-in artifact'ların güncel olduğunu dosya yazmadan doğrulamak için:
+
+```powershell
+python tools/generate_sample_app_reports.py --check
+```
+
+Generator static analyzer'ı doğrudan çalıştırır. Dependency baseline için
+checked-in, provenance bilgili OSV projection fixture'ını kullanır; bu nedenle
+rapor üretimi internete veya zamanla değişen upstream response değerlerine
+bağlı değildir. JSON içindeki dosya yolları Windows ve Linux üzerinde aynı
+repository-relative `/` biçimindedir.
+
+## Uçtan Uca Demo Sırası
+
+1. Uygulamayı başlat:
+
+   ```powershell
+   flask --app sample_app run --debug
+   ```
+
+2. Ayrı terminalde kontrollü static analyzer finding'lerini göster:
+
+   ```powershell
+   securecode-analyzer sample_app --format text
+   ```
+
+   Beş finding nedeniyle exit code `1` beklenir.
+
+3. Structured static baseline'ı aç:
+
+   ```powershell
+   Get-Content reports/sample-app/static-analysis.json
+   ```
+
+4. Vulnerable fixture için canlı OSV taramasını çalıştır:
+
+   ```powershell
+   securecode-dependency-scan `
+     sample_app/requirements-vulnerable.txt `
+     --source osv `
+     --format json `
+     --fail-on high
+   ```
+
+   HIGH finding nedeniyle exit code `1` beklenir.
+
+5. Deterministik dependency baseline'ı ve drift kontrolünü göster:
+
+   ```powershell
+   Get-Content reports/sample-app/dependency-scan.json
+   python tools/generate_sample_app_reports.py --check
+   ```
+
+Demo sonunda Flask runtime requirements dosyasının yalnızca `Flask==3.1.3`
+içerdiği yeniden vurgulanmalıdır.
+
 ## Foundation Mimarisi
 
 ```text
@@ -409,6 +482,12 @@ sample_app/analyzer_demo.py
 
 sample_app/requirements-vulnerable.txt
   -> demo-only vulnerable dependency scanner input
+
+tools/generate_sample_app_reports.py
+  -> deterministic report generation and drift check
+
+reports/sample-app/
+  -> portable static and dependency JSON baselines
 ```
 
 Module-level mutable görev listesi kullanılmaz. Her `create_app()` çağrısı
@@ -455,7 +534,8 @@ pytest tests/test_sample_app_models.py `
   tests/test_sample_app_task_routes.py `
   tests/test_sample_app_update_delete_routes.py `
   tests/test_sample_app_frontend.py `
-  tests/test_sample_app_security_demo.py -q
+  tests/test_sample_app_security_demo.py `
+  tests/test_sample_app_reports.py -q
 ```
 
 Doğrulama sonucu:
@@ -465,11 +545,13 @@ Task route tests: 27 passed
 New update/delete test cases: 54 passed
 New frontend test cases: 18 passed
 New security demo test cases: 4 passed
-Sample app targeted suite: 143 passed
-Complete test suite: 971 passed
+New integration report test cases: 6 passed
+Sample app targeted suite: 149 passed
+Complete test suite: 977 passed
 Compile check: passed
 Sample app analysis: 5 expected findings
 Analyzer source self-analysis: no findings
+Checked-in report drift check: passed
 ```
 
 Testler Flask geliştirme sunucusunu veya gerçek ağ bağlantısını başlatmaz.
