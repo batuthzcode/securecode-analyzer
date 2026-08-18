@@ -4806,3 +4806,217 @@ Dependency scan CLI:
 - Retry veya cache uygulamaz.
 - Parent output klasörünü otomatik oluşturmaz.
 - Static analyzer CLI davranışını değiştirmez.
+
+## Gerçek OSV Fixture ve Entegrasyon Gereksinimleri
+
+Dependency scanner katmanları, resmî OSV verisinden hazırlanmış yerel bir
+fixture ve örnek requirements dosyasıyla canlı ağ kullanmadan uçtan uca
+doğrulanacaktır.
+
+Bu aşamada ayrıca gerçek OSV kaydında görülen bir fixed-version seçim hatası
+düzeltilecektir: advisory içindeki `GIT` range değeri `ECOSYSTEM` range
+değerinden önce geldiğinde source katmanı paket sürümü yerine commit SHA
+seçmemelidir.
+
+Oluşturulacak dosyalar:
+
+- `tests/fixtures/osv/fastapi-0.109.0.json`
+- `tests/fixtures/requirements/fastapi-vulnerable.txt`
+- `tests/test_dependency_integration.py`
+
+Güncellenecek dosyalar:
+
+- `src/dependency_scanner/osv_source.py`
+- `tests/test_osv_source.py`
+- `docs/components/dependency-scanner/README.md`
+
+### Resmî Veri Kaynağı
+
+Fixture aşağıdaki resmî OSV query kullanılarak doğrulanmıştır:
+
+```text
+POST https://api.osv.dev/v1/query
+```
+
+Query payload:
+
+```json
+{
+  "package": {
+    "name": "fastapi",
+    "ecosystem": "PyPI"
+  },
+  "version": "0.109.0"
+}
+```
+
+Fixture tarihi:
+
+```text
+2026-08-18
+```
+
+Kullanılan gerçek advisory:
+
+```text
+PYSEC-2024-38
+```
+
+Resmî advisory bağlantısı:
+
+```text
+https://osv.dev/vulnerability/PYSEC-2024-38
+```
+
+### Fixture Politikası
+
+Fixture, OSV query cevabının current parser ve source davranışının tükettiği
+alanları içeren minimum sadık projection değeri olacaktır.
+
+Aşağıdaki güvenlik verileri resmî response değerlerinden değiştirilmeden
+korunacaktır:
+
+- Advisory ID
+- Details
+- Alias ve CVE kimlikleri
+- PyPI package adı ve ecosystem değeri
+- GIT introduced ve fixed event değerleri
+- ECOSYSTEM introduced ve fixed event değerleri
+- CVSS v3 vector değeri
+
+Parser tarafından tüketilmeyen timestamp, reference ve bütün affected version
+listesi fixture boyutunu deterministik ve incelenebilir tutmak için
+eklenmeyecektir. Bu alanların çıkarılması advisory güvenlik değerlerini
+değiştirmeyecektir.
+
+Fixture içine query, capture tarihi, resmî source bağlantısı ve projection
+politikası için `_fixture` metadata nesnesi eklenecektir. Parser bilinmeyen
+top-level alanları yok saymaya devam edecektir.
+
+Fixture test sırasında güncellenmeyecek ve internetten yeniden
+indirilmeyecektir.
+
+### Örnek Requirements Dosyası
+
+Örnek dosya aşağıdaki tek sabit dependency değerini içerecektir:
+
+```text
+fastapi==0.109.0
+```
+
+Bu sürüm OSV query response içinde `PYSEC-2024-38` advisory kaydıyla
+eşleşmektedir. Düzeltilmiş sürüm:
+
+```text
+0.109.1
+```
+
+### Fixed Version Seçimi
+
+`OsvVulnerabilitySource` fixed version belirlerken yalnızca aşağıdaki
+koşulları birlikte karşılayan affected range değerlerini değerlendirecektir:
+
+1. Affected package ecosystem değeri tam olarak `PyPI` olmalıdır.
+2. Affected package adı normalize edildiğinde taranan dependency adıyla
+   eşleşmelidir.
+3. Range type değeri tam olarak `ECOSYSTEM` olmalıdır.
+4. Range event değeri `fixed` alanı içermelidir.
+
+Eşleşen range ve event değerleri OSV sırasıyla değerlendirilecek; ilk fixed
+paket sürümü döndürülecektir.
+
+Aşağıdaki fixed değerleri yok sayılacaktır:
+
+- `GIT` range içindeki commit SHA değerleri
+- Başka package adına ait ECOSYSTEM fixed değerleri
+- PyPI dışındaki ecosystem kayıtları
+- Fixed event içermeyen range değerleri
+
+Eşleşen PyPI ECOSYSTEM fixed event bulunmadığında `None` döndürülecektir.
+
+### Offline Query Client
+
+Entegrasyon testinde kullanılan fixture query client:
+
+- JSON fixture dosyasını UTF-8 olarak okuyacaktır.
+- Payload değerini mevcut `parse_osv_query_response()` fonksiyonuyla
+  ayrıştıracaktır.
+- Query edilen package, version ve page token değerlerini kaydedecektir.
+- Gerçek HTTP isteği göndermeyecektir.
+- Beklenmeyen pagination çağrısını reddedecektir.
+
+Bu test client yalnızca test dosyasında bulunacak, production paketine
+eklenmeyecektir.
+
+### Uçtan Uca Entegrasyon Akışı
+
+Entegrasyon testi aşağıdaki gerçek production katmanlarını birlikte
+çalıştıracaktır:
+
+```text
+requirements fixture
+  -> parse_requirements_file
+  -> DependencyScanner
+  -> OsvVulnerabilitySource
+  -> fixture query client
+  -> parse_osv_query_response
+  -> DependencyFinding
+  -> text/json formatter
+  -> dependency CLI runner
+```
+
+Uçtan uca sonuçta:
+
+- Dependency adı `fastapi` olacaktır.
+- Dependency sürümü `0.109.0` olacaktır.
+- Advisory ID `PYSEC-2024-38` olacaktır.
+- Aliases içinde `CVE-2024-24762` bulunacaktır.
+- Fixed version `0.109.1` olacaktır.
+- GIT commit SHA fixed version olarak kullanılmayacaktır.
+- CVSS v3 vector değeri `HIGH` severity üretecektir.
+- Text ve JSON raporları gerçek finding alanlarını içerecektir.
+- Default `any` ve `high` eşikleri exit code `1` üretecektir.
+- `critical` eşiği exit code `0` üretecektir.
+
+### Test Gereksinimleri
+
+OSV source unit testlerinde en az aşağıdaki durumlar eklenecektir:
+
+- Matching PyPI ECOSYSTEM range fixed version seçimi
+- Daha önce gelen GIT fixed commit değerinin yok sayılması
+- Eşleşmeyen package ECOSYSTEM fixed değerinin yok sayılması
+- PyPI dışı fixed değerinin yok sayılması
+- Eşleşen fixed değer bulunmadığında `None`
+- Normalize edilmiş dependency/package adı eşleşmesi
+
+Entegrasyon testlerinde en az aşağıdaki durumlar doğrulanacaktır:
+
+- Fixture metadata ve resmî query bilgisi
+- Requirements fixture parse sonucu
+- Fixture response parse sonucu
+- Fixture query client çağrı bilgisi
+- Orchestration finding sonucu
+- Advisory ID, CVE alias, fixed version ve severity
+- GIT commit SHA değerinin rapora sızmaması
+- Text formatter sonucu
+- JSON formatter sonucu
+- Runner text ve JSON sonucu
+- `any`, `high` ve `critical` exit code davranışı
+- Output dosyası
+- Model immutability
+- Canlı HTTP çağrısı yapılmaması
+
+Tam test paketi, compile kontrolü ve SecureCode Analyzer self-analysis
+başarılı olmalıdır.
+
+### Sorumluluk Sınırları
+
+Bu entegrasyon aşaması:
+
+- Test sırasında OSV API çağrısı yapmaz.
+- Advisory veya CVE verisi üretmez.
+- Advisory kimliklerini değiştirmez.
+- Sürüm aralığı karşılaştırma algoritması eklemez.
+- Duplicate advisory birleştirme politikası eklemez.
+- Retry veya cache davranışı eklemez.
+- Production paketine fixture loader eklemez.
