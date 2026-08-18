@@ -1,0 +1,6 @@
+# SECURITY DEMO ONLY - DO NOT INSTALL FOR APPLICATION RUNTIME.
+# This isolated scanner input intentionally pins an affected FastAPI release.
+# Advisory: PYSEC-2024-38 / CVE-2024-24762
+# Fixed version: 0.109.1
+
+fastapi==0.109.0
