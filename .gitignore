@@ -13,6 +13,7 @@ __pycache__/
 .coverage
 .coverage.*
 htmlcov/
+reports/ci/
 
 # Packaging artifacts
 build/
