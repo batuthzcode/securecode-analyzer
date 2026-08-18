@@ -23,6 +23,11 @@ from dependency_scanner.osv_parser import (
     OsvResponseParseError,
     parse_osv_query_response,
 )
+from dependency_scanner.osv_severity import (
+    CvssV3VectorError,
+    calculate_cvss_v3_base_score,
+    classify_cvss_score,
+)
 from dependency_scanner.osv_source import (
     OsvVulnerabilitySource,
 )
@@ -41,6 +46,7 @@ from dependency_scanner.vulnerability_source import (
 
 __all__ = [
     "AdvisorySource",
+    "CvssV3VectorError",
     "Dependency",
     "DependencyFinding",
     "OsvAffectedPackage",
@@ -57,6 +63,8 @@ __all__ = [
     "RequirementsParseError",
     "VulnerabilitySeverity",
     "VulnerabilitySource",
+    "calculate_cvss_v3_base_score",
+    "classify_cvss_score",
     "normalize_package_name",
     "parse_osv_query_response",
     "parse_requirement_line",

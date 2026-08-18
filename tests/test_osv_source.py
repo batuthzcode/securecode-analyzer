@@ -14,6 +14,7 @@ from dependency_scanner import (
     OsvQueryResponse,
     OsvRange,
     OsvRangeEvent,
+    OsvSeverity,
     OsvVulnerability,
     OsvVulnerabilitySource,
     VulnerabilitySeverity,
@@ -35,13 +36,16 @@ def create_dependency() -> Dependency:
 
 def create_affected_package(
     *events: OsvRangeEvent,
+    package_name: str = "sample-package",
+    ecosystem: str = "PyPI",
+    severity: tuple[OsvSeverity, ...] = (),
 ) -> OsvAffectedPackage:
     """Create affected package data with one range."""
 
     return OsvAffectedPackage(
         package=OsvPackage(
-            ecosystem="PyPI",
-            name="sample-package",
+            ecosystem=ecosystem,
+            name=package_name,
         ),
         ranges=(
             OsvRange(
@@ -49,6 +53,7 @@ def create_affected_package(
                 events=events,
             ),
         ),
+        severity=severity,
     )
 
 
@@ -60,6 +65,7 @@ def create_vulnerability(
         "CVE-2099-0001",
     ),
     affected: tuple[OsvAffectedPackage, ...] = (),
+    severity: tuple[OsvSeverity, ...] = (),
 ) -> OsvVulnerability:
     """Create an OSV vulnerability used by source tests."""
 
@@ -69,6 +75,7 @@ def create_vulnerability(
         details=details,
         aliases=aliases,
         affected=affected,
+        severity=severity,
     )
 
 
@@ -494,3 +501,222 @@ def test_lookup_preserves_dependency_data() -> None:
     source.find_vulnerabilities(dependency)
 
     assert dependency.to_dict() == original_data
+
+
+def test_vulnerability_level_cvss_v3_sets_severity() -> None:
+    """A top-level CVSS v3 vector determines finding severity."""
+
+    vulnerability = create_vulnerability(
+        severity=(
+            OsvSeverity(
+                severity_type="CVSS_V3",
+                score=(
+                    "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/"
+                    "S:U/C:H/I:H/A:H"
+                ),
+            ),
+        )
+    )
+    source = OsvVulnerabilitySource(
+        FakeOsvQueryClient(
+            OsvQueryResponse(
+                vulnerabilities=(vulnerability,)
+            )
+        )
+    )
+
+    finding = source.find_vulnerabilities(
+        create_dependency()
+    )[0]
+
+    assert (
+        finding.severity
+        is VulnerabilitySeverity.CRITICAL
+    )
+
+
+def test_matching_package_severity_has_priority() -> None:
+    """Package-specific severity overrides top-level data."""
+
+    low_severity = OsvSeverity(
+        severity_type="CVSS_V3",
+        score=(
+            "CVSS:3.1/AV:P/AC:H/PR:H/UI:R/"
+            "S:U/C:L/I:N/A:N"
+        ),
+    )
+    critical_severity = OsvSeverity(
+        severity_type="CVSS_V3",
+        score=(
+            "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/"
+            "S:U/C:H/I:H/A:H"
+        ),
+    )
+    vulnerability = create_vulnerability(
+        affected=(
+            create_affected_package(
+                severity=(low_severity,)
+            ),
+        ),
+        severity=(critical_severity,),
+    )
+    source = OsvVulnerabilitySource(
+        FakeOsvQueryClient(
+            OsvQueryResponse(
+                vulnerabilities=(vulnerability,)
+            )
+        )
+    )
+
+    finding = source.find_vulnerabilities(
+        create_dependency()
+    )[0]
+
+    assert finding.severity is VulnerabilitySeverity.LOW
+
+
+@pytest.mark.parametrize(
+    ("package_name", "ecosystem"),
+    [
+        ("another-package", "PyPI"),
+        ("sample-package", "npm"),
+    ],
+)
+def test_unrelated_package_severity_is_ignored(
+    package_name: str,
+    ecosystem: str,
+) -> None:
+    """Package-level data must match the queried PyPI package."""
+
+    vulnerability = create_vulnerability(
+        affected=(
+            create_affected_package(
+                package_name=package_name,
+                ecosystem=ecosystem,
+                severity=(
+                    OsvSeverity(
+                        severity_type="CVSS_V3",
+                        score=(
+                            "CVSS:3.1/AV:P/AC:H/PR:H/"
+                            "UI:R/S:U/C:L/I:N/A:N"
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        severity=(
+            OsvSeverity(
+                severity_type="CVSS_V3",
+                score=(
+                    "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/"
+                    "S:U/C:H/I:H/A:H"
+                ),
+            ),
+        ),
+    )
+    source = OsvVulnerabilitySource(
+        FakeOsvQueryClient(
+            OsvQueryResponse(
+                vulnerabilities=(vulnerability,)
+            )
+        )
+    )
+
+    finding = source.find_vulnerabilities(
+        create_dependency()
+    )[0]
+
+    assert (
+        finding.severity
+        is VulnerabilitySeverity.CRITICAL
+    )
+
+
+def test_highest_valid_cvss_v3_score_is_used() -> None:
+    """Multiple assessments use the most conservative score."""
+
+    vulnerability = create_vulnerability(
+        severity=(
+            OsvSeverity(
+                severity_type="CVSS_V3",
+                score=(
+                    "CVSS:3.1/AV:P/AC:H/PR:H/UI:R/"
+                    "S:U/C:L/I:N/A:N"
+                ),
+            ),
+            OsvSeverity(
+                severity_type="CVSS_V3",
+                score="invalid-vector",
+            ),
+            OsvSeverity(
+                severity_type="CVSS_V3",
+                score=(
+                    "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/"
+                    "S:U/C:H/I:N/A:N"
+                ),
+            ),
+        )
+    )
+    source = OsvVulnerabilitySource(
+        FakeOsvQueryClient(
+            OsvQueryResponse(
+                vulnerabilities=(vulnerability,)
+            )
+        )
+    )
+
+    finding = source.find_vulnerabilities(
+        create_dependency()
+    )[0]
+
+    assert finding.severity is VulnerabilitySeverity.HIGH
+
+
+@pytest.mark.parametrize(
+    "severity",
+    [
+        OsvSeverity(
+            severity_type="CVSS_V3",
+            score="invalid-vector",
+        ),
+        OsvSeverity(
+            severity_type="CVSS_V2",
+            score="AV:N/AC:L/Au:N/C:C/I:C/A:C",
+        ),
+        OsvSeverity(
+            severity_type="CVSS_V4",
+            score=(
+                "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/"
+                "VC:H/VI:H/VA:H/SC:N/SI:N/SA:N"
+            ),
+        ),
+        OsvSeverity(
+            severity_type="Ubuntu",
+            score="high",
+        ),
+    ],
+)
+def test_unsupported_or_invalid_severity_is_unknown(
+    severity: OsvSeverity,
+) -> None:
+    """Unsupported assessments keep the safe unknown fallback."""
+
+    vulnerability = create_vulnerability(
+        severity=(severity,)
+    )
+    source = OsvVulnerabilitySource(
+        FakeOsvQueryClient(
+            OsvQueryResponse(
+                vulnerabilities=(vulnerability,)
+            )
+        )
+    )
+
+    finding = source.find_vulnerabilities(
+        create_dependency()
+    )[0]
+
+    assert (
+        finding.severity
+        is VulnerabilitySeverity.UNKNOWN
+    )
