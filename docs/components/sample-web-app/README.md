@@ -49,11 +49,13 @@ Mevcut özellikler:
 * Geçici JSON ana sayfa endpoint'i
 * JSON görev listeleme endpoint'i
 * JSON ve form verisiyle görev oluşturma endpoint'i
+* JSON ve form verisiyle kısmi görev güncelleme endpoint'i
+* Görev silme endpoint'i
 * Kontrollü JSON doğrulama hataları
 * Flask test client ile model, store ve HTTP testleri
 
-Görev güncelleme/silme endpoint'leri, HTML/CSS arayüzü ve bilerek problemli
-güvenlik analiz örnekleri sonraki aşamalarda eklenecektir.
+HTML/CSS arayüzü ve bilerek problemli güvenlik analiz örnekleri sonraki
+aşamalarda eklenecektir.
 
 ## Kurulum
 
@@ -225,6 +227,79 @@ Desteklenmeyen alanlar reddedilir; bozuk JSON veya object olmayan JSON body
 store'a aktarılmaz. Geçersiz istek görev listesini değiştirmez ve yeni görev
 ID değerini tüketmez.
 
+## Görev Güncelleme API'si
+
+```text
+PUT /tasks/<id>
+```
+
+Update isteği `title`, `description` ve `completed` alanlarından en az birini
+içermelidir. Gönderilmeyen alanlar mevcut değerini korur.
+
+JSON örneği:
+
+```powershell
+$body = @{
+    title = "Prepare final release notes"
+    completed = $true
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+    -Method Put `
+    -Uri http://127.0.0.1:5000/tasks/3 `
+    -ContentType application/json `
+    -Body $body
+```
+
+Form örneği:
+
+```powershell
+Invoke-RestMethod `
+    -Method Put `
+    -Uri http://127.0.0.1:5000/tasks/3 `
+    -ContentType application/x-www-form-urlencoded `
+    -Body @{
+        description = "Ready for review."
+        completed = "yes"
+    }
+```
+
+Başarılı update HTTP 200 ve güncel görevi döndürür. JSON `completed` alanı
+yalnızca gerçek boolean kabul eder. Form verisinde `true`, `false`, `1`, `0`,
+`on`, `off`, `yes` ve `no` değerleri büyük/küçük harf duyarsız olarak kabul
+edilir. Boş payload, `null`, bilinmeyen alanlar ve geçersiz boolean değerleri
+HTTP 400 üretir.
+
+## Görev Silme API'si
+
+```text
+DELETE /tasks/<id>
+```
+
+PowerShell örneği:
+
+```powershell
+Invoke-WebRequest `
+    -Method Delete `
+    -Uri http://127.0.0.1:5000/tasks/3
+```
+
+Başarılı delete HTTP 204 ve boş body döndürür. Silinen görev listeden ve ana
+sayfa yanıtından kaybolur. Silinen ID yeniden kullanılmaz.
+
+## Bulunamayan Görev
+
+Olmayan bir görev update veya delete edilmeye çalışıldığında HTTP 404 döner:
+
+```json
+{
+  "error": {
+    "code": "task_not_found",
+    "message": "Task 99 was not found."
+  }
+}
+```
+
 ## Foundation Mimarisi
 
 ```text
@@ -235,7 +310,7 @@ sample_app/app.py
   -> create_app()
   -> Flask route registration
   -> app.extensions store binding
-  -> list/create response mapping
+  -> list/create/update/delete response mapping
 
 sample_app/models.py
   -> immutable Task model
@@ -248,7 +323,8 @@ sample_app/store.py
 
 sample_app/task_requests.py
   -> JSON/form content type selection
-  -> create field validation
+  -> create/update field validation
+  -> strict boolean parsing
   -> controlled request errors
 ```
 
@@ -267,8 +343,8 @@ Görev alanları:
 | `description` | `str` | Kırpılır, boş olabilir. |
 | `completed` | `bool` | Yalnızca gerçek boolean kabul edilir. |
 
-`Task` modeli frozen dataclass ve slot kullanır. CRUD güncelleme aşamasında
-var olan model yerinde değiştirilmeyecek, yeni değer store'a yazılacaktır.
+`Task` modeli frozen dataclass ve slot kullanır. Update sırasında var olan
+model yerinde değiştirilmez; doğrulanmış yeni değer store'a yazılır.
 
 ## Store Davranışı
 
@@ -280,6 +356,8 @@ var olan model yerinde değiştirilmeyecek, yeni değer store'a yazılacaktır.
 * ID ile görev sorgular.
 * En büyük başlangıç ID değerinden sonra artan ID üretir.
 * Yeni görevleri varsayılan olarak tamamlanmamış oluşturur.
+* Immutable model replacement ile kısmi güncelleme yapar.
+* Görev siler ve silinen ID değerini yeniden kullanmaz.
 
 Veriler yalnızca process belleğinde bulunur ve uygulama kapandığında silinir.
 
@@ -291,15 +369,17 @@ Hedefli testler:
 pytest tests/test_sample_app_models.py `
   tests/test_sample_app_store.py `
   tests/test_sample_app.py `
-  tests/test_sample_app_task_routes.py -q
+  tests/test_sample_app_task_routes.py `
+  tests/test_sample_app_update_delete_routes.py -q
 ```
 
 Doğrulama sonucu:
 
 ```text
 Task route tests: 27 passed
-Sample app targeted suite: 67 passed
-Complete test suite: 895 passed
+New update/delete test cases: 54 passed
+Sample app targeted suite: 121 passed
+Complete test suite: 949 passed
 Compile check: passed
 Sample app self-analysis: no findings
 Analyzer source self-analysis: no findings
