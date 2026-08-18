@@ -266,7 +266,7 @@ Doğrulanan mevcut sonuç:
 CI workflow contract tests: 18 passed
 Offline dependency CI tests: 21 passed
 Python 3.11 compatibility tests: 1 passed
-Complete test suite: 1044 passed
+Complete test suite: 1065 passed
 Combined statement/branch coverage: 98.6% (97.0% required)
 Whole-project self-analysis check: passed (5 intentional findings)
 Workflow YAML parse check: passed

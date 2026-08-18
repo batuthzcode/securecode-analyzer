@@ -66,7 +66,7 @@ Dosya static-analysis ve integration test kapsamından çıkarılmaz.
 eklenen testlerden sonra doğrulanan sonuç:
 
 ```text
-Tests: 1044 passed
+Tests: 1065 passed
 Combined statement/branch coverage: 98.6%
 Required CI floor: 97.0%
 ```

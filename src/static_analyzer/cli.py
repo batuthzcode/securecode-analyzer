@@ -14,6 +14,7 @@ class CliArguments:
 
     target: Path
     output_format: str
+    fail_on: str = "any"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -40,6 +41,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output format to use. Available formats: text, json.",
     )
 
+    parser.add_argument(
+        "--fail-on",
+        choices=("any", "info", "warning", "error"),
+        default="any",
+        help=(
+            "Return exit code 1 for findings at or above this severity."
+        ),
+    )
+
     return parser
 
 
@@ -54,4 +64,5 @@ def parse_arguments(
     return CliArguments(
         target=namespace.target,
         output_format=namespace.output_format,
+        fail_on=namespace.fail_on,
     )

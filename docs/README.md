@@ -4,6 +4,7 @@ Bu klasörde projenin genel dokümanları ve üç ana bileşene ait dokümanlar 
 
 ## Genel Proje Dokümanları
 
+- [Kurulum ve Kullanım](../README.md#kurulum)
 - [Proje Kapsamı](scope.md)
 - [Beş Haftalık Proje Planı](project-plan.md)
 - [GitHub Actions CI](ci.md)

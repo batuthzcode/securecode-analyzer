@@ -385,6 +385,54 @@ def test_error_finding_returns_exit_code_one() -> None:
     assert exit_code == 1
 
 
+@pytest.mark.parametrize(
+    ("fail_on", "severity", "expected_exit_code"),
+    [
+        ("info", Severity.INFO, 1),
+        ("info", Severity.WARNING, 1),
+        ("warning", Severity.INFO, 0),
+        ("warning", Severity.WARNING, 1),
+        ("warning", Severity.ERROR, 1),
+        ("error", Severity.WARNING, 0),
+        ("error", Severity.ERROR, 1),
+    ],
+)
+def test_fail_on_threshold_uses_severity_order(
+    fail_on: str,
+    severity: Severity,
+    expected_exit_code: int,
+) -> None:
+    """Static findings should use the configured severity floor."""
+
+    _, factory = _factory_for([_finding(severity=severity)])
+
+    exit_code = run_cli(
+        ["src", "--fail-on", fail_on],
+        analyzer_factory=factory,
+        stdout=io.StringIO(),
+    )
+
+    assert exit_code == expected_exit_code
+
+
+def test_fail_on_threshold_considers_every_finding() -> None:
+    """A later finding at the threshold should still fail analysis."""
+
+    findings = [
+        _finding(severity=Severity.INFO),
+        _finding(severity=Severity.ERROR),
+    ]
+    _, factory = _factory_for(findings)
+
+    exit_code = run_cli(
+        ["src", "--fail-on", "error"],
+        analyzer_factory=factory,
+        stdout=io.StringIO(),
+    )
+
+    assert exit_code == 1
+
+
 def test_main_handles_file_not_found_error() -> None:
     """Missing targets should be presented as operational errors."""
 

@@ -12,6 +12,7 @@ from static_analyzer.formatters import (
     format_findings_json,
     format_findings_text,
 )
+from static_analyzer.models import Finding, Severity
 from static_analyzer.project_analyzer import ProjectAnalyzer
 
 
@@ -23,6 +24,12 @@ _OPERATIONAL_ERRORS = (
     SyntaxError,
     UnicodeDecodeError,
 )
+
+_SEVERITY_RANK = {
+    Severity.INFO: 1,
+    Severity.WARNING: 2,
+    Severity.ERROR: 3,
+}
 
 
 def run_cli(
@@ -62,7 +69,10 @@ def run_cli(
     output_stream.write(output)
     output_stream.write("\n")
 
-    return 1 if findings else 0
+    return _calculate_exit_code(
+        findings,
+        arguments.fail_on,
+    )
 
 
 def main(
@@ -89,3 +99,32 @@ def main(
     except _OPERATIONAL_ERRORS as error:
         error_stream.write(f"Error: {error}\n")
         return 2
+
+
+def _calculate_exit_code(
+    findings: list[Finding],
+    fail_on: str,
+) -> int:
+    """Return whether findings meet the configured severity threshold."""
+
+    if not findings:
+        return 0
+
+    if fail_on == "any":
+        return 1
+
+    try:
+        minimum_severity = Severity(fail_on)
+        minimum_rank = _SEVERITY_RANK[minimum_severity]
+    except (ValueError, KeyError) as error:
+        raise ValueError(
+            f"Unsupported fail-on severity: {fail_on}"
+        ) from error
+
+    return int(
+        any(
+            _SEVERITY_RANK[finding.severity]
+            >= minimum_rank
+            for finding in findings
+        )
+    )

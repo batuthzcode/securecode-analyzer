@@ -788,7 +788,7 @@ from static_analyzer.runner import main, run_cli
 3. Hedef klasörü analiz eder.
 4. Bulguları seçilen çıktı formatına dönüştürür.
 5. Raporu standart çıktıya yazar.
-6. Analiz sonucuna uygun exit code döndürür.
+6. `--fail-on` severity eşiğine uygun exit code döndürür.
 
 Temel kullanım:
 
@@ -804,6 +804,18 @@ exit_code = run_cli(
         "src",
         "--format",
         "json",
+    ]
+)
+```
+
+Severity eşiği:
+
+```python
+exit_code = run_cli(
+    [
+        "src",
+        "--fail-on",
+        "warning",
     ]
 )
 ```
@@ -930,7 +942,7 @@ Bulgusuz analiz:
 0
 ```
 
-Bir veya daha fazla bulgu:
+Seçilen `--fail-on` eşiğini karşılayan bir veya daha fazla bulgu:
 
 ```text
 1
@@ -942,7 +954,8 @@ Beklenen operasyonel hata:
 2
 ```
 
-Bu sürümde bütün severity seviyeleri bulgu exit code değerini üretir:
+Varsayılan `--fail-on any` bütün severity seviyelerinde bulgu exit code
+değerini üretir:
 
 ```text
 INFO
@@ -951,6 +964,19 @@ ERROR
 ```
 
 Bir bulgu yalnızca `INFO` seviyesinde olsa bile exit code `1` olur.
+
+Desteklenen eşikler:
+
+```text
+any
+info
+warning
+error
+```
+
+`--fail-on warning`, `INFO` bulgularını raporda korur ancak yalnızca `WARNING`
+ve `ERROR` bulgularında exit code `1` üretir. `--fail-on error` yalnızca
+`ERROR` bulgularında başarısız olur.
 
 #### Operasyonel Hatalar
 
@@ -1025,12 +1051,14 @@ bir veri sınıfıdır:
 class CliArguments:
     target: Path
     output_format: str
+    fail_on: str = "any"
 ```
 
 Alanlar:
 
 - `target`: Analiz edilecek hedef klasörün `Path` karşılığı
 - `output_format`: `text` veya `json`
+- `fail_on`: `any`, `info`, `warning` veya `error`
 
 #### Hedef yol
 
@@ -1072,6 +1100,26 @@ Geçersiz bir format standart `argparse` kullanım hatası üretir:
 securecode-analyzer src --format xml
 ```
 
+#### Fail-on eşiği
+
+Varsayılan eşik:
+
+```text
+any
+```
+
+Severity gate örneği:
+
+```powershell
+securecode-analyzer src --fail-on warning
+```
+
+Eşik sırası:
+
+```text
+info < warning < error
+```
+
 #### Parser oluşturma
 
 Her `build_parser()` çağrısı yeni bir `ArgumentParser` nesnesi üretir:
@@ -1101,11 +1149,18 @@ Argümanlar doğrudan bir liste üzerinden ayrıştırılabilir:
 
 ```python
 arguments = parse_arguments(
-    ["src", "--format", "json"]
+    [
+        "src",
+        "--format",
+        "json",
+        "--fail-on",
+        "warning",
+    ]
 )
 
 assert arguments.target == Path("src")
 assert arguments.output_format == "json"
+assert arguments.fail_on == "warning"
 ```
 
 `argv=None` kullanıldığında mevcut process argümanları ayrıştırılır.
