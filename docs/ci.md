@@ -1,20 +1,20 @@
 # GitHub Actions CI
 
-Bu doküman Backlog 5.1 kapsamındaki temel test pipeline'ının gereksinimlerini,
-güvenlik sınırlarını ve çalışma sırasını açıklar.
+Bu doküman Backlog 5.1 ve 5.2 kapsamındaki test ve statik analiz pipeline'ının
+gereksinimlerini, güvenlik sınırlarını ve çalışma sırasını açıklar.
 
 ## Mevcut Durum
 
-Temel GitHub Actions workflow'u tamamlanmıştır:
+GitHub Actions test ve statik analiz workflow'u tamamlanmıştır:
 
 ```text
 .github/workflows/ci.yml
 ```
 
 Workflow Pull Request değişikliklerinde ve `main` branch push olaylarında
-Python 3.11 test paketini çalıştırır. Sıradaki aşama static analyzer,
-dependency scanner ve report artifact adımlarının ayrı CI job'ları olarak
-eklenmesidir.
+Python 3.11 test paketini çalıştırır. Test gate'i geçtikten sonra proje
+kaynaklarını ve kontrollü demo uygulamasını ayrı bir static-analysis job'unda
+tarar. Sıradaki aşama dependency scanner ve report artifact job'larıdır.
 
 ## Trigger Sözleşmesi
 
@@ -35,12 +35,12 @@ permissions:
   contents: read
 ```
 
-Checkout sonrasında credential persistence kapalıdır. Test job'u
-`ubuntu-latest` runner üzerinde en fazla 10 dakika çalışır. Aynı workflow ve
-Git ref için yeni bir run başladığında önceki run iptal edilir.
+Checkout sonrasında credential persistence kapalıdır. Test ve statik analiz
+job'ları `ubuntu-latest` runner üzerinde en fazla 10 dakika çalışır. Aynı
+workflow ve Git ref için yeni bir run başladığında önceki run iptal edilir.
 
-Bu foundation job secret, write permission, deployment environment veya
-external service credential kullanmaz.
+Bu job'lar secret, write permission, deployment environment veya external
+service credential kullanmaz.
 
 ## Action Pinleri
 
@@ -74,6 +74,34 @@ Job sırası:
 Install veya test komutlarından herhangi biri non-zero exit code üretirse job
 ve workflow başarısız olur.
 
+## Statik Analiz Job Akışı
+
+`static-analysis` job'u test job'una `needs: test` ile bağlıdır. Başarılı test
+sonrasında aynı sabit action SHA değerleri ve Python 3.11 ortamıyla çalışır.
+
+Job aşağıdaki raporları üretir:
+
+```text
+reports/ci/static-analysis-src.json
+reports/ci/static-analysis-tools.json
+reports/ci/static-analysis-sample-app.json
+```
+
+`src` ve `tools` taramalarında herhangi bir bulgu CLI exit code `1` ürettiği
+için job başarısız olur. Bu sıfır-bulgu politikası, proje planındaki yalnızca
+yüksek önem seviyelerinde durma gereksiniminden daha katıdır. Statik analiz
+modeli `INFO`, `WARNING` ve `ERROR` seviyelerini kullandığından `HIGH` ve
+`CRITICAL` adları bu bileşene uygulanmaz.
+
+`sample_app` bilerek eklenmiş beş bulgu içerir. Bu taramanın exit code `1`
+üretmesi beklenir ve hata olarak değerlendirilmez. Üretilen JSON, checked-in
+`reports/sample-app/static-analysis.json` baseline'ı ile byte düzeyinde
+karşılaştırılır; ardından kontrollü demo entegrasyon testleri çalıştırılır.
+Exit code veya baseline değişirse job başarısız olur.
+
+Bu aşamada `reports/ci` yalnızca job workspace'inde tutulur. Artifact upload
+Backlog 5.4 kapsamında eklenecektir.
+
 ## Yerel Eşdeğer
 
 CI test adımını yerelde doğrulamak için:
@@ -83,6 +111,22 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 python -m pytest -q
 ```
+
+Statik analiz adımlarını yerelde doğrulamak için:
+
+```powershell
+New-Item -ItemType Directory -Force reports/ci
+securecode-analyzer src --format json `
+  > reports/ci/static-analysis-src.json
+securecode-analyzer tools --format json `
+  > reports/ci/static-analysis-tools.json
+securecode-analyzer sample_app --format json `
+  > reports/ci/static-analysis-sample-app.json
+python -m pytest tests/test_sample_app_security_demo.py -q
+```
+
+Demo komutunun beklenen exit code değeri `1` olmalıdır. Üretilen demo JSON'u
+checked-in baseline ile birebir aynı olmalıdır.
 
 Workflow sözleşmesi de normal test paketi içindedir:
 
@@ -109,6 +153,9 @@ python -m pytest tests/test_python_compatibility.py -q
 - Python 3.11 ve pip cache yapılandırması
 - Pip upgrade, dev install ve pytest komut sırası
 - Ubuntu runner ve 10 dakikalık timeout
+- Test job'una bağlı statik analiz job'u
+- `src`, `tools` ve `sample_app` JSON rapor yolları
+- Kontrollü demo exit code ve baseline doğrulaması
 
 `tests/test_python_compatibility.py`, `src`, `sample_app`, `tools` ve `tests`
 altındaki bütün Python dosyalarını desteklenen en düşük sürüm olan Python
@@ -118,23 +165,20 @@ geçen Python 3.12+ söz dizimi değişiklikleri CI'a ulaşmadan tespit edilir.
 Doğrulanan mevcut sonuç:
 
 ```text
-CI workflow contract tests: 7 passed
+CI workflow contract tests: 10 passed
 Python 3.11 compatibility tests: 1 passed
-Complete test suite: 985 passed
+Complete test suite: 988 passed
 Workflow YAML parse check: passed
 ```
 
 ## Sonraki Güvenlik Job'ları
 
-Bu foundation PR yalnızca Backlog 5.1'i tamamlar. Sonraki aşamalar:
+Backlog 5.1 ve 5.2 tamamlanmıştır. Sonraki aşamalar:
 
-1. `src` ve `tools` için sıfır-bulgu static self-analysis gate'i
-2. `sample_app` için beklenen beş bulguyu drift testiyle doğrulama
-3. Offline OSV fixture-backed dependency scan gate'i
-4. Static ve dependency JSON raporlarını workflow artifact olarak yükleme
+1. Offline OSV fixture-backed dependency scan gate'i
+2. Static ve dependency JSON raporlarını workflow artifact olarak yükleme
 
-Bu ayrım temel test workflow'unun ilk gerçek GitHub run sonucunu bağımsız
-olarak incelemeyi sağlar.
+Bu ayrım her güvenlik gate'inin davranışını bağımsız olarak incelemeyi sağlar.
 
 ## Navigation
 
