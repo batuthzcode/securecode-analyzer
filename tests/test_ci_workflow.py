@@ -123,3 +123,74 @@ def test_test_job_has_bounded_ubuntu_execution() -> None:
 
     assert "runs-on: ubuntu-latest" in workflow
     assert "timeout-minutes: 10" in workflow
+
+
+def test_static_analysis_job_waits_for_tests() -> None:
+    """Security analysis should run only after the test gate passes."""
+
+    workflow = _workflow_text()
+
+    assert (
+        "  static-analysis:\n"
+        "    name: Static analysis\n"
+        "    needs: test\n"
+        "    runs-on: ubuntu-latest\n"
+        "    timeout-minutes: 10\n"
+    ) in workflow
+    assert workflow.count("persist-credentials: false") == 2
+    assert workflow.count('python-version: "3.11"') == 2
+    assert workflow.count("actions/checkout@") == 2
+    assert workflow.count("actions/setup-python@") == 2
+
+
+def test_static_analysis_job_writes_project_json_reports() -> None:
+    """Project sources should produce separate machine-readable reports."""
+
+    workflow = _workflow_text()
+
+    assert "mkdir -p reports/ci" in workflow
+    assert (
+        "securecode-analyzer src --format json"
+        in workflow
+    )
+    assert (
+        "> reports/ci/static-analysis-src.json"
+        in workflow
+    )
+    assert (
+        "securecode-analyzer tools --format json"
+        in workflow
+    )
+    assert (
+        "> reports/ci/static-analysis-tools.json"
+        in workflow
+    )
+
+
+def test_static_analysis_job_validates_controlled_demo() -> None:
+    """Known demo findings should be reported without breaking the gate."""
+
+    workflow = _workflow_text()
+
+    assert (
+        "securecode-analyzer sample_app --format json"
+        in workflow
+    )
+    assert (
+        "> reports/ci/static-analysis-sample-app.json"
+        in workflow
+    )
+    assert 'if [ "$status" -ne 1 ]; then' in workflow
+    assert (
+        "reports/ci/static-analysis-sample-app.json"
+        in workflow
+    )
+    assert (
+        "reports/sample-app/static-analysis.json"
+        in workflow
+    )
+    assert (
+        "python -m pytest "
+        "tests/test_sample_app_security_demo.py -q"
+        in workflow
+    )

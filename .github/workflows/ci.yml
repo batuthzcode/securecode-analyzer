@@ -40,3 +40,54 @@ jobs:
 
       - name: Run tests
         run: python -m pytest -q
+
+  static-analysis:
+    name: Static analysis
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install development dependencies
+        run: python -m pip install -e ".[dev]"
+
+      - name: Analyze project tools
+        run: |
+          mkdir -p reports/ci
+          securecode-analyzer src --format json \
+            > reports/ci/static-analysis-src.json
+          securecode-analyzer tools --format json \
+            > reports/ci/static-analysis-tools.json
+
+      - name: Analyze controlled demo
+        shell: bash
+        run: |
+          set +e
+          securecode-analyzer sample_app --format json \
+            > reports/ci/static-analysis-sample-app.json
+          status=$?
+          set -e
+
+          if [ "$status" -ne 1 ]; then
+            echo "Expected demo scan exit code 1, received $status."
+            exit 1
+          fi
+
+      - name: Validate controlled demo findings
+        run: |
+          cmp \
+            reports/ci/static-analysis-sample-app.json \
+            reports/sample-app/static-analysis.json
+          python -m pytest tests/test_sample_app_security_demo.py -q
