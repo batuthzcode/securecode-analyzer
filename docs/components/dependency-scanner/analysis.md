@@ -4244,3 +4244,170 @@ Bu özellik:
 - OSV JSON response ayrıştırmaz.
 - Dependency sürüm aralığı karşılaştırmaz.
 - Terminal çıktısı veya exit code üretmez.
+
+## Dependency Scan Orchestrator Gereksinimleri
+
+Requirements dosyasındaki birden fazla dependency'yi ortak vulnerability
+source üzerinden tarayan `DependencyScanner` orchestration katmanı
+eklenecektir.
+
+Dosyalar:
+
+- `src/dependency_scanner/scanner.py`
+- `tests/test_dependency_scanner.py`
+- `src/dependency_scanner/vulnerability_source.py` güncellenecek
+- `src/dependency_scanner/osv_client.py` güncellenecek
+- `src/dependency_scanner/__init__.py` güncellenecek
+
+Public API:
+
+- `VulnerabilitySourceError`
+- `DependencyScanError`
+- `DependencyScanResult`
+- `DependencyScanner`
+- `scan_dependencies(dependencies) -> DependencyScanResult`
+- `scan_requirements(file_path) -> DependencyScanResult`
+
+### Source Error Sözleşmesi
+
+Beklenen vulnerability source erişim hataları ortak:
+
+```python
+VulnerabilitySourceError
+```
+
+taban sınıfıyla temsil edilecektir.
+
+Mevcut:
+
+```python
+OsvQueryError
+```
+
+bu sınıftan türetilecek ve mevcut public hata davranışını koruyacaktır.
+
+Orchestrator yalnızca `VulnerabilitySourceError` hatalarını dependency bazında
+yakalayacaktır. `TypeError`, `AssertionError` ve diğer beklenmeyen programlama
+hataları gizlenmeden caller'a aktarılacaktır.
+
+### DependencyScanError
+
+Bir dependency sorgusunun beklenen source hatası aşağıdaki immutable bilgilerle
+temsil edilecektir:
+
+- `dependency`
+- `source`
+- `message`
+
+Hata mesajı boş olmayacaktır. Source exception boş mesaj içeriyorsa güvenli bir
+varsayılan mesaj kullanılacaktır.
+
+### DependencyScanResult
+
+Tarama sonucu immutable olarak aşağıdaki tuple alanlarını içerecektir:
+
+- `dependencies`
+- `findings`
+- `errors`
+
+Sonuç ayrıca:
+
+```python
+result.succeeded
+```
+
+özelliğini sunacaktır. `errors` boşsa `True`, aksi durumda `False`
+döndürecektir.
+
+### DependencyScanner Yapılandırması
+
+İlk aşamada scanner constructor üzerinden tek bir `VulnerabilitySource`
+alacaktır.
+
+Geçersiz source değeri constructor sırasında reddedilecektir.
+
+Scanner kullanılan source değerini read-only:
+
+```python
+scanner.source
+```
+
+property değeriyle sunacaktır.
+
+### Dependency Taraması
+
+`scan_dependencies()`:
+
+1. Dependency değerlerini giriş sırasıyla işleyecektir.
+2. Her dependency için source `find_vulnerabilities()` metodunu bir kez
+   çağıracaktır.
+3. Finding değerlerini dependency sırasını ve source sırasını koruyarak tek
+   tuple içinde birleştirecektir.
+4. `VulnerabilitySourceError` oluştuğunda `DependencyScanError` kaydedecektir.
+5. Beklenen source hatasından sonra sıradaki dependency ile devam edecektir.
+6. Duplicate dependency değerlerini koruyacak ve ayrı ayrı tarayacaktır.
+7. Boş dependency tuple değeri için boş ve başarılı sonuç döndürecektir.
+
+Girdi tuple olmak ve yalnızca `Dependency` değerleri içermek zorundadır.
+Geçersiz koleksiyon veya item değeri `ValueError` üretecektir.
+
+### Requirements Dosyası Taraması
+
+`scan_requirements()` mevcut:
+
+```python
+parse_requirements_file()
+```
+
+fonksiyonunu yeniden kullanacak ve ayrıştırılan dependency tuple değerini
+`scan_dependencies()` metoduna aktaracaktır.
+
+Aşağıdaki dosya ve parser hataları değişmeden caller'a aktarılacaktır:
+
+- `FileNotFoundError`
+- `IsADirectoryError`
+- `UnicodeDecodeError`
+- `RequirementsParseError`
+
+Dosyanın ayrıştırılması tamamlanamadığında kısmi source taraması
+başlatılmayacaktır.
+
+### Test Gereksinimleri
+
+Unit testlerde gerçek internet bağlantısı kullanılmayacaktır.
+
+En az aşağıdaki durumlar test edilecektir:
+
+- Public API export değerleri
+- `OsvQueryError` ortak source error uyumluluğu
+- Geçerli ve geçersiz source constructor değerleri
+- Source property
+- Boş dependency tuple
+- Tek dependency ve tek finding
+- Birden fazla dependency ve finding sırası
+- Source tarafından döndürülen finding sırası
+- Finding bulunmayan dependency
+- Duplicate dependency değerleri
+- Beklenen source hatasının sonuçta kaydedilmesi
+- Beklenen source hatasından sonra taramanın devam etmesi
+- Boş source error mesajı fallback değeri
+- Beklenmeyen programlama hatasının aktarılması
+- Geçersiz dependency collection ve item değerleri
+- Requirements dosyasının uçtan uca ayrıştırılıp taranması
+- Boş requirements dosyası
+- Requirements parser ve dosya hatalarının aktarılması
+- Result immutable alanları ve `succeeded` property değeri
+
+### Sorumluluk Sınırları
+
+Dependency scan orchestrator:
+
+- Requirements satırını kendi içinde ayrıştırmaz.
+- Paket adını kendi içinde normalize etmez.
+- HTTP isteği oluşturmaz.
+- OSV response ayrıştırmaz.
+- CVSS score hesaplamaz.
+- Retry veya cache uygulamaz.
+- Birden fazla requirements dosyasını aynı çağrıda taramaz.
+- Terminal veya JSON raporu oluşturmaz.
+- Exit code hesaplamaz.
