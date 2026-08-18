@@ -1768,10 +1768,26 @@ Güncel doğrulama:
 
 ```text
 Offline dependency CI tests: 6 passed
-CI workflow contract tests: 13 passed
-Complete test suite: 997 passed
+CI workflow contract tests: 16 passed
+Complete test suite: 1000 passed
 Live HTTP requests: disabled
 ```
+
+## CI Report Artifact
+
+Backlog 5.4 kapsamında doğrulanmış dependency JSON raporu aynı
+`dependency-scan` job'undan aşağıdaki adla yüklenir:
+
+```text
+dependency-scan-report-${{ github.run_attempt }}
+```
+
+Artifact yalnızca `reports/ci/dependency-scan.json` dosyasını içerir ve 14 gün
+saklanır. Upload öncesindeki non-empty kontrol ile action'ın
+`if-no-files-found: error` politikası eksik raporu pipeline hatasına çevirir.
+Upload adımı önceki bir scan/validation hatasından sonra tanı raporunu
+korumak için çalışır; iptal edilen run'larda çalışmaz. Action tam commit SHA
+değerine sabitlenmiştir ve repository write izni gerektirmez.
 
 ## Navigation
 

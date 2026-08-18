@@ -61,8 +61,9 @@ Mevcut özellikler:
 * Portable static-analysis ve dependency-scan JSON baseline'ları
 * Offline report generator ve drift check
 * Pull Request ve `main` push için test, static ve dependency CI job'ları
+* 14 günlük static-analysis ve dependency-scan CI report artifact'ları
 
-Sıradaki aşama security report artifact upload job'udur.
+Sıradaki aşama eksik test ve self-analysis kapsamının tamamlanmasıdır.
 
 ## Kurulum
 
@@ -547,11 +548,11 @@ New update/delete test cases: 54 passed
 New frontend test cases: 18 passed
 New security demo test cases: 4 passed
 New integration report test cases: 6 passed
-New CI workflow test cases: 13 passed
+New CI workflow test cases: 16 passed
 New offline dependency CI test cases: 6 passed
 New Python 3.11 compatibility test cases: 1 passed
 Sample app targeted suite: 149 passed
-Complete test suite: 997 passed
+Complete test suite: 1000 passed
 Compile check: passed
 Sample app analysis: 5 expected findings
 Analyzer source self-analysis: no findings
