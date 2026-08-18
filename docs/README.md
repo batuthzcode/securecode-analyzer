@@ -7,6 +7,7 @@ Bu klasörde projenin genel dokümanları ve üç ana bileşene ait dokümanlar 
 - [Proje Kapsamı](scope.md)
 - [Beş Haftalık Proje Planı](project-plan.md)
 - [GitHub Actions CI](ci.md)
+- [Whole-Project Self-Analysis ve Test Coverage](self-analysis.md)
 
 ## Bileşen Dokümanları
 
