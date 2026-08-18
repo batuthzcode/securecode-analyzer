@@ -19,10 +19,12 @@ def test_cli_arguments_store_expected_fields() -> None:
     arguments = CliArguments(
         target=Path("src"),
         output_format="json",
+        fail_on="warning",
     )
 
     assert arguments.target == Path("src")
     assert arguments.output_format == "json"
+    assert arguments.fail_on == "warning"
 
 
 def test_cli_arguments_are_immutable() -> None:
@@ -43,6 +45,7 @@ def test_cli_arguments_use_slots() -> None:
     assert CliArguments.__slots__ == (
         "target",
         "output_format",
+        "fail_on",
     )
 
 
@@ -154,6 +157,26 @@ def test_json_format_is_accepted() -> None:
     assert arguments.output_format == "json"
 
 
+def test_default_fail_on_level_is_any() -> None:
+    """Every finding should fail unless a severity floor is selected."""
+
+    assert parse_arguments(["src"]).fail_on == "any"
+
+
+@pytest.mark.parametrize(
+    "fail_on",
+    ["any", "info", "warning", "error"],
+)
+def test_supported_fail_on_level_is_accepted(fail_on: str) -> None:
+    """All documented static severity thresholds should parse."""
+
+    arguments = parse_arguments(
+        ["src", "--fail-on", fail_on]
+    )
+
+    assert arguments.fail_on == fail_on
+
+
 def test_format_option_can_appear_before_target() -> None:
     """Optional arguments should work before the target."""
 
@@ -207,6 +230,15 @@ def test_invalid_output_format_exits_with_usage_error() -> None:
     assert error.value.code == 2
 
 
+def test_invalid_fail_on_level_exits_with_usage_error() -> None:
+    """An unsupported static severity threshold should be rejected."""
+
+    with pytest.raises(SystemExit) as error:
+        parse_arguments(["src", "--fail-on", "critical"])
+
+    assert error.value.code == 2
+
+
 def test_unknown_argument_exits_with_usage_error() -> None:
     """Unknown arguments should be rejected."""
 
@@ -247,8 +279,11 @@ def test_help_output_contains_expected_information(
     assert "securecode-analyzer" in output
     assert "target" in output
     assert "--format" in output
+    assert "--fail-on" in output
     assert "text" in output
     assert "json" in output
+    assert "warning" in output
+    assert "error" in output
     assert (
         "Analyze Python source code for quality and security findings."
         in output
