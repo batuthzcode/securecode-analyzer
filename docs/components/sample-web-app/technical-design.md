@@ -197,12 +197,16 @@ Tamamlanan foundation çalışmaları:
 * Responsive temel stylesheet'in eklenmesi
 * İzole static analyzer demo modülünün eklenmesi
 * Ayrı vulnerable requirements fixture'ının eklenmesi
+* Portable static-analysis JSON baseline'ının eklenmesi
+* Offline OSV dependency JSON baseline'ının eklenmesi
+* Tek komutlu report generator ve drift check'in eklenmesi
+* Uçtan uca demo sırasının belgelenmesi
 
 Sıradaki geliştirmeler:
 
-* Static analyzer entegrasyon raporunun üretilmesi
-* Dependency scanner entegrasyon raporunun üretilmesi
-* Uçtan uca demo sırasının belgelenmesi
+* GitHub Actions workflow'unun eklenmesi
+* CI Python ortamı ve test job'larının yapılandırılması
+* Analyzer ve dependency scanner CI adımlarının eklenmesi
 
 ## Flask Foundation Teknik Tasarımı
 
@@ -860,6 +864,88 @@ Security demo testleri:
 - Safe ve vulnerable requirements dosyalarının ayrımını doğrular.
 - Offline scan sonucunda advisory, alias, fixed version ve severity alanlarını
   doğrular.
+
+## Entegrasyon Raporu Teknik Tasarımı
+
+### Dosya Yerleşimi
+
+```text
+tools/
+├── __init__.py
+└── generate_sample_app_reports.py
+
+reports/sample-app/
+├── static-analysis.json
+└── dependency-scan.json
+
+tests/
+└── test_sample_app_reports.py
+```
+
+Generator repository root değerini kendi `__file__` konumundan çözer. Bu
+sayede komut current working directory değerine bağlı değildir.
+
+### Static Report Pipeline
+
+```text
+sample_app/
+  -> create_default_analyzer()
+  -> ProjectAnalyzer.analyze()
+  -> format_findings_json()
+  -> repository-relative path normalization
+  -> reports/sample-app/static-analysis.json
+```
+
+Production analyzer ve formatter değiştirilmeden kullanılır. Formatter
+payload'ındaki `file_path` yalnızca checked-in artifact portability amacıyla
+repository-relative POSIX biçimine çevrilir.
+
+### Dependency Report Pipeline
+
+```text
+sample_app/requirements-vulnerable.txt
+  -> parse_requirements_file()
+  -> FixtureOsvQueryClient
+  -> OsvVulnerabilitySource
+  -> DependencyScanner
+  -> format_dependency_scan_json()
+  -> repository-relative path normalization
+  -> reports/sample-app/dependency-scan.json
+```
+
+Fixture client yalnızca `fastapi`, `0.109.0`, `page_token=None` sorgusunu
+kabul eder. Farklı bir query üretim hatasıdır. Böylece yanlış package/version
+için ilgisiz OSV response kullanılmaz.
+
+Checked-in report generation sırasında HTTP client oluşturulmaz. Canlı OSV
+komutu baseline üretiminden ayrı bir demo ve güncellik kontrolüdür.
+
+### Canonical JSON
+
+Her iki artifact:
+
+- UTF-8 olarak yazılır.
+- İki boşlukla indent edilir.
+- Unicode değerleri escape etmez.
+- Tek LF newline ile sonlanır.
+- Timestamp ve absolute path içermez.
+
+`write_reports()` iki document'i birlikte yazar. `find_stale_reports()` fresh
+in-memory çıktıyı disk içeriğiyle byte düzeyinde karşılaştırır. CLI `--check`
+modu stale dosyayı değiştirmez.
+
+### Entegrasyon Test Sözleşmesi
+
+Report testleri:
+
+- Checked-in artifact'ları generator çıktısıyla birebir karşılaştırır.
+- Beş static finding'in rule, path, line ve severity değerlerini doğrular.
+- Secret literal değerinin raporda olmadığını doğrular.
+- Dependency advisory, alias, source, severity ve fixed version alanlarını
+  doğrular.
+- Baseline generation sırasında HTTP çağrısını yasaklar.
+- Farklı working directory altında generation ve check davranışını doğrular.
+- Stale artifact'ın `--check` tarafından değiştirilmediğini doğrular.
 
 ## Navigation
 

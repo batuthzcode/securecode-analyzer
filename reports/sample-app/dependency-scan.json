@@ -1,0 +1,43 @@
+{
+  "dependencies": [
+    {
+      "name": "fastapi",
+      "version": "0.109.0",
+      "operator": "==",
+      "source_file": "sample_app/requirements-vulnerable.txt",
+      "line_number": 6
+    }
+  ],
+  "findings": [
+    {
+      "dependency": {
+        "name": "fastapi",
+        "version": "0.109.0",
+        "operator": "==",
+        "source_file": "sample_app/requirements-vulnerable.txt",
+        "line_number": 6
+      },
+      "advisory_id": "PYSEC-2024-38",
+      "message": "FastAPI is a web framework for building APIs with Python 3.8+ based on standard Python type hints. When using form data, `python-multipart` uses a Regular Expression to parse the HTTP `Content-Type` header, including options. An attacker could send a custom-made `Content-Type` option that is very difficult for the RegEx to process, consuming CPU resources and stalling indefinitely (minutes or more) while holding the main event loop. This means that process can't handle any more requests. It's a ReDoS(Regular expression Denial of Service), it only applies to those reading form data, using `python-multipart`. This vulnerability has been patched in version 0.109.1.",
+      "source": {
+        "name": "OSV",
+        "url": "https://osv.dev/"
+      },
+      "severity": "high",
+      "fixed_version": "0.109.1",
+      "aliases": [
+        "CVE-2024-24762",
+        "GHSA-2jv5-9r88-3w3p",
+        "GHSA-qf9m-vfgh-m389",
+        "PYSEC-2026-1850"
+      ]
+    }
+  ],
+  "errors": [],
+  "summary": {
+    "dependencies": 1,
+    "findings": 1,
+    "errors": 0,
+    "succeeded": true
+  }
+}
