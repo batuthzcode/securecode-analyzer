@@ -28,6 +28,7 @@ Statik kod analiz aracının ve bağımlılık tarayıcısının test edileceği
 
 - [Proje Kapsamı](docs/scope.md)
 - [Beş Haftalık Proje Planı](docs/project-plan.md)
+- [GitHub Actions CI](docs/ci.md)
 
 ### Bileşen Dokümanları
 

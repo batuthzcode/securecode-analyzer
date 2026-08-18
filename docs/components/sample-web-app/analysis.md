@@ -108,7 +108,8 @@ Temel Flask uygulaması, Task modeli, in-memory store, JSON CRUD endpoint'leri,
 minimal Jinja/CSS frontend, kontrollü güvenlik fixture'ları ve uçtan uca
 entegrasyon raporları tamamlanmıştır.
 
-Sıradaki geliştirme adımı analyzer araçlarının GitHub Actions pipeline'ına
+Temel GitHub Actions pytest workflow'u da tamamlanmıştır. Sıradaki geliştirme
+adımı analyzer, dependency scanner ve report artifact job'larının pipeline'a
 eklenmesidir.
 
 ## Flask Uygulama İskeleti Gereksinimleri

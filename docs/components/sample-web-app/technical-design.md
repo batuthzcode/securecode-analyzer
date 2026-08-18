@@ -201,12 +201,12 @@ Tamamlanan foundation çalışmaları:
 * Offline OSV dependency JSON baseline'ının eklenmesi
 * Tek komutlu report generator ve drift check'in eklenmesi
 * Uçtan uca demo sırasının belgelenmesi
+* GitHub Actions pytest foundation workflow'unun eklenmesi
 
 Sıradaki geliştirmeler:
 
-* GitHub Actions workflow'unun eklenmesi
-* CI Python ortamı ve test job'larının yapılandırılması
 * Analyzer ve dependency scanner CI adımlarının eklenmesi
+* JSON security report artifact upload adımının eklenmesi
 
 ## Flask Foundation Teknik Tasarımı
 
