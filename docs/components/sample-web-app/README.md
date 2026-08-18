@@ -38,7 +38,7 @@ Kullanıcı tarafından web arayüzünden girilen görev bilgileri.
 
 ## Mevcut Durum
 
-Flask application foundation tamamlanmıştır.
+Flask CRUD uygulaması ve minimal frontend tamamlanmıştır.
 
 Mevcut özellikler:
 
@@ -46,16 +46,17 @@ Mevcut özellikler:
 * Immutable ve doğrulanan `Task` modeli
 * Uygulama instance'ına özel `InMemoryTaskStore`
 * Güvenli ve deterministik başlangıç demo verisi
-* Geçici JSON ana sayfa endpoint'i
+* Jinja ile render edilen HTML görev çalışma alanı
 * JSON görev listeleme endpoint'i
 * JSON ve form verisiyle görev oluşturma endpoint'i
 * JSON ve form verisiyle kısmi görev güncelleme endpoint'i
 * Görev silme endpoint'i
 * Kontrollü JSON doğrulama hataları
-* Flask test client ile model, store ve HTTP testleri
+* Browser create/edit/delete formları ve `303` yönlendirmeleri
+* Responsive, erişilebilir temel CSS
+* Flask test client ile model, store, API ve frontend testleri
 
-HTML/CSS arayüzü ve bilerek problemli güvenlik analiz örnekleri sonraki
-aşamalarda eklenecektir.
+Bilerek problemli güvenlik analiz örnekleri sonraki aşamada eklenecektir.
 
 ## Kurulum
 
@@ -103,38 +104,38 @@ http://127.0.0.1:5000
 Flask geliştirme sunucusu yalnızca yerel geliştirme ve demo amacıyla
 kullanılmalıdır.
 
-## İlk HTTP Sözleşmesi
+## Web Arayüzü
 
-Frontend aşamasına kadar ana sayfa görevleri JSON olarak döndürür:
+Ana sayfa görev çalışma alanını HTML olarak gösterir:
 
 ```text
 GET /
 ```
 
-Örnek yanıt:
+Arayüz aşağıdaki özellikleri içerir:
 
-```json
-{
-  "application": "SecureCode Analyzer Sample App",
-  "tasks": [
-    {
-      "id": 1,
-      "title": "Review analyzer report",
-      "description": "Inspect the latest static analysis findings.",
-      "completed": false
-    },
-    {
-      "id": 2,
-      "title": "Prepare security demo",
-      "description": "Verify the dependency scan example.",
-      "completed": true
-    }
-  ]
-}
-```
+* Toplam, pending ve completed görev sayaçları
+* Görev oluşturma formu
+* Durum bilgisiyle sıralı görev kartları
+* Görev düzenleme sayfası
+* POST tabanlı görev silme formu
+* Boş store ve kontrollü form hata görünümleri
+* Dar ekranlara uyumlu layout ve görünür klavye focus durumları
 
 Ana endpoint salt okunurdur. `POST /` gibi desteklenmeyen yöntemler HTTP 405
 üretir.
+
+Tarayıcı create, edit ve delete formları başarılı işlemden sonra HTTP 303 ile
+ana sayfaya yönlendirilir. JSON API aynı rotalarda mevcut response
+sözleşmesini korur.
+
+Browser form rotaları:
+
+```text
+POST     /tasks
+GET/POST /tasks/<id>/edit
+POST     /tasks/<id>/delete
+```
 
 ## Görev Listeleme API'si
 
@@ -310,7 +311,7 @@ sample_app/app.py
   -> create_app()
   -> Flask route registration
   -> app.extensions store binding
-  -> list/create/update/delete response mapping
+  -> JSON API and browser form response mapping
 
 sample_app/models.py
   -> immutable Task model
@@ -326,6 +327,12 @@ sample_app/task_requests.py
   -> create/update field validation
   -> strict boolean parsing
   -> controlled request errors
+
+sample_app/templates/
+  -> shared layout, task workspace and edit form
+
+sample_app/static/style.css
+  -> responsive layout, controls and task status styling
 ```
 
 Module-level mutable görev listesi kullanılmaz. Her `create_app()` çağrısı
@@ -370,7 +377,8 @@ pytest tests/test_sample_app_models.py `
   tests/test_sample_app_store.py `
   tests/test_sample_app.py `
   tests/test_sample_app_task_routes.py `
-  tests/test_sample_app_update_delete_routes.py -q
+  tests/test_sample_app_update_delete_routes.py `
+  tests/test_sample_app_frontend.py -q
 ```
 
 Doğrulama sonucu:
@@ -378,8 +386,9 @@ Doğrulama sonucu:
 ```text
 Task route tests: 27 passed
 New update/delete test cases: 54 passed
-Sample app targeted suite: 121 passed
-Complete test suite: 949 passed
+New frontend test cases: 18 passed
+Sample app targeted suite: 139 passed
+Complete test suite: 967 passed
 Compile check: passed
 Sample app self-analysis: no findings
 Analyzer source self-analysis: no findings
@@ -395,6 +404,8 @@ yaklaşımını kullanır:
 
 * [Flask Application Factories](https://flask.palletsprojects.com/en/stable/patterns/appfactories/)
 * [Testing Flask Applications](https://flask.palletsprojects.com/en/stable/testing/)
+* [Flask Templates](https://flask.palletsprojects.com/en/stable/tutorial/templates/)
+* [Flask Static Files](https://flask.palletsprojects.com/en/stable/tutorial/static/)
 * [Flask 3.1.3 on PyPI](https://pypi.org/project/Flask/3.1.3/)
 
 ## Navigation

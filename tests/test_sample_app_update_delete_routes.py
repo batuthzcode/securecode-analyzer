@@ -188,7 +188,7 @@ def test_update_task_accepts_all_fields_together() -> None:
 
 
 def test_updated_task_appears_in_list_and_home() -> None:
-    """Updated state is visible through both read routes."""
+    """Updated state is visible through API and HTML reads."""
 
     client, _ = create_client((create_task(),))
 
@@ -203,9 +203,9 @@ def test_updated_task_appears_in_list_and_home() -> None:
     assert client.get("/tasks").get_json() == {
         "tasks": [updated_task]
     }
-    assert client.get("/").get_json()[
-        "tasks"
-    ] == [updated_task]
+    assert "Final report" in client.get(
+        "/"
+    ).get_data(as_text=True)
 
 
 @pytest.mark.parametrize(
@@ -467,7 +467,7 @@ def test_delete_task_returns_empty_204() -> None:
 
 
 def test_deleted_task_disappears_from_read_routes() -> None:
-    """Delete is visible through both task collections."""
+    """Delete is visible through API and HTML reads."""
 
     first = create_task(1)
     second = create_task(2)
@@ -478,9 +478,9 @@ def test_deleted_task_disappears_from_read_routes() -> None:
     assert client.get("/tasks").get_json() == {
         "tasks": [second.to_dict()]
     }
-    assert client.get("/").get_json()[
-        "tasks"
-    ] == [second.to_dict()]
+    page = client.get("/").get_data(as_text=True)
+    assert "Task 1" not in page
+    assert "Task 2" in page
 
 
 def test_delete_missing_task_returns_json_404() -> None:

@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Task workspace{% endblock %}
+
+{% block content %}
+  <section class="hero" aria-labelledby="page-title">
+    <div class="hero-copy">
+      <p class="eyebrow">Sample workflow</p>
+      <h1 id="page-title">Security work, kept in motion.</h1>
+      <p class="hero-description">
+        Track the small review steps behind a trustworthy release while the
+        analyzer inspects the application beneath them.
+      </p>
+    </div>
+
+    <dl class="task-summary" aria-label="Task summary">
+      <div>
+        <dt>Total</dt>
+        <dd>{{ task_counts.total }}</dd>
+      </div>
+      <div>
+        <dt>Pending</dt>
+        <dd>{{ task_counts.pending }}</dd>
+      </div>
+      <div>
+        <dt>Completed</dt>
+        <dd>{{ task_counts.completed }}</dd>
+      </div>
+    </dl>
+  </section>
+
+  {% if error %}
+    <div class="alert" role="alert">
+      <strong>We could not save that change.</strong>
+      <span>{{ error }}</span>
+    </div>
+  {% endif %}
+
+  <div class="workspace-grid">
+    <aside class="panel create-panel" aria-labelledby="create-title">
+      <div class="section-heading">
+        <p class="eyebrow">Add work</p>
+        <h2 id="create-title">Create a task</h2>
+        <p>Capture one clear action for the next review cycle.</p>
+      </div>
+
+      <form
+        class="task-form"
+        action="{{ url_for('create_task') }}"
+        method="post"
+      >
+        <div class="field-group">
+          <label for="new-title">Title</label>
+          <input
+            id="new-title"
+            name="title"
+            type="text"
+            value="{{ form_values.title }}"
+            placeholder="Review the latest findings"
+            autocomplete="off"
+            required
+          >
+        </div>
+
+        <div class="field-group">
+          <label for="new-description">
+            Description
+            <span>Optional</span>
+          </label>
+          <textarea
+            id="new-description"
+            name="description"
+            rows="5"
+            placeholder="Add context, acceptance notes, or the next step."
+          >{{ form_values.description }}</textarea>
+        </div>
+
+        <button class="button button-primary" type="submit">
+          Add task
+        </button>
+      </form>
+    </aside>
+
+    <section class="task-section" aria-labelledby="task-list-title">
+      <div class="section-heading section-heading-row">
+        <div>
+          <p class="eyebrow">Current queue</p>
+          <h2 id="task-list-title">Tasks</h2>
+        </div>
+        <span class="task-count-label">
+          {{ task_counts.total }}
+          {% if task_counts.total == 1 %}item{% else %}items{% endif %}
+        </span>
+      </div>
+
+      {% if tasks %}
+        <ol class="task-list">
+          {% for task in tasks %}
+            <li
+              class="task-card{% if task.completed %} task-card-complete{% endif %}"
+            >
+              <div class="task-card-main">
+                <div class="task-card-heading">
+                  <span
+                    class="status-badge{% if task.completed %} status-complete{% else %} status-pending{% endif %}"
+                  >
+                    {% if task.completed %}Completed{% else %}Pending{% endif %}
+                  </span>
+                  <span class="task-id">Task {{ task.id }}</span>
+                </div>
+                <h3>{{ task.title }}</h3>
+                {% if task.description %}
+                  <p>{{ task.description }}</p>
+                {% else %}
+                  <p class="muted-copy">No description provided.</p>
+                {% endif %}
+              </div>
+
+              <div class="task-actions" aria-label="Actions for {{ task.title }}">
+                <a
+                  class="button button-secondary"
+                  href="{{ url_for('edit_task', task_id=task.id) }}"
+                >
+                  Edit
+                </a>
+                <form
+                  action="{{ url_for('delete_task_form', task_id=task.id) }}"
+                  method="post"
+                >
+                  <button class="button button-danger" type="submit">
+                    Delete
+                  </button>
+                </form>
+              </div>
+            </li>
+          {% endfor %}
+        </ol>
+      {% else %}
+        <div class="empty-state">
+          <span class="empty-state-mark" aria-hidden="true">01</span>
+          <h3>Your review queue is clear.</h3>
+          <p>Create the first task to start a focused security workflow.</p>
+        </div>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}

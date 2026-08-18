@@ -192,11 +192,12 @@ Tamamlanan foundation çalışmaları:
 * Temel uygulama testlerinin yazılması
 * JSON task create, list, partial update ve delete rotalarının eklenmesi
 * JSON/form request doğrulaması ve kontrollü API hatalarının eklenmesi
+* Jinja ana sayfa ve task edit template'lerinin eklenmesi
+* Browser form redirect ve HTML hata akışlarının eklenmesi
+* Responsive temel stylesheet'in eklenmesi
 
 Sıradaki geliştirmeler:
 
-* HTML şablonlarının hazırlanması
-* HTML form yönlendirmelerinin eklenmesi
 * Kontrollü analiz örneklerinin eklenmesi
 * Gerçek advisory için ayrı vulnerable requirements fixture'ının hazırlanması
 
@@ -635,6 +636,126 @@ HTTP entegrasyon testleri:
 - Delete sonucunun ana sayfa ve listede görünmesi
 - Silinen ID sonrasında monotonic create
 - Update/delete için desteklenmeyen HTTP yöntemleri
+
+## Minimal Frontend Teknik Tasarımı
+
+### Render ve Static Yapısı
+
+```text
+sample_app/
+├── templates/
+│   ├── base.html
+│   ├── index.html
+│   └── edit.html
+└── static/
+    └── style.css
+```
+
+Flask package template ve static klasörlerini varsayılan konumlarından
+yükler. Template URL değerleri hardcode edilmez; `url_for()` ile üretilir.
+Jinja `.html` template autoescape davranışı kullanıcı title ve description
+değerlerini HTML injection'a karşı sınırlar.
+
+### Ana Sayfa View Modeli
+
+`_render_index()` helper değeri template'e aşağıdaki alanları aktarır:
+
+```text
+application_name
+tasks
+task_counts.total
+task_counts.completed
+task_counts.pending
+error
+form_values.title
+form_values.description
+```
+
+Task nesneleri template'e doğrudan aktarılır. JSON serialization yalnızca API
+response helper içinde kullanılır.
+
+### İçerik Tercihi
+
+Create endpoint'i JSON ve form API uyumluluğunu korur. HTML response yalnızca
+istemcinin `Accept` başlığında `text/html` kalitesi `application/json`
+kalitesinden yüksek olduğunda seçilir. Böylece:
+
+```text
+browser form + Accept: text/html -> HTML error veya redirect
+JSON request                     -> JSON response
+form request + no Accept         -> JSON response
+```
+
+Wildcard `Accept: */*` JSON davranışını korur.
+
+### Post/Redirect/Get
+
+Başarılı browser write akışları:
+
+```text
+POST form
+  -> shared request parser
+  -> in-memory store mutation
+  -> redirect(url_for("index"), code=303)
+  -> GET /
+```
+
+Create `POST /tasks` rotasını kullanır. Edit ve delete için HTML-only adapter
+rotaları eklenir:
+
+```text
+GET  /tasks/<int:task_id>/edit   -> edit form
+POST /tasks/<int:task_id>/edit   -> update + 303
+POST /tasks/<int:task_id>/delete -> delete + 303
+```
+
+JSON API rotaları aynı store yöntemlerini kullanmaya devam eder:
+
+```text
+GET    /tasks
+POST   /tasks
+PUT    /tasks/<int:task_id>
+DELETE /tasks/<int:task_id>
+```
+
+### Edit Formu
+
+Edit form title, description ve completed alanlarını her zaman gönderir.
+Completed alanı `true` ve `false` değerlerini sunan select kontrolüdür; unchecked
+checkbox alanının request'ten tamamen kaybolması gibi belirsiz bir durum
+oluşturmaz. Form payload mevcut strict update parser üzerinden doğrulanır.
+
+### HTML Hata Akışı
+
+Create doğrulama hatası ana sayfayı, edit doğrulama hatası edit sayfasını
+yeniden render eder. Her ikisi de HTTP 400 değerini korur ve kullanıcı text
+alanlarını Jinja autoescape altında forma geri yazar.
+
+Olmayan edit/delete görevi `_render_index()` ile HTTP 404 üretir. API
+update/delete rotalarının mevcut JSON `task_not_found` sözleşmesi değişmez.
+
+### Stil ve Erişilebilirlik
+
+Tek stylesheet aşağıdaki davranışları sağlar:
+
+- Dar ekranlarda tek kolon, geniş ekranda dengeli form/list layout
+- Görünür label, focus ring ve button/link state değerleri
+- Text ile desteklenen completed/pending status badge değerleri
+- Description için güvenli line wrapping
+- Empty state ve hata banner'ı
+- Harici font, script veya görsel olmadan sistem fontları
+
+### Frontend Test Stratejisi
+
+- HTML content type ve temel landmark/form içeriği
+- Dolu ve boş store render davranışı
+- Kullanıcı title/description değerlerinin autoescape edilmesi
+- Static stylesheet endpoint'i
+- Browser create redirect ve inline validation error
+- Edit form prefill, başarılı redirect ve invalid state koruması
+- Delete redirect, missing task 404 ve GET ile delete edilememe
+- Form action/link URL değerleri
+- Mevcut JSON API regresyon paketi
 
 ## Navigation
 
