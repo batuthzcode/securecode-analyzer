@@ -16,6 +16,9 @@ from dependency_scanner.osv_parser import (
 from dependency_scanner.package_normalizer import (
     normalize_package_name,
 )
+from dependency_scanner.vulnerability_source import (
+    VulnerabilitySourceError,
+)
 
 
 _OSV_QUERY_URL = "https://api.osv.dev/v1/query"
@@ -23,7 +26,7 @@ _PYPI_ECOSYSTEM = "PyPI"
 _DEFAULT_TIMEOUT = 10.0
 
 
-class OsvQueryError(RuntimeError):
+class OsvQueryError(VulnerabilitySourceError):
     """Represent an error while querying the OSV service."""
 
 

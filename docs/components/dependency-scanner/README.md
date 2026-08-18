@@ -1227,6 +1227,119 @@ Self-analysis: No findings found.
 Exit code: 0
 ```
 
+## Uygulanan Dependency Scan Orchestrator
+
+Dependency scanner bileşenine bir requirements dosyasındaki bütün
+dependency'leri ortak vulnerability source üzerinden sırasıyla tarayan
+orchestration katmanı eklenmiştir.
+
+Oluşturulan dosyalar:
+
+```text
+src/dependency_scanner/scanner.py
+tests/test_dependency_scanner.py
+```
+
+### Public API
+
+```python
+from dependency_scanner import (
+    DependencyScanError,
+    DependencyScanner,
+    DependencyScanResult,
+    OsvVulnerabilitySource,
+    VulnerabilitySourceError,
+)
+```
+
+Requirements dosyası taraması:
+
+```python
+scanner = DependencyScanner(
+    OsvVulnerabilitySource()
+)
+
+result = scanner.scan_requirements(
+    "requirements.txt"
+)
+```
+
+Önceden ayrıştırılmış dependency değerleri de doğrudan taranabilir:
+
+```python
+result = scanner.scan_dependencies(
+    dependencies
+)
+```
+
+### Tarama Sonucu
+
+`DependencyScanResult` aşağıdaki immutable tuple alanlarını içerir:
+
+- `dependencies`
+- `findings`
+- `errors`
+
+Beklenen source hatası bulunmadığında:
+
+```python
+assert result.succeeded
+```
+
+değeri `True` olur.
+
+Finding değerleri önce dependency giriş sırasını, ardından source tarafından
+döndürülen sıralamayı korur. Duplicate dependency değerleri ayrı lookup
+işlemleri olarak korunur.
+
+### Kontrollü Hata Devamlılığı
+
+Beklenen vulnerability source hataları ortak:
+
+```python
+VulnerabilitySourceError
+```
+
+taban sınıfıyla temsil edilir. Mevcut `OsvQueryError` bu taban sınıftan türer
+ve önceki public davranışını korur.
+
+Bir dependency sorgusu `VulnerabilitySourceError` ürettiğinde scanner:
+
+1. Dependency, advisory source ve hata mesajını `DependencyScanError` olarak
+   kaydeder.
+2. Sıradaki dependency'yi taramaya devam eder.
+3. Sonucu `succeeded=False` değeriyle döndürür.
+
+Boş source hata mesajı okunabilir bir varsayılan mesajla değiştirilir.
+Beklenmeyen `TypeError`, `AssertionError` ve diğer programlama hataları
+gizlenmeden caller'a aktarılır.
+
+Requirements dosyasının okunmasını veya tamamının ayrıştırılmasını engelleyen
+dosya ve parser hataları da dönüştürülmeden caller'a aktarılır. Böyle bir
+durumda kısmi source taraması başlatılmaz.
+
+### Sorumluluk Sınırları
+
+Orchestrator:
+
+- Requirements satırlarını yeniden ayrıştırmaz; mevcut parser'ı kullanır.
+- Paket adını normalize etmez.
+- HTTP isteği veya OSV response ayrıştırması yapmaz.
+- CVSS score hesaplamaz.
+- Retry veya cache uygulamaz.
+- Terminal ve JSON raporu oluşturmaz.
+- Exit code hesaplamaz.
+
+### Test Sonuçları
+
+```text
+Dependency scan orchestrator tests: 34 passed
+Complete test suite: 689 passed
+Compile check: passed
+Self-analysis: No findings found.
+Exit code: 0
+```
+
 ## Navigation
 
 - [Tüm bileşenlere dön](../README.md)
