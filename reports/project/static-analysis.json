@@ -1,0 +1,47 @@
+{
+  "findings": [
+    {
+      "rule_id": "SA005",
+      "message": "Possible hardcoded secret found.",
+      "file_path": "sample_app/analyzer_demo.py",
+      "line_number": 8,
+      "severity": "warning",
+      "column_number": 1
+    },
+    {
+      "rule_id": "SA001",
+      "message": "Function 'buildDemoChecklist' has 65 lines, exceeding the limit of 50.",
+      "file_path": "sample_app/analyzer_demo.py",
+      "line_number": 11,
+      "severity": "warning",
+      "column_number": 0
+    },
+    {
+      "rule_id": "SA006",
+      "message": "Function name should use snake_case.",
+      "file_path": "sample_app/analyzer_demo.py",
+      "line_number": 11,
+      "severity": "info",
+      "column_number": 1
+    },
+    {
+      "rule_id": "SA003",
+      "message": "TODO comment found.",
+      "file_path": "sample_app/analyzer_demo.py",
+      "line_number": 14,
+      "severity": "info",
+      "column_number": 7
+    },
+    {
+      "rule_id": "SA004",
+      "message": "Empty except block found.",
+      "file_path": "sample_app/analyzer_demo.py",
+      "line_number": 54,
+      "severity": "warning",
+      "column_number": 5
+    }
+  ],
+  "summary": {
+    "total": 5
+  }
+}
