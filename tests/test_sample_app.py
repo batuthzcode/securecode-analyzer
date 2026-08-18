@@ -40,7 +40,7 @@ def test_create_app_rejects_invalid_store() -> None:
 
 
 def test_home_page_uses_injected_store() -> None:
-    """The root response serializes the injected task snapshot."""
+    """The root page renders the injected task snapshot."""
 
     task = Task(
         id=10,
@@ -54,32 +54,29 @@ def test_home_page_uses_injected_store() -> None:
     )
 
     response = app.test_client().get("/")
+    page = response.get_data(as_text=True)
 
     assert response.status_code == 200
-    assert response.get_json() == {
-        "application": (
-            "SecureCode Analyzer Sample App"
-        ),
-        "tasks": [task.to_dict()],
-    }
+    assert response.mimetype == "text/html"
+    assert "Injected task" in page
+    assert "Used by the test app." in page
+    assert "Task 10" in page
 
 
 def test_default_home_page_contains_demo_tasks() -> None:
-    """A default app exposes its deterministic demo data."""
+    """A default app renders its deterministic demo data."""
 
     app = create_app({"TESTING": True})
 
     response = app.test_client().get("/")
-    payload = response.get_json()
+    page = response.get_data(as_text=True)
 
     assert response.status_code == 200
-    assert payload["application"] == (
-        "SecureCode Analyzer Sample App"
+    assert "Review analyzer report" in page
+    assert "Prepare security demo" in page
+    assert page.index("Task 1") < page.index(
+        "Task 2"
     )
-    assert [
-        task["id"]
-        for task in payload["tasks"]
-    ] == [1, 2]
 
 
 def test_default_app_instances_have_isolated_stores() -> None:
@@ -93,12 +90,12 @@ def test_default_app_instances_have_isolated_stores() -> None:
     ]
     first_store.create_task("Only in first app")
 
-    first_payload = (
-        first_app.test_client().get("/").get_json()
-    )
-    second_payload = (
-        second_app.test_client().get("/").get_json()
-    )
+    first_payload = first_app.test_client().get(
+        "/tasks"
+    ).get_json()
+    second_payload = second_app.test_client().get(
+        "/tasks"
+    ).get_json()
 
     assert len(first_payload["tasks"]) == 3
     assert len(second_payload["tasks"]) == 2

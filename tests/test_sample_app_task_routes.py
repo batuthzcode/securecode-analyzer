@@ -177,7 +177,7 @@ def test_create_task_normalizes_text_fields() -> None:
 
 
 def test_created_task_appears_in_list_and_home() -> None:
-    """Created state is visible through both read routes."""
+    """Created state is visible through API and HTML reads."""
 
     client, _ = create_client()
 
@@ -190,9 +190,9 @@ def test_created_task_appears_in_list_and_home() -> None:
     assert client.get("/tasks").get_json() == {
         "tasks": [created_task]
     }
-    assert client.get("/").get_json()[
-        "tasks"
-    ] == [created_task]
+    assert "Prepare demo" in client.get(
+        "/"
+    ).get_data(as_text=True)
 
 
 @pytest.mark.parametrize(
