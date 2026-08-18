@@ -9,10 +9,8 @@ from pathlib import Path
 
 from dependency_scanner import (
     DependencyScanner,
-    OsvQueryResponse,
     OsvVulnerabilitySource,
     format_dependency_scan_json,
-    parse_osv_query_response,
 )
 from static_analyzer.default_factory import (
     create_default_analyzer,
@@ -20,6 +18,7 @@ from static_analyzer.default_factory import (
 from static_analyzer.formatters import (
     format_findings_json,
 )
+from tools.osv_fixture import FixtureOsvQueryClient
 
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -37,37 +36,6 @@ _OSV_FIXTURE = (
 _DEFAULT_OUTPUT_DIRECTORY = (
     _REPOSITORY_ROOT / "reports" / "sample-app"
 )
-_EXPECTED_QUERY = ("fastapi", "0.109.0", None)
-
-
-class FixtureOsvQueryClient:
-    """Serve the checked-in official OSV projection without HTTP."""
-
-    def __init__(self) -> None:
-        """Load the deterministic response used by the report."""
-
-        payload = json.loads(
-            _OSV_FIXTURE.read_text(encoding="utf-8")
-        )
-        self._response = parse_osv_query_response(payload)
-
-    def query_package(
-        self,
-        package_name: str,
-        version: str,
-        page_token: str | None = None,
-    ) -> OsvQueryResponse:
-        """Return the fixture only for its documented exact query."""
-
-        query = (package_name, version, page_token)
-
-        if query != _EXPECTED_QUERY:
-            raise ValueError(
-                "OSV fixture query does not match "
-                f"the documented input: {query!r}"
-            )
-
-        return self._response
 
 
 def build_static_analysis_report() -> str:
@@ -90,7 +58,9 @@ def build_dependency_scan_report() -> str:
     """Return the offline OSV dependency baseline document."""
 
     scanner = DependencyScanner(
-        OsvVulnerabilitySource(FixtureOsvQueryClient())
+        OsvVulnerabilitySource(
+            FixtureOsvQueryClient(_OSV_FIXTURE)
+        )
     )
     result = scanner.scan_requirements(
         _VULNERABLE_REQUIREMENTS
